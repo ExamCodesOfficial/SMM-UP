@@ -138,7 +138,23 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
         </span>
       );
     }
-    if (s.includes("cancel") || s.includes("refund")) {
+    if (s.includes("fail") || s.includes("review")) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20" title="Flagged for manual administrative review">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+          <span>Under Review</span>
+        </span>
+      );
+    }
+    if (s.includes("refund")) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Refunded</span>
+        </span>
+      );
+    }
+    if (s.includes("cancel")) {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
           <XCircle className="w-3.5 h-3.5" />

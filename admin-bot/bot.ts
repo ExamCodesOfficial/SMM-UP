@@ -65,6 +65,8 @@ Zero-Web-Surface Operations Engine
 🔍 <code>/user &lt;email&gt;</code> — Inspect user balance, spent, and stats
 💰 <code>/credit &lt;email&gt; &lt;amount&gt; [reason]</code> — Atomically add wallet balance
 🔻 <code>/debit &lt;email&gt; &lt;amount&gt; [reason]</code> — Deduct wallet balance
+🚨 <code>/failed</code> — View failed orders requiring manual review
+↩️ <code>/refund &lt;orderId&gt; [reason]</code> — Manually refund debited order funds
 ⏳ <code>/pending</code> — View recent pending QR/memo deposit requests
 📦 <code>/orders [limit]</code> — View latest provider orders
 📑 <code>/checkmemo &lt;memo&gt;</code> — Check status of a payment memo
@@ -325,6 +327,139 @@ bot.command("orders", async (ctx) => {
     await ctx.reply(msg, { parse_mode: "HTML" });
   } catch (err: any) {
     await ctx.reply(`❌ Error fetching orders: ${err.message}`);
+  }
+});
+
+// /failed
+bot.command("failed", async (ctx) => {
+  try {
+    const database = await getDatabase();
+    const failedOrders = await database
+      .collection("orders")
+      .find({
+        $or: [
+          { refund_status: "requires_admin_review" },
+          { status: "Failed" },
+        ],
+      })
+      .sort({ created_at: -1 })
+      .limit(10)
+      .toArray();
+
+    if (failedOrders.length === 0) {
+      return ctx.reply("✨ No failed orders currently requiring admin review!");
+    }
+
+    let msg = `🚨 <b>Failed Orders Requiring Manual Review (${failedOrders.length}):</b>\n\n`;
+    for (const ord of failedOrders) {
+      const isRefunded = ord.refund_status === "refunded";
+      const id = ord._id.toString();
+      msg += `• <b>ID:</b> <code>${id}</code>\n`;
+      msg += `  👤 User: <code>${ord.user_email}</code>\n`;
+      msg += `  📦 Service: ${ord.service_name || ord.service_id}\n`;
+      msg += `  💵 Charge: <b>₹${(ord.charge || 0).toFixed(2)}</b>\n`;
+      msg += `  ⚠️ Reason: <i>${ord.provider_error || "Unknown"}</i>\n`;
+      msg += `  🚦 Status: <b>${ord.status}</b> (${ord.refund_status || "held"})\n`;
+      if (!isRefunded) {
+        msg += `  ↩️ <b>Quick Refund:</b> <code>/refund ${id} Manual review approval</code>\n\n`;
+      } else {
+        msg += `  ✅ <i>Already refunded manually</i>\n\n`;
+      }
+    }
+
+    await ctx.reply(msg, { parse_mode: "HTML" });
+  } catch (err: any) {
+    await ctx.reply(`❌ Error fetching failed orders: ${err.message}`);
+  }
+});
+
+// /refund <orderId> [reason]
+bot.command("refund", async (ctx) => {
+  try {
+    const parts = ctx.message.text.trim().split(/\s+/);
+    if (parts.length < 2) {
+      return ctx.reply("⚠️ Usage: <code>/refund &lt;orderId&gt; [reason]</code>", { parse_mode: "HTML" });
+    }
+
+    const orderIdStr = parts[1].trim();
+    const reason = parts.slice(2).join(" ") || "Manual refund approved by admin via Telegram";
+
+    if (!ObjectId.isValid(orderIdStr)) {
+      return ctx.reply("❌ Invalid MongoDB Order ID format.");
+    }
+
+    const orderId = new ObjectId(orderIdStr);
+    const database = await getDatabase();
+    const order = await database.collection("orders").findOne({ _id: orderId });
+
+    if (!order) {
+      return ctx.reply(`❌ Order <code>${orderIdStr}</code> not found in database.`, { parse_mode: "HTML" });
+    }
+
+    if (order.refund_status === "refunded") {
+      return ctx.reply(`⚠️ Order <code>${orderIdStr}</code> has already been refunded previously.`);
+    }
+
+    const refundAmount = Number(order.charge || 0);
+    if (refundAmount <= 0) {
+      return ctx.reply(`❌ Order charge is ₹${refundAmount.toFixed(2)}, cannot refund.`);
+    }
+
+    // Atomically credit user balance
+    const userUpdate = await database.collection("users").findOneAndUpdate(
+      { _id: order.user_id },
+      {
+        $inc: {
+          balance: refundAmount,
+          total_spent: -refundAmount,
+          total_orders: -1,
+        },
+      },
+      { returnDocument: "after" }
+    );
+
+    // Update order status
+    await database.collection("orders").updateOne(
+      { _id: order._id },
+      {
+        $set: {
+          status: "Refunded",
+          refund_status: "refunded",
+          refunded_at: new Date(),
+          refunded_by: ctx.from?.id,
+          refund_reason: reason,
+          updated_at: new Date(),
+        },
+      }
+    );
+
+    // Record audit transaction
+    await database.collection("transactions").insertOne({
+      user_id: order.user_id,
+      user_email: order.user_email,
+      amount: refundAmount,
+      type: "manual_refund",
+      status: "completed",
+      order_id: order._id,
+      source: "telegram_bot",
+      reason: reason,
+      refunded_by: ctx.from?.id,
+      created_at: new Date(),
+    });
+
+    const newBalance = userUpdate?.balance ?? "Updated";
+
+    await ctx.reply(
+      `✅ <b>Order Refunded Successfully!</b>\n\n` +
+      `🆔 Order ID: <code>${orderIdStr}</code>\n` +
+      `👤 Client: <code>${order.user_email}</code>\n` +
+      `💵 Refunded: <b>₹${refundAmount.toFixed(2)} INR</b>\n` +
+      `💳 New Balance: <b>₹${Number(newBalance).toFixed(2)}</b>\n` +
+      `📝 Reason: <i>${reason}</i>`,
+      { parse_mode: "HTML" }
+    );
+  } catch (err: any) {
+    await ctx.reply(`❌ Refund operation failed: ${err.message}`);
   }
 });
 

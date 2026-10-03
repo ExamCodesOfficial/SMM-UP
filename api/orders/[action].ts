@@ -10,6 +10,7 @@ import {
   requestOrderRefill,
   sanitizeBrandText,
 } from "../lib/smm.js";
+import { sendFailedOrderAlert } from "../lib/telegram.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
@@ -105,19 +106,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       if (providerRes.error || !providerRes.orderId) {
-        // Refund on failure
-        await users.updateOne(
-          { _id: userObjectId },
-          {
-            $inc: {
-              balance: totalCharge,
-              total_spent: -totalCharge,
-              total_orders: -1,
-            },
-          }
-        );
+        // STRICT DIRECTIVE: Zero automatic refunds!
+        // Funds remain debited. Order is recorded with status: "Failed", refund_status: "requires_admin_review".
+        const failedOrder = {
+          user_id: userObjectId,
+          user_email: authUser.email,
+          service_id: sId,
+          service_name: service.name,
+          category: service.category,
+          link: cleanLink,
+          quantity: effQuantity,
+          charge: totalCharge,
+          wholesale_cost: wholesaleCost,
+          profit: profit,
+          provider_order_id: null,
+          provider_error: providerRes.error || "Unknown provider error",
+          status: "Failed",
+          refund_status: "requires_admin_review",
+          refill_available: false,
+          cancel_available: false,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+
+        const failedInsert = await db.collection("orders").insertOne(failedOrder);
+
+        // Dispatch alert to Admin Group / Telegram Owner for manual review
+        sendFailedOrderAlert({
+          orderId: failedInsert.insertedId.toString(),
+          userEmail: authUser.email,
+          serviceName: service.name,
+          charge: totalCharge,
+          error: providerRes.error || "Unknown provider error",
+        }).catch((e) => console.error("Failed order alert error:", e));
+
         return res.status(400).json({
-          error: `Provider rejected order: ${providerRes.error || "Unknown error"}`,
+          error:
+            "Order submission encountered an issue and has been flagged for manual administrative review. Your funds are held securely. Please contact support with your Order ID.",
+          orderId: failedInsert.insertedId.toString(),
         });
       }
 
@@ -188,6 +214,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         refillAvailable: Boolean(o.refill_available),
         refillDays: o.refill_days,
         refillLabel: o.refill_label,
+        refundStatus: o.refund_status || null,
         cancelAvailable: Boolean(o.cancel_available),
         createdAt: o.created_at,
       }));

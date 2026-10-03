@@ -109,6 +109,35 @@ export async function sendPaymentDelayAlert(data: PaymentDelayAlertData): Promis
   return sendTelegramMessage(message, "HTML");
 }
 
+export interface FailedOrderAlertData {
+  orderId: string;
+  userEmail: string;
+  serviceName: string;
+  charge: number;
+  error: string;
+}
+
+/**
+ * Sends an urgent alert to Admin Group / Telegram Owner when an order fails upstream,
+ * notifying them that funds are retained and manual review is required.
+ */
+export async function sendFailedOrderAlert(data: FailedOrderAlertData): Promise<boolean> {
+  const message = [
+    `🚨 <b>FAILED ORDER FLAGGED — REQUIRES ADMIN REVIEW</b>`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `🆔 <b>Internal Order ID:</b> <code>${escapeHtml(data.orderId)}</code>`,
+    `👤 <b>Client:</b> <code>${escapeHtml(data.userEmail)}</code>`,
+    `📦 <b>Service:</b> ${escapeHtml(data.serviceName)}`,
+    `💵 <b>Debited Amount:</b> ₹${data.charge.toFixed(2)} INR`,
+    `⚠️ <b>Provider Reason:</b> <code>${escapeHtml(data.error)}</code>`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `🔒 <i>Zero Auto-Refund Enforced: Funds remain debited. Admin must review and trigger manual refund or manual provider fulfillment.</i>`,
+    `⚡ <i>Telegram Action: <code>/refund ${escapeHtml(data.orderId)}</code></i>`,
+  ].join("\n");
+
+  return sendTelegramMessage(message, "HTML");
+}
+
 function escapeHtml(str: string): string {
   if (!str) return "";
   return String(str)

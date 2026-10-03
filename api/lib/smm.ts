@@ -272,20 +272,35 @@ export async function addProviderOrder(params: {
   if (params.runs) formData.append("runs", String(params.runs));
   if (params.interval) formData.append("interval", String(params.interval));
 
-  const response = await fetch(PANEL_URL, {
-    method: "POST",
-    headers: {
-      ...DEFAULT_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
-  const resJson = await response.json();
-  if (resJson.error) {
-    return { error: String(resJson.error) };
+    const response = await fetch(PANEL_URL, {
+      method: "POST",
+      headers: {
+        ...DEFAULT_HEADERS,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formData.toString(),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
+
+    if (!response.ok) {
+      return { error: `Wholesale provider HTTP error: ${response.status}` };
+    }
+
+    const resJson = await response.json();
+    if (resJson.error) {
+      return { error: String(resJson.error) };
+    }
+    return { orderId: resJson.order };
+  } catch (err: any) {
+    if (err.name === "AbortError") {
+      return { error: "Wholesale provider network timeout" };
+    }
+    return { error: err.message || "Wholesale provider connection error" };
   }
-  return { orderId: resJson.order };
 }
 
 export async function checkOrderStatus(orderId: number | string): Promise<any> {
