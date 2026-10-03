@@ -73,23 +73,27 @@ export async function searchFamPayEmailByUTR(utr: string): Promise<ParsedFamPayP
     const lock = await client.getMailboxLock("INBOX");
 
     try {
-      // 1. Direct search by UTR text in the body
+      let targetSeq: number | null = null;
+
+      // 1. Direct search by UTR text in the body with sender filter
       const searchResults = await client.search({
         body: cleanUtr,
         from: process.env.FAMPAY_SENDER_FILTER || "no-reply@famapp.in",
       });
 
-      if (!searchResults || searchResults.length === 0) {
+      if (Array.isArray(searchResults) && searchResults.length > 0) {
+        targetSeq = searchResults[searchResults.length - 1];
+      } else {
         // Fallback: search just by body across any sender filter
         const fallbackResults = await client.search({ body: cleanUtr });
-        if (!fallbackResults || fallbackResults.length === 0) {
-          return null;
+        if (Array.isArray(fallbackResults) && fallbackResults.length > 0) {
+          targetSeq = fallbackResults[fallbackResults.length - 1];
         }
-        searchResults.push(...fallbackResults);
       }
 
+      if (!targetSeq) return null;
+
       // Fetch the newest matching message
-      const targetSeq = searchResults[searchResults.length - 1];
       const message = await client.fetchOne(targetSeq, {
         source: true,
         bodyStructure: true,
