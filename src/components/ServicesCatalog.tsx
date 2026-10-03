@@ -15,6 +15,7 @@ import {
   Filter,
 } from "lucide-react";
 import { formatINR, formatNumber } from "../lib/utils";
+import { ExecutiveCatalogIcon } from "./icons/ExecutiveIcons";
 import {
   TelegramIcon,
   InstagramIcon,
@@ -165,7 +166,11 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
     <div ref={catalogTopRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
       {/* Title Section */}
       <div className="text-center mb-10">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.02] text-[#F5E8D0] text-[11px] font-semibold tracking-wider uppercase mb-3">
+          <ExecutiveCatalogIcon size={14} className="text-[#F5E8D0]" />
+          <span>Wholesale Catalog Matrix</span>
+        </div>
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-[#FAF7F2] drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
           SERVICES DIRECTORY
         </h2>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
@@ -297,7 +302,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
             return (
               <div
                 key={s.service}
-                className="rounded-2xl border border-white/[0.08] bg-white/[0.015] hover:bg-white/[0.035] hover:border-white/20 transition-all duration-300 p-6 flex flex-col justify-between shadow-[0_4px_25px_rgba(0,0,0,0.5)] group relative"
+                className="rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 p-6 flex flex-col justify-between shadow-[0_4px_25px_rgba(0,0,0,0.5)] group relative"
               >
                 <div>
                   {/* Top Bar: Platform SVG + ID */}
@@ -318,8 +323,8 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                     >
                       {copiedId === s.service ? (
                         <>
-                          <Check className="w-3 h-3 text-emerald-400" />
-                          <span className="text-emerald-400">Copied</span>
+                          <Check className="w-3 h-3 text-[#F5E8D0]" />
+                          <span className="text-[#F5E8D0]">Copied</span>
                         </>
                       ) : (
                         <span>#{s.service}</span>
@@ -361,7 +366,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                 <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
                   <div>
                     <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Price per 1,000</span>
-                    <span className="text-base font-bold text-emerald-400 tracking-wide">
+                    <span className="text-base font-bold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.25)] tracking-wide">
                       {formatINR(s.rate)}
                     </span>
                   </div>

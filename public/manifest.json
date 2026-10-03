@@ -1,0 +1,18 @@
+{
+  "name": "SMM UP — Institutional Social Marketing Infrastructure",
+  "short_name": "SMM UP",
+  "description": "High-velocity automated social media marketing infrastructure with direct 0% UPI clearing and wholesale Tier-1 delivery nodes.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090807",
+  "theme_color": "#090807",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

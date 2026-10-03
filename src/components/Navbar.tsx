@@ -1,9 +1,5 @@
 import React from "react";
 import {
-  Wallet,
-  ShoppingBag,
-  ListOrdered,
-  Layers,
   User,
   LogOut,
   Shield,
@@ -12,9 +8,17 @@ import {
   Plus,
   Key,
   Globe,
-  Sparkles,
+  FileText,
 } from "lucide-react";
 import { formatINR } from "../lib/utils";
+import {
+  SmmUpLogo,
+  ExecutiveOrderIcon,
+  ExecutiveCatalogIcon,
+  ExecutiveMassIcon,
+  ExecutiveHistoryIcon,
+  ExecutiveWalletIcon,
+} from "./icons/ExecutiveIcons";
 
 interface NavbarProps {
   currentTab: string;
@@ -71,31 +75,36 @@ export default function Navbar({
   }, [mobileMenuOpen]);
 
   const navLinks = [
-    { id: "store", label: "NEW ORDER", icon: ShoppingBag },
-    { id: "services", label: "SERVICES CATALOG", icon: Sparkles },
-    { id: "mass", label: "MASS ORDER", icon: Layers },
-    { id: "orders", label: "ORDER HISTORY", icon: ListOrdered },
+    { id: "store", label: "ORDER", icon: ExecutiveOrderIcon },
+    { id: "services", label: "CATALOG", icon: ExecutiveCatalogIcon },
+    { id: "mass", label: "MASS", icon: ExecutiveMassIcon },
+    { id: "orders", label: "LOGS", icon: ExecutiveHistoryIcon },
   ];
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl bg-black/80 border-b border-white/[0.08] ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl bg-[#090807]/85 border-b border-white/[0.08] ${
         navVisible ? "translate-y-0" : "-translate-y-full"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
-        {/* Brand Logo in ExamCodes Style */}
+        {/* Brand Logo in thatonearyan-sh / ExamCodes Style */}
         <button
           onClick={() => {
             setCurrentTab("store");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className="text-lg sm:text-2xl font-light tracking-[0.22em] text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.85)] flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
+          className="flex items-center gap-3 cursor-pointer group text-left"
         >
-          <span className="w-8 h-8 rounded-xl bg-white text-black font-bold flex items-center justify-center text-xs tracking-tight shadow-[0_0_15px_rgba(255,255,255,0.3)]">
-            UP
-          </span>
-          <span className="whitespace-nowrap">SMM UP</span>
+          <SmmUpLogo size={36} className="shadow-[0_0_20px_rgba(245,232,208,0.15)] transition-transform duration-300 group-hover:scale-105" />
+          <div className="flex flex-col">
+            <span className="text-base sm:text-lg font-light tracking-[0.2em] text-[#FAF7F2] drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] leading-none">
+              SMM UP
+            </span>
+            <span className="text-[9px] tracking-[0.25em] text-[#8E877B] uppercase font-mono mt-1">
+              Wholesale Node
+            </span>
+          </div>
         </button>
 
         {/* Desktop Nav Links */}
@@ -109,11 +118,11 @@ export default function Navbar({
                 onClick={() => setCurrentTab(link.id)}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold tracking-wider flex items-center gap-2 transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.25)]"
+                    ? "bg-[#FAF7F2] text-black shadow-[0_0_20px_rgba(255,255,255,0.25)]"
                     : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon size={15} />
                 <span>{link.label}</span>
               </button>
             );
@@ -124,17 +133,17 @@ export default function Navbar({
         <div className="flex items-center gap-2.5 sm:gap-3">
           {user ? (
             <>
-              {/* Wallet Button */}
+              {/* Luxury Champagne Platinum Wallet Button */}
               <button
                 onClick={onOpenWallet}
-                className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.07] hover:border-white/30 transition-all cursor-pointer shadow-[0_0_15px_rgba(255,255,255,0.05)]"
-                title="Deposit Funds via Instant 0% UPI"
+                className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-white/10 bg-[#0E0D0B]/90 hover:bg-[#151310] hover:border-[#F5E8D0]/40 transition-all cursor-pointer shadow-[0_0_20px_rgba(0,0,0,0.6)] group"
+                title="Deposit Funds via Direct 0% UPI"
               >
-                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xs sm:text-sm font-semibold text-white tracking-wide">
+                <ExecutiveWalletIcon size={16} className="text-[#F5E8D0] group-hover:scale-110 transition-transform" />
+                <span className="text-xs sm:text-sm font-semibold text-[#FFFDF9] tracking-wide drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">
                   {formatINR(user.balance)}
                 </span>
-                <span className="text-[11px] font-semibold text-emerald-400 border-l border-white/10 pl-2 flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-[#F5E8D0] border-l border-white/10 pl-2 flex items-center gap-1">
                   <Plus className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Add</span>
                 </span>
@@ -202,7 +211,7 @@ export default function Navbar({
                       : "text-zinc-300 hover:bg-white/[0.04]"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon size={16} className="shrink-0" />
                   <span>{link.label}</span>
                 </button>
               );

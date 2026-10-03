@@ -25,6 +25,11 @@ import {
 import confetti from "canvas-confetti";
 import { formatINR, formatNumber } from "../lib/utils";
 import {
+  ExecutiveOrderIcon,
+  ExecutiveWalletIcon,
+  ExecutiveCatalogIcon,
+} from "./icons/ExecutiveIcons";
+import {
   TelegramIcon,
   InstagramIcon,
   YouTubeIcon,
@@ -350,11 +355,11 @@ export default function NewOrder({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Clean Order Form */}
         <div className="lg:col-span-7">
-          <div className="p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+          <div className="p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
             <h3 className="text-base sm:text-lg font-semibold tracking-wide text-white mb-6 flex items-center justify-between">
               <span>Order Configuration</span>
-              <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-xs font-medium text-[#F5E8D0] bg-[#F5E8D0]/[0.08] border border-[#F5E8D0]/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#F5E8D0] animate-pulse" />
                 Live Wholesale Node
               </span>
             </h3>
@@ -461,8 +466,8 @@ export default function NewOrder({
                           </span>
                           <span className="truncate">{currentService.name}</span>
                         </div>
-                        <div className="text-xs text-emerald-400 font-bold mt-1">
-                          {formatINR(currentService.rate)} <span className="text-[10px] text-zinc-400 font-normal">/ 1,000 units</span>
+                        <div className="text-xs text-[#FFFDF9] font-semibold mt-1 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">
+                          {formatINR(currentService.rate)} <span className="text-[10px] text-[#F5E8D0] font-normal">/ 1,000 units</span>
                         </div>
                       </div>
                     ) : (
@@ -516,14 +521,14 @@ export default function NewOrder({
                                 <span className="text-xs font-semibold text-white leading-snug line-clamp-2">
                                   #{s.service} — {s.name}
                                 </span>
-                                <span className="text-xs font-bold text-emerald-400 shrink-0">
-                                  {formatINR(s.rate)} <span className="text-[10px] text-zinc-400 font-normal">/ 1K</span>
+                                <span className="text-xs font-semibold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] shrink-0">
+                                  {formatINR(s.rate)} <span className="text-[10px] text-[#F5E8D0] font-normal">/ 1K</span>
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 text-[10px] text-zinc-400">
                                 <span>Min: {formatNumber(s.min)} &bull; Max: {formatNumber(s.max)}</span>
                                 {s.refill && (
-                                  <span className="text-emerald-400 font-medium flex items-center gap-0.5">
+                                  <span className="text-[#F5E8D0] font-medium flex items-center gap-0.5">
                                     <RotateCcw className="w-2.5 h-2.5" /> 30D Refill
                                   </span>
                                 )}
@@ -613,7 +618,7 @@ export default function NewOrder({
                 <div className="flex items-center justify-between text-xs pt-3 border-t border-white/[0.06]">
                   <span className="text-zinc-400">Your Wallet Balance:</span>
                   {user ? (
-                    <span className={`font-semibold ${userBalance >= calculatedCharge ? "text-emerald-400" : "text-rose-400"}`}>
+                    <span className={`font-semibold ${userBalance >= calculatedCharge ? "text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]" : "text-rose-400"}`}>
                       {formatINR(userBalance)}
                     </span>
                   ) : (
@@ -628,7 +633,7 @@ export default function NewOrder({
                       onClick={onOpenWallet}
                       className="w-full py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-xs tracking-wider hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <Wallet className="w-4 h-4" />
+                      <ExecutiveWalletIcon size={15} />
                       <span>Wallet Low — Add Funds via UPI</span>
                     </button>
                   </div>
@@ -644,8 +649,8 @@ export default function NewOrder({
               )}
 
               {successMsg && (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs sm:text-sm flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
+                <div className="p-4 rounded-xl bg-[#F5E8D0]/10 border border-[#F5E8D0]/30 text-[#FAF7F2] text-xs sm:text-sm flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 shrink-0 text-[#F5E8D0]" />
                   <span>{successMsg}</span>
                 </div>
               )}
@@ -663,7 +668,7 @@ export default function NewOrder({
                   </>
                 ) : (
                   <>
-                    <Send className="w-4 h-4" />
+                    <ExecutiveOrderIcon size={16} />
                     <span>Confirm &amp; Dispatch Order</span>
                   </>
                 )}
@@ -700,8 +705,8 @@ export default function NewOrder({
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Wholesale Rate</span>
-                  <span className="text-base font-bold text-emerald-400">
-                    {formatINR(currentService.rate)} <span className="text-xs text-zinc-400 font-normal">/ 1K</span>
+                  <span className="text-base font-bold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">
+                    {formatINR(currentService.rate)} <span className="text-xs text-[#F5E8D0] font-normal">/ 1K</span>
                   </span>
                 </div>
 
@@ -715,7 +720,7 @@ export default function NewOrder({
 
                 <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Refill Policy</span>
-                  <span className={`text-sm font-semibold flex items-center gap-1.5 ${currentService.refill ? "text-emerald-400" : "text-zinc-500"}`}>
+                  <span className={`text-sm font-semibold flex items-center gap-1.5 ${currentService.refill ? "text-[#F5E8D0]" : "text-zinc-500"}`}>
                     <RotateCcw className="w-3.5 h-3.5" />
                     {currentService.refill ? "30 Days Guaranteed" : "No Refill"}
                   </span>
@@ -742,7 +747,7 @@ export default function NewOrder({
               {/* Guarantees */}
               <div className="space-y-2.5 pt-4 border-t border-white/[0.06] text-xs text-zinc-400">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <ShieldCheck className="w-4 h-4 text-[#F5E8D0] shrink-0" />
                   <span>Account privacy strictly maintained. Never requires passwords.</span>
                 </div>
                 {onOpenTerms && (
