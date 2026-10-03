@@ -1,0 +1,118 @@
+/**
+ * Telegram Bot Dispatcher for SMM UP
+ * Dispatches real-time payment confirmation logs and delayed payment alerts to Admin Group.
+ */
+
+export interface PaymentSuccessAlertData {
+  userEmail: string;
+  amount: number;
+  method?: string;
+  utr?: string;
+  transactionId?: string;
+  memo?: string;
+  newBalance?: number;
+}
+
+export interface PaymentDelayAlertData {
+  userEmail: string;
+  amount: number;
+  memo: string;
+  elapsedSeconds: number;
+  upiVpa?: string;
+}
+
+export async function sendTelegramMessage(text: string, parseMode: "HTML" | "Markdown" = "HTML"): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+  if (!token || !chatId) {
+    console.log("[Telegram Notification Skipped - No Token/ChatID]", text.replace(/<[^>]+>/g, ""));
+    return false;
+  }
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: parseMode,
+        disable_web_page_preview: true,
+      }),
+    });
+
+    const data = await res.json();
+    if (!data.ok) {
+      console.error("[Telegram Send Error]:", data.description);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.error("[Telegram Network Error]:", err?.message || err);
+    return false;
+  }
+}
+
+/**
+ * Sends a luxury audit log to Admin Group on payment confirmation
+ */
+export async function sendPaymentSuccessAlert(data: PaymentSuccessAlertData): Promise<boolean> {
+  const now = new Date();
+  const timeStr = now.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  const message = [
+    `💰 <b>PAYMENT CONFIRMED — SMM UP</b>`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `👤 <b>User:</b> <code>${escapeHtml(data.userEmail)}</code>`,
+    `💵 <b>Amount Credited:</b> <b>₹${data.amount.toFixed(2)} INR</b>`,
+    `⚡ <b>Payment Method:</b> ${escapeHtml(data.method || "FamPay / UPI Direct")}`,
+    data.memo ? `🔖 <b>Dynamic Memo:</b> <code>${escapeHtml(data.memo)}</code>` : null,
+    data.utr ? `🏦 <b>12-Digit UTR:</b> <code>${escapeHtml(data.utr)}</code>` : null,
+    data.transactionId ? `🆔 <b>Provider TxID:</b> <code>${escapeHtml(data.transactionId)}</code>` : null,
+    data.newBalance !== undefined ? `💳 <b>New User Balance:</b> <b>₹${data.newBalance.toFixed(2)}</b>` : null,
+    `⏱️ <b>Settlement Time:</b> ${timeStr}`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `✅ <i>Verified via Live IMAP Banking Reconciliation</i>`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return sendTelegramMessage(message, "HTML");
+}
+
+/**
+ * Sends an alert to Admin Group if a user has been waiting > 60-90s on the QR screen
+ */
+export async function sendPaymentDelayAlert(data: PaymentDelayAlertData): Promise<boolean> {
+  const message = [
+    `⚠️ <b>DEPOSIT DELAY ALERT (> ${Math.round(data.elapsedSeconds)}s)</b>`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `👤 <b>Client:</b> <code>${escapeHtml(data.userEmail)}</code>`,
+    `💵 <b>Expected Amount:</b> ₹${data.amount.toFixed(2)} INR`,
+    `🔖 <b>Dynamic Memo:</b> <code>${escapeHtml(data.memo)}</code>`,
+    `⏳ <b>Waiting Time:</b> ${Math.round(data.elapsedSeconds)} seconds`,
+    data.upiVpa ? `🏦 <b>Target UPI VPA:</b> <code>${escapeHtml(data.upiVpa)}</code>` : null,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `ℹ️ <i>User is actively waiting on the deposit screen. Bank notification or webhook may be delayed.</i>`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return sendTelegramMessage(message, "HTML");
+}
+
+function escapeHtml(str: string): string {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
