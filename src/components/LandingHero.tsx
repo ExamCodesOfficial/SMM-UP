@@ -311,7 +311,7 @@ export default function LandingHero({
                     <div className="flex items-center gap-2">
                       <SmmUpLogo size={28} />
                       <span className="text-xs font-semibold tracking-wider text-white uppercase">
-                        Client Terminal
+                        Quick Access
                       </span>
                     </div>
 
@@ -344,7 +344,7 @@ export default function LandingHero({
                             : "text-zinc-400 hover:text-white"
                         }`}
                       >
-                        REGISTER
+                        SIGN UP
                       </button>
                     </div>
                   </div>
@@ -413,16 +413,16 @@ export default function LandingHero({
                       className="w-full py-3 px-6 rounded-xl bg-white text-black font-bold tracking-[0.12em] text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] disabled:opacity-50 cursor-pointer"
                     >
                       {authLoading
-                        ? "Connecting to Node..."
+                        ? "Connecting..."
                         : authMode === "login"
-                        ? "Enter Client Terminal"
-                        : "Create Operative Account"}
+                        ? "Sign In"
+                        : "Create Free Account"}
                     </button>
                   </form>
 
                   <div className="pt-4 mt-4 border-t border-white/[0.06] text-center">
                     <p className="text-[11px] text-zinc-500">
-                      Zero credentials or social passwords ever required. 100% anonymized.
+                      100% Free &bull; No social media passwords ever needed.
                     </p>
                   </div>
                 </div>
@@ -488,47 +488,46 @@ export default function LandingHero({
             <div className="w-16 h-0.5 bg-white/20 mx-auto mt-4" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
             {FEATURED_PLATFORMS.map((platform, idx) => {
               const Icon = platform.icon;
               return (
                 <div
                   key={idx}
-                  className="p-6 sm:p-7 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 flex flex-col justify-between group shadow-[0_4px_30px_rgba(0,0,0,0.5)]"
+                  onClick={() => onNavigateTab("services")}
+                  className="p-3.5 sm:p-7 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 flex flex-col justify-between group shadow-[0_4px_30px_rgba(0,0,0,0.5)] cursor-pointer"
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-5">
-                      <div className="w-12 h-12 rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center group-hover:scale-105 transition-transform">
-                        <Icon size={24} />
+                    <div className="flex items-center justify-between mb-3 sm:mb-5">
+                      <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl border border-white/10 bg-white/[0.03] flex items-center justify-center group-hover:scale-105 transition-transform">
+                        <Icon size={18} className="sm:hidden" />
+                        <Icon size={24} className="hidden sm:block" />
                       </div>
-                      <span className="text-[10px] font-mono font-medium text-[#F5E8D0] px-2.5 py-1 rounded-full border border-[#F5E8D0]/20 bg-[#F5E8D0]/5">
+                      <span className="hidden sm:inline-block text-[10px] font-mono font-medium text-[#F5E8D0] px-2.5 py-1 rounded-full border border-[#F5E8D0]/20 bg-[#F5E8D0]/5">
                         {platform.tag}
                       </span>
                     </div>
 
-                    <h3 className="text-lg font-bold text-white mb-2">
+                    <h3 className="text-sm sm:text-lg font-bold text-white mb-1 sm:mb-2 truncate">
                       {platform.name}
                     </h3>
-                    <p className="text-xs text-zinc-400 leading-relaxed font-light mb-6">
+                    <p className="hidden sm:block text-xs text-zinc-400 leading-relaxed font-light mb-6">
                       {platform.desc}
                     </p>
                   </div>
 
-                  <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between">
+                  <div className="pt-2.5 sm:pt-4 border-t border-white/[0.06] flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Starts From</span>
-                      <span className="text-sm font-bold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">
-                        {platform.startRate} <span className="text-[10px] text-[#F5E8D0] font-normal">/ {platform.unit}</span>
+                      <span className="text-[9px] sm:text-[10px] text-zinc-500 uppercase tracking-wider block">Starts</span>
+                      <span className="text-xs sm:text-sm font-bold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">
+                        {platform.startRate} <span className="text-[9px] sm:text-[10px] text-[#F5E8D0] font-normal">/ {platform.unit}</span>
                       </span>
                     </div>
 
-                    <button
-                      onClick={() => onNavigateTab("services")}
-                      className="px-3.5 py-1.5 rounded-lg border border-white/15 bg-white/[0.02] hover:bg-white text-zinc-300 hover:text-black font-semibold text-xs tracking-wider transition-all flex items-center gap-1 cursor-pointer"
-                    >
+                    <div className="hidden sm:flex px-3 py-1 rounded-lg border border-white/15 bg-white/[0.02] group-hover:bg-white text-zinc-300 group-hover:text-black font-semibold text-xs tracking-wider transition-all items-center gap-1">
                       <span>Explore</span>
                       <ArrowRight className="w-3 h-3" />
-                    </button>
+                    </div>
                   </div>
                 </div>
               );

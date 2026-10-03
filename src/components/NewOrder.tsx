@@ -416,6 +416,8 @@ export default function NewOrder({
                       ) : (
                         filteredCategoriesForPicker.map((cat) => {
                           const isSelected = selectedCategory === cat;
+                          const catInfo = getPlatformInfo(cat, cat);
+                          const CatIcon = catInfo.icon;
                           return (
                             <button
                               key={cat}
@@ -431,8 +433,19 @@ export default function NewOrder({
                                   : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                               }`}
                             >
-                              <span className="truncate pr-2">{cat}</span>
-                              {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                              <div className="flex items-center gap-2.5 truncate pr-2">
+                                <div
+                                  className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${
+                                    isSelected
+                                      ? "bg-black/10 border-black/20 text-black"
+                                      : "bg-white/[0.04] border-white/10 text-[#F5E8D0]"
+                                  }`}
+                                >
+                                  <CatIcon size={14} />
+                                </div>
+                                <span className="truncate">{cat}</span>
+                              </div>
+                              {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-black" />}
                             </button>
                           );
                         })
@@ -606,23 +619,42 @@ export default function NewOrder({
                 </div>
               )}
 
-              {/* Dynamic Charge Summary Card */}
+              {/* Transparent Financial Calculation in Plain, Simple Language */}
               <div className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">Total Cost</span>
+                  <span className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">Total Order Cost</span>
                   <span className="text-2xl font-bold text-white tracking-tight">
                     {formatINR(calculatedCharge)}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs pt-3 border-t border-white/[0.06]">
-                  <span className="text-zinc-400">Your Wallet Balance:</span>
-                  {user ? (
-                    <span className={`font-semibold ${userBalance >= calculatedCharge ? "text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]" : "text-rose-400"}`}>
-                      {formatINR(userBalance)}
-                    </span>
-                  ) : (
-                    <span className="text-zinc-500">Sign in to check</span>
+                <div className="space-y-2 pt-3 border-t border-white/[0.06] text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-zinc-400">Current Wallet Balance:</span>
+                    {user ? (
+                      <span className="font-semibold text-[#FFFDF9]">
+                        {formatINR(userBalance)}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-500">Sign in to check</span>
+                    )}
+                  </div>
+
+                  {user && (
+                    <div className="flex items-center justify-between pt-1 border-t border-white/[0.04]">
+                      <span className="text-zinc-400">Balance Left After Order:</span>
+                      <span
+                        className={`font-semibold ${
+                          userBalance >= calculatedCharge
+                            ? "text-[#FAF7F2] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
+                            : "text-rose-400"
+                        }`}
+                      >
+                        {userBalance >= calculatedCharge
+                          ? formatINR(userBalance - calculatedCharge)
+                          : `Short by ${formatINR(calculatedCharge - userBalance)}`}
+                      </span>
+                    </div>
                   )}
                 </div>
 
@@ -634,7 +666,7 @@ export default function NewOrder({
                       className="w-full py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-xs tracking-wider hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <ExecutiveWalletIcon size={15} />
-                      <span>Wallet Low — Add Funds via UPI</span>
+                      <span>Wallet Low — Add Funds via 0% UPI</span>
                     </button>
                   </div>
                 )}
