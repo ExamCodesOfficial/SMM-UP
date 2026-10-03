@@ -186,15 +186,21 @@ export default function LandingHero({
                 <span>Wholesale Protocol Initialized &bull; 0% UPI Clearing</span>
               </div>
 
-              {/* Grand Main Headline */}
-              <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-light tracking-[0.06em] leading-[1.05] text-white">
-                <span className="block text-transparent bg-clip-text bg-gradient-to-b from-white via-[#FAF7F2] to-zinc-500 font-normal">
-                  SCALE SOCIAL
-                </span>
-                <span className="block mt-1 sm:mt-2 text-[#FAF7F2] drop-shadow-[0_0_30px_rgba(255,255,255,0.7)] font-light">
-                  SMM UP ENGINE
-                </span>
-              </h1>
+              {/* Refined Motto with Ambient Atmospheric Backlight (No Box Feeling, Soft Radiance Behind Text) */}
+              <div className="relative inline-block py-2">
+                {/* Atmospheric Backlight Bloom (Radiates softly from BEHIND the text) */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[140%] bg-gradient-to-r from-transparent via-[#F5E8D0]/10 to-transparent rounded-full blur-3xl pointer-events-none -z-10" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 sm:w-72 h-16 sm:h-24 bg-white/[0.06] rounded-full blur-2xl pointer-events-none -z-10" />
+
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-light tracking-[0.14em] sm:tracking-[0.18em] uppercase leading-tight text-white relative z-10">
+                  <span className="block text-zinc-300 font-extralight tracking-[0.2em]">
+                    SCALE SOCIAL
+                  </span>
+                  <span className="block mt-1 sm:mt-1.5 text-[#FAF7F2] font-normal tracking-[0.14em]">
+                    SMM UP ENGINE
+                  </span>
+                </h1>
+              </div>
 
               {/* Spacious Subtitle with wide tracking */}
               <p className="text-sm sm:text-base md:text-lg text-zinc-400 max-w-xl font-light tracking-wide leading-relaxed pt-2">
