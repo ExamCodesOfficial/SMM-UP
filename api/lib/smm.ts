@@ -71,6 +71,43 @@ export function detectPlatform(category: string, name: string): string {
   return "Other";
 }
 
+export function decodeHtmlEntities(raw: string | undefined | null): string {
+  if (!raw) return "";
+  let str = String(raw);
+  str = str.replace(/<br\s*[\/]?>/gi, "\n").replace(/<\/p>/gi, "\n\n").replace(/<[^>]+>/g, "");
+  str = str.replace(/&amp;/g, "&");
+  str = str.replace(/&#(\d+);/g, (_, dec) => {
+    try {
+      return String.fromCodePoint(Number(dec));
+    } catch {
+      return "";
+    }
+  });
+  str = str.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+    try {
+      return String.fromCodePoint(parseInt(hex, 16));
+    } catch {
+      return "";
+    }
+  });
+  str = str
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ");
+  return str;
+}
+
+export function cleanServiceDescription(raw: string | undefined | null): string {
+  if (!raw) return "Instant automated delivery node. Ensure target account is completely PUBLIC.";
+  let str = decodeHtmlEntities(raw);
+  str = str.replace(/^[\s\S]*?(?:please read the description|please read before ordering[\.\:\!]?|important note[\.\:\!]?)/i, "");
+  str = str.replace(/^[\s\n\r\-\:\_]+/, "");
+  return str.trim() || "Instant automated delivery node. Ensure target account is completely PUBLIC.";
+}
+
 export async function fetchAllServices(forceRefresh = false): Promise<SMMService[]> {
   const now = Date.now();
   if (!forceRefresh && cachedServices && now - lastCacheTime < CACHE_TTL_MS) {
@@ -102,8 +139,9 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
   const sanitized: SMMService[] = data.map((s: any) => {
     const wRate = parseFloat(s.rate) || 0;
     const retailRate = calculateRetailRate(wRate);
-    const category = String(s.category || "General").trim();
-    const name = String(s.name || "Service");
+    const category = decodeHtmlEntities(String(s.category || "General")).trim();
+    const name = decodeHtmlEntities(String(s.name || "Service")).trim();
+    const description = cleanServiceDescription(s.description || s.desc);
 
     return {
       service: Number(s.service),
@@ -119,7 +157,7 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
       refill: Boolean(s.refill === true || s.refill === "true" || s.refill === 1),
       cancel: Boolean(s.cancel === true || s.cancel === "true" || s.cancel === 1),
       average_time: String(s.average_time || "Instant"),
-      description: String(s.description || s.desc || "Instant delivery growth node.").trim(),
+      description: description,
     };
   });
 
