@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronDown, HelpCircle, ShieldCheck, Zap } from "lucide-react";
+import { ChevronDown, HelpCircle, ShieldCheck, Zap, RotateCcw, AlertTriangle, RefreshCw } from "lucide-react";
 
 interface FAQ {
   id: string;
@@ -12,34 +12,52 @@ const FAQS: FAQ[] = [
     id: "1",
     question: "How quickly does delivery initiate after placing an order?",
     answer:
-      "Most automated service channels initiate delivery within 5 to 30 minutes of order confirmation. High-speed network nodes dispatch in real-time, and you can monitor live provisioning progress directly from your Order History dashboard.",
+      "Most wholesale automated service channels initiate delivery within 5 to 30 minutes of order confirmation. High-speed network nodes dispatch in real-time, and you can monitor live provisioning progress directly from your Order History dashboard.",
   },
   {
     id: "2",
+    question: "What does a 'Partial' order status mean?",
+    answer:
+      "A 'Partial' status occurs when a delivery node fulfills a portion of your requested quantity and stops (e.g., delivering 650 out of 1,000 units due to a network cap or target account limit). When this happens, SMM UP automatically calculates the exact unfulfilled portion and refunds 100% of the remaining amount back to your wallet balance instantly.",
+  },
+  {
+    id: "3",
+    question: "How is the 30-Day Refill Guarantee calculated?",
+    answer:
+      "Refill tracking follows the exact formula: [Start Count + Order Quantity = Target Count]. For example, if your channel or post starts with 1,000 followers and you order 1,000, your target count is 2,000. If your count drops below 2,000 within the 30-day guarantee period, simply click the 'Refill' action button in your Order History. Drops above 5% trigger automated replenishment within 24 to 72 hours.",
+  },
+  {
+    id: "4",
+    question: "Why must I avoid placing multiple orders on the same link simultaneously?",
+    answer:
+      "Placing concurrent orders for the exact same URL causes starting counter overlap. The network reads your public counter at the exact moment of dispatch; if two orders run concurrently on the same link, both read the same starting count and report completion prematurely. Always wait for your active order to reach 'Completed' or 'Cancelled' before placing another order for that same link.",
+  },
+  {
+    id: "5",
+    question: "Why must my profile counters and posts remain public?",
+    answer:
+      "Automated delivery nodes require access to your public metrics counter to record your initial start count and confirm final completion. If your profile is set to private, post is deleted, or your subscriber/like counters are hidden in privacy settings, delivery cannot initiate and the order will be cancelled and refunded.",
+  },
+  {
+    id: "6",
+    question: "Can I change my username or handle while an order or refill is running?",
+    answer:
+      "No. If you modify your username/handle or convert your account to private after placing an order, the delivery node loses track of the original target URL. Refills and active tracking are strictly mapped to the exact handle submitted at order creation.",
+  },
+  {
+    id: "7",
+    question: "What happens if an order cannot be completed or the link is invalid?",
+    answer:
+      "If an order cannot proceed due to a broken link, private profile, or deleted post, our delivery node marks the task as 'Cancelled' and your payment is credited back to your SMM UP wallet balance automatically at zero deduction.",
+  },
+  {
+    id: "8",
     question: "Do I ever need to share account passwords or login credentials?",
     answer:
       "Never. SMM UP operates entirely using public target links and usernames. We will never ask for your account password, two-factor authentication codes, or login access. Your security is 100% safeguarded.",
   },
   {
-    id: "3",
-    question: "What must I verify before submitting a target link?",
-    answer:
-      "Please ensure that your target account, post, or channel is set to completely Public before dispatching. Private accounts, age-restricted content, or accounts with geographical restrictions cannot receive automated delivery.",
-  },
-  {
-    id: "4",
-    question: "What is a Refill Guarantee and how does it work?",
-    answer:
-      "Services marked with our Refill guarantee include complimentary retention protection for up to 30 days. In the event of a natural drop, simply click the 'Refill' action button beside your order in the Order History tab for automated replenishment.",
-  },
-  {
-    id: "5",
-    question: "How does wallet balance allocation work?",
-    answer:
-      "You can add funds to your wallet balance at any time using instant UPI. Once your payment is verified, your balance is credited immediately and can be utilized across any of our verified service channels.",
-  },
-  {
-    id: "6",
+    id: "9",
     question: "Can I connect SMM UP programmatically to my own panel or application?",
     answer:
       "Yes. Every registered client receives a dedicated personal API key with standard SMM v2 protocol compatibility. You can easily connect external bots, customer dashboards, and reseller systems for fully automated ordering.",
@@ -58,49 +76,47 @@ function FaqItem({ faq }: { faq: FAQ }) {
         <span className="text-sm sm:text-base font-semibold text-white group-hover:text-zinc-200 transition-colors leading-snug">
           {faq.question}
         </span>
-        <div className="w-8 h-8 rounded-xl border border-white/10 bg-white/[0.02] flex items-center justify-center shrink-0 group-hover:border-white/30 transition-all">
-          <ChevronDown
-            className={`w-4 h-4 text-zinc-400 transition-transform duration-300 ${
-              open ? "rotate-180 text-white" : ""
-            }`}
-          />
+        <div
+          className={`w-7 h-7 rounded-lg border border-white/10 flex items-center justify-center shrink-0 transition-transform duration-200 ${
+            open ? "rotate-180 bg-white/10 text-white" : "text-zinc-400 group-hover:text-white"
+          }`}
+        >
+          <ChevronDown className="w-4 h-4" />
         </div>
       </button>
 
-      <div
-        className={`overflow-hidden transition-all duration-300 ${
-          open ? "max-h-60 pb-5 sm:pb-6 opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed font-light tracking-wide pr-4">
+      {open && (
+        <div className="pb-6 text-xs sm:text-sm text-zinc-400 leading-relaxed font-light animate-fadeIn">
           {faq.answer}
-        </p>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function FaqSection() {
   return (
-    <section className="border-t border-white/[0.08] bg-gradient-to-b from-zinc-950 to-black relative z-10 py-16 sm:py-24">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
-        <div className="text-center mb-12 sm:mb-16">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
-            FREQUENTLY ASKED
-          </h2>
-          <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
-          <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-xl mx-auto">
-            Everything you need to know about our automated social growth infrastructure and fulfillment guarantees.
-          </p>
+    <section className="py-16 sm:py-24 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Section Header */}
+      <div className="text-center mb-12 sm:mb-16">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.02] text-[#F5E8D0] text-[11px] font-semibold tracking-wider uppercase mb-4">
+          <HelpCircle className="w-3.5 h-3.5" />
+          <span>Institutional Knowledge Base</span>
         </div>
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.08em] text-[#FAF7F2]">
+          FREQUENTLY ASKED QUESTIONS
+        </h2>
+        <div className="w-16 h-0.5 bg-white/20 mx-auto mt-4" />
+        <p className="mt-4 text-xs sm:text-sm text-zinc-400 max-w-xl mx-auto font-light leading-relaxed">
+          Comprehensive guidance on order execution, refill formulas, counter rules, and wallet clearing.
+        </p>
+      </div>
 
-        {/* FAQ Accordion Card */}
-        <div className="rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl px-6 sm:px-10 py-2 shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
-          {FAQS.map((faq) => (
-            <FaqItem key={faq.id} faq={faq} />
-          ))}
-        </div>
+      {/* Accordion Container */}
+      <div className="border border-white/10 bg-[#0E0D0B]/80 backdrop-blur-xl rounded-2xl px-6 sm:px-8 py-2 divide-y divide-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+        {FAQS.map((faq) => (
+          <FaqItem key={faq.id} faq={faq} />
+        ))}
       </div>
     </section>
   );

@@ -13,27 +13,42 @@ const SECTIONS = [
       "By utilizing SMM UP, submitting orders, or depositing funds, you agree to be bound by these Terms of Service. SMM UP provides automated social media marketing infrastructure designed to accelerate audience reach and visibility across global networks.",
   },
   {
-    title: "2. PUBLIC PROFILE REQUIREMENTS",
+    title: "2. PUBLIC PROFILE & METRIC COUNTER REQUIREMENTS",
     content:
-      "All target profiles, posts, channels, or content submitted for automated processing must remain strictly PUBLIC throughout the duration of the order. If an account is set to private, has age restrictions, or is deleted during fulfillment, the delivery nodes will fail to process and automated replenishment cannot be guaranteed.",
+      "All target profiles, posts, channels, or videos submitted for automated processing must remain strictly PUBLIC throughout the duration of the order. Subscriber, follower, like, and view counters must NOT be hidden in profile privacy settings. If an account is set to private, post deleted, or counters hidden during fulfillment, delivery nodes will be unable to confirm counts and automated replenishment cannot be granted.",
   },
   {
-    title: "3. ORDER DISPATCH & PROCESSING",
+    title: "3. CONCURRENT ORDER RESTRICTION (COUNTER OVERLAP PREVENTION)",
     content:
-      "Orders submitted through our platform are dispatched instantaneously to automated network nodes. Delivery speeds vary depending on platform queue volumes and channel specifications. Once an order has entered processing status, it cannot be manually paused or recalled unless explicitly supported by that specific service channel.",
+      "Clients must NOT place more than one order for the exact same URL/link simultaneously until the active order reaches 'Completed' or 'Cancelled'. Automated delivery nodes record your initial start count at the time of execution. Placing concurrent orders on the same link leads to overlapping start counts and premature completion without full delivery.",
   },
   {
-    title: "4. WALLET & PAYMENT POLICY",
+    title: "4. PARTIAL FULFILLMENT & AUTOMATIC BALANCE CREDITING",
     content:
-      "All wallet top-ups are processed via direct UPI clearing. Balances credited to user wallets remain available indefinitely for service orders. Wallet funds are account-bound and non-transferable between client accounts.",
+      "If a delivery node encounters a network limit or platform restriction and can only deliver a portion of your requested quantity, the order status is marked as 'Partial'. SMM UP automatically calculates the unfulfilled units and credits 100% of the remaining amount back to your account wallet immediately.",
   },
   {
-    title: "5. REFILL & RETENTION GUARANTEES",
+    title: "5. 30-DAY REFILL SLA SPECIFICATIONS & FORMULA",
     content:
-      "Services designated with the 'Refill' guarantee are covered by a 30-day retention policy. If natural drops occur within this period, clients can trigger automated refills directly from the Order History desk at zero cost. Refill guarantees do not apply if target handles are changed or content is removed.",
+      "Services designated with the 'Refill' guarantee are covered by a 30-day automated retention SLA following the formula: [Start Count + Order Quantity = Target Count]. If the public count falls below the target count during the guarantee period, a refill can be triggered via the Order History desk. Refills typically process within 24 to 72 hours. Note: Refills are voided if the target account changes username/handle or is switched to private.",
   },
   {
-    title: "6. ACCOUNT INTEGRITY & ZERO-CREDENTIAL POLICY",
+    title: "6. ORDER CANCELLATIONS & NON-WORKING LINKS",
+    content:
+      "Orders cannot be manually modified or canceled once submitted to automated processing unless the delivery node reports a permanent dispatch error. If a link is invalid, private, or deleted prior to processing, the order is automatically marked as 'Cancelled' and 100% of the charged amount is refunded to your wallet.",
+  },
+  {
+    title: "7. PROHIBITED CONTENT & CONDUCT",
+    content:
+      "Orders targeting accounts or content involving extremism, political agitation, hate speech, adult/pornographic content, harassment, or illegal material are strictly prohibited. SMM UP reserves the right to terminate accounts and cancel orders violating community safety guidelines with zero liability.",
+  },
+  {
+    title: "8. DIRECT 0% UPI CLEARING & WALLET POLICY",
+    content:
+      "All wallet deposits are cleared via direct bank UPI using automated 12-digit UTR reconciliation. Once credited, wallet balances do not expire and can be utilized across all wholesale catalog services. Balances are account-bound and non-transferable.",
+  },
+  {
+    title: "9. ZERO-CREDENTIAL SECURITY GUARANTEE",
     content:
       "SMM UP will never request your social media passwords, two-factor authentication codes, or administrative permissions. You retain complete ownership and responsibility for your respective social accounts.",
   },
@@ -43,37 +58,38 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
-      <div className="relative w-full max-w-2xl border border-white/10 bg-zinc-950/95 rounded-2xl shadow-[0_4px_40px_rgba(0,0,0,0.8)] p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-fadeIn">
+      <div className="relative w-full max-w-2xl border border-white/10 bg-[#0E0D0B] rounded-2xl shadow-[0_10px_50px_rgba(0,0,0,0.9)] p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-5 border-b border-white/[0.08] mb-6">
+        <div className="flex items-center justify-between pb-5 border-b border-white/[0.08] mb-6 sticky top-0 bg-[#0E0D0B] z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-white">
+            <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-[#F5E8D0]">
               <FileText className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-semibold tracking-wide text-white">
-                Terms of Service &amp; Policies
+                Terms of Service &amp; SLA
               </h2>
-              <p className="text-xs text-zinc-400">Institutional Platform Standards &amp; Delivery Guarantees</p>
+              <p className="text-xs text-zinc-400">Institutional Platform Standards &amp; Delivery Policies</p>
             </div>
           </div>
+
           <button
             onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/[0.05] transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg border border-white/10 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="space-y-6 pr-1">
+        {/* Content Sections */}
+        <div className="space-y-6">
           {SECTIONS.map((sec, idx) => (
-            <div key={idx} className="p-4 rounded-xl border border-white/[0.06] bg-black/40 space-y-2">
-              <h3 className="text-xs font-semibold tracking-wider text-white uppercase">
+            <div key={idx} className="p-4 sm:p-5 rounded-xl border border-white/[0.06] bg-black/40">
+              <h3 className="text-xs sm:text-sm font-bold tracking-wider text-[#FAF7F2] uppercase mb-2">
                 {sec.title}
               </h3>
-              <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed font-light">
+              <p className="text-xs sm:text-[13px] text-zinc-400 leading-relaxed font-light">
                 {sec.content}
               </p>
             </div>
@@ -81,15 +97,17 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 pt-5 border-t border-white/[0.08] flex items-center justify-between">
-          <span className="text-xs text-zinc-400">
-            Official Policy &bull; Last updated {new Date().getFullYear()}
-          </span>
+        <div className="mt-8 pt-5 border-t border-white/[0.08] flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <Shield className="w-4 h-4 text-[#F5E8D0]" />
+            <span>Cryptographically Verified SLA</span>
+          </div>
+
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-white text-black font-semibold text-xs tracking-wider hover:bg-zinc-200 transition-all cursor-pointer"
+            className="px-6 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-zinc-200 transition-colors cursor-pointer"
           >
-            I Understand &amp; Agree
+            Acknowledge &amp; Close
           </button>
         </div>
       </div>
