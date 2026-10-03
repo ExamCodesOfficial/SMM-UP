@@ -11,16 +11,35 @@ import {
   Hash,
   MessageSquare,
   Search,
-  Filter,
+  Wallet,
+  ShieldCheck,
+  ChevronRight,
+  Flame,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { formatINR, formatNumber } from "../lib/utils";
+import {
+  TelegramIcon,
+  InstagramIcon,
+  YouTubeIcon,
+  FacebookIcon,
+  TwitterXIcon,
+  TikTokIcon,
+  SpotifyIcon,
+  DiscordIcon,
+  LinkedInIcon,
+  WhatsAppIcon,
+  GlobeTrafficIcon,
+  SparklesAllIcon,
+  getPlatformInfo,
+} from "./icons/PlatformIcons";
 
 interface Service {
   service: number | string;
   name: string;
   type: string;
   category: string;
+  platform?: string;
   rate: number;
   min: number;
   max: number;
@@ -41,16 +60,18 @@ interface NewOrderProps {
 }
 
 const PLATFORMS = [
-  "All",
-  "Telegram",
-  "Instagram",
-  "YouTube",
-  "Facebook",
-  "TikTok",
-  "Twitter / X",
-  "WhatsApp",
-  "LinkedIn",
-  "Other",
+  { id: "All", name: "All Platforms", icon: SparklesAllIcon },
+  { id: "Telegram", name: "Telegram", icon: TelegramIcon },
+  { id: "Instagram", name: "Instagram", icon: InstagramIcon },
+  { id: "YouTube", name: "YouTube", icon: YouTubeIcon },
+  { id: "Facebook", name: "Facebook", icon: FacebookIcon },
+  { id: "Twitter / X", name: "Twitter / X", icon: TwitterXIcon },
+  { id: "TikTok", name: "TikTok", icon: TikTokIcon },
+  { id: "Spotify", name: "Spotify", icon: SpotifyIcon },
+  { id: "Discord", name: "Discord", icon: DiscordIcon },
+  { id: "LinkedIn", name: "LinkedIn", icon: LinkedInIcon },
+  { id: "WhatsApp", name: "WhatsApp", icon: WhatsAppIcon },
+  { id: "Traffic", name: "Web Traffic", icon: GlobeTrafficIcon },
 ];
 
 export default function NewOrder({
@@ -76,91 +97,96 @@ export default function NewOrder({
   const [successMsg, setSuccessMsg] = React.useState("");
 
   // Filter services by platform
-  const filteredServices = React.useMemo(() => {
+  const platformFiltered = React.useMemo(() => {
+    if (selectedPlatform === "All") return services;
+
     return services.filter((s) => {
-      const matchPlatform =
-        selectedPlatform === "All"
-          ? true
-          : selectedPlatform === "Twitter / X"
-          ? /twitter| x |tweet/i.test(s.category + " " + s.name)
-          : selectedPlatform === "Other"
-          ? !/telegram|instagram|youtube|facebook|tiktok|twitter|whatsapp|linkedin/i.test(s.category + " " + s.name)
-          : new RegExp(selectedPlatform, "i").test(s.category + " " + s.name);
-
-      const matchSearch =
-        !searchQuery ||
-        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        String(s.service) === searchQuery.trim();
-
-      return matchPlatform && matchSearch;
+      if (s.platform && s.platform === selectedPlatform) return true;
+      const combined = (s.category + " " + s.name).toLowerCase();
+      if (selectedPlatform === "Telegram") return /telegram|\btg\b/i.test(combined);
+      if (selectedPlatform === "Instagram") return /instagram|\big\b|reels/i.test(combined);
+      if (selectedPlatform === "YouTube") return /youtube|\byt\b/i.test(combined);
+      if (selectedPlatform === "Facebook") return /facebook|\bfb\b/i.test(combined);
+      if (selectedPlatform === "Twitter / X") return /twitter|\bx\b|tweet/i.test(combined);
+      if (selectedPlatform === "TikTok") return /tiktok/i.test(combined);
+      if (selectedPlatform === "Spotify") return /spotify/i.test(combined);
+      if (selectedPlatform === "Discord") return /discord/i.test(combined);
+      if (selectedPlatform === "LinkedIn") return /linkedin/i.test(combined);
+      if (selectedPlatform === "WhatsApp") return /whatsapp/i.test(combined);
+      if (selectedPlatform === "Traffic") return /traffic|website|visitor|seo/i.test(combined);
+      return false;
     });
-  }, [services, selectedPlatform, searchQuery]);
+  }, [services, selectedPlatform]);
 
-  // Categories present in current filter
+  // Categories in platform
   const categories = React.useMemo(() => {
     const set = new Set<string>();
-    filteredServices.forEach((s) => set.add(s.category));
-    return Array.from(set).sort();
-  }, [filteredServices]);
+    platformFiltered.forEach((s) => set.add(s.category));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [platformFiltered]);
 
-  // Auto-select category if none or invalid
+  // Keep category in sync
   React.useEffect(() => {
-    if (categories.length > 0 && (!selectedCategory || !categories.includes(selectedCategory))) {
-      setSelectedCategory(categories[0]);
+    if (categories.length > 0) {
+      if (!selectedCategory || !categories.includes(selectedCategory)) {
+        setSelectedCategory(categories[0]);
+      }
+    } else {
+      setSelectedCategory("");
     }
   }, [categories, selectedCategory]);
 
-  // Services in current category
+  // Filtered services in category
   const servicesInCategory = React.useMemo(() => {
-    return filteredServices.filter((s) => s.category === selectedCategory);
-  }, [filteredServices, selectedCategory]);
+    if (!selectedCategory) return [];
+    return platformFiltered.filter((s) => s.category === selectedCategory);
+  }, [platformFiltered, selectedCategory]);
 
-  // Active Service object
-  const currentService = React.useMemo(() => {
-    return services.find((s) => String(s.service) === String(selectedServiceId)) || servicesInCategory[0] || null;
-  }, [services, selectedServiceId, servicesInCategory]);
-
-  // Set initial selected service
+  // Sync selected service
   React.useEffect(() => {
     if (preselectedServiceId) {
-      setSelectedServiceId(preselectedServiceId);
-      const target = services.find((s) => String(s.service) === String(preselectedServiceId));
-      if (target) setSelectedCategory(target.category);
-    } else if (servicesInCategory.length > 0 && !servicesInCategory.some((s) => String(s.service) === String(selectedServiceId))) {
-      setSelectedServiceId(servicesInCategory[0].service);
-    }
-  }, [servicesInCategory, preselectedServiceId, services]);
-
-  // Default quantity to service min
-  React.useEffect(() => {
-    if (currentService) {
-      if (currentService.type !== "Custom Comments" && (!quantity || Number(quantity) < currentService.min)) {
-        setQuantity(currentService.min);
+      const match = services.find((s) => Number(s.service) === Number(preselectedServiceId));
+      if (match) {
+        setSelectedCategory(match.category);
+        setSelectedServiceId(match.service);
+        return;
       }
     }
-  }, [currentService]);
 
-  // Calculate live charge
+    if (servicesInCategory.length > 0) {
+      const currentExists = servicesInCategory.some(
+        (s) => Number(s.service) === Number(selectedServiceId)
+      );
+      if (!currentExists) {
+        setSelectedServiceId(servicesInCategory[0].service);
+      }
+    } else {
+      setSelectedServiceId("");
+    }
+  }, [servicesInCategory, preselectedServiceId]);
+
+  // Current active service object
+  const currentService = React.useMemo(() => {
+    return services.find((s) => Number(s.service) === Number(selectedServiceId)) || null;
+  }, [services, selectedServiceId]);
+
+  // Calculation of charge
   const calculatedCharge = React.useMemo(() => {
     if (!currentService) return 0;
-
-    let effQty = 0;
     if (currentService.type === "Custom Comments") {
       const lines = comments.split("\n").filter((l) => l.trim().length > 0);
-      effQty = lines.length;
-    } else if (currentService.type === "Package") {
-      effQty = 1;
-    } else {
-      effQty = parseInt(String(quantity), 10) || 0;
+      return (currentService.rate * lines.length) / 1000;
     }
-
-    if (effQty <= 0) return 0;
-    const charge = (currentService.rate * effQty) / 1000;
-    return Math.max(0.10, Math.round(charge * 100) / 100);
+    if (currentService.type === "Package") {
+      return currentService.rate;
+    }
+    const q = parseFloat(String(quantity));
+    if (isNaN(q) || q <= 0) return 0;
+    return (currentService.rate * q) / 1000;
   }, [currentService, quantity, comments]);
 
-  const hasEnoughBalance = user ? (user.balance || 0) >= calculatedCharge : false;
+  const userBalance = user?.balance ?? 0;
+  const hasEnoughBalance = user ? userBalance >= calculatedCharge : true;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,18 +198,32 @@ export default function NewOrder({
       return;
     }
 
-    if (!link.trim()) {
-      setErrorMsg("Please enter a target link or username.");
+    if (!currentService) {
+      setErrorMsg("Please select a service from the list.");
       return;
     }
 
-    if (!currentService) {
-      setErrorMsg("Please select a service.");
+    if (!link.trim()) {
+      setErrorMsg("Please enter the target link or username.");
       return;
+    }
+
+    if (currentService.type === "Custom Comments") {
+      const lines = comments.split("\n").filter((l) => l.trim().length > 0);
+      if (lines.length < currentService.min || lines.length > currentService.max) {
+        setErrorMsg(`Comments count must be between ${currentService.min} and ${currentService.max}.`);
+        return;
+      }
+    } else if (currentService.type !== "Package") {
+      const q = parseInt(String(quantity), 10);
+      if (isNaN(q) || q < currentService.min || q > currentService.max) {
+        setErrorMsg(`Quantity must be between ${formatNumber(currentService.min)} and ${formatNumber(currentService.max)}.`);
+        return;
+      }
     }
 
     if (!hasEnoughBalance) {
-      setErrorMsg(`Insufficient wallet balance. Required: ${formatINR(calculatedCharge)}, Available: ${formatINR(user.balance)}`);
+      setErrorMsg(`Insufficient wallet balance. Required: ${formatINR(calculatedCharge)}, Available: ${formatINR(userBalance)}`);
       return;
     }
 
@@ -203,102 +243,86 @@ export default function NewOrder({
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        setErrorMsg(data.error || "Order failed. Please try again.");
+        setErrorMsg(data.error || "Order execution failed. Please verify details.");
       } else {
-        setSuccessMsg(`Order #${data.providerOrderId || data.orderId} placed successfully!`);
-        confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+        setSuccessMsg(`Order #${data.providerOrderId || data.orderId} dispatched successfully!`);
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
         onOrderSuccess(data);
         setLink("");
       }
-    } catch (err) {
-      setErrorMsg("Network error. Please check your connection.");
+    } catch {
+      setErrorMsg("Network error. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const platformInfo = currentService ? getPlatformInfo(currentService.category, currentService.name) : null;
+  const ActivePlatformIcon = platformInfo ? platformInfo.icon : SparklesAllIcon;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Platform Filter Pills */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-3 mb-6 scrollbar-none">
-        {PLATFORMS.map((platform) => {
-          const isActive = selectedPlatform === platform;
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
+      {/* Title Section */}
+      <div className="text-center mb-10">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
+          DISPATCH ORDER
+        </h2>
+        <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
+        <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-xl mx-auto">
+          Deploy instant growth across any platform with wholesale delivery.
+        </p>
+      </div>
+
+      {/* Platform Tabs with SVGs */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-8 scrollbar-none">
+        {PLATFORMS.map((p) => {
+          const Icon = p.icon;
+          const isActive = selectedPlatform === p.id;
           return (
             <button
-              key={platform}
+              key={p.id}
               onClick={() => {
-                setSelectedPlatform(platform);
+                setSelectedPlatform(p.id);
                 setSearchQuery("");
               }}
-              className={`px-3.5 py-1.5 rounded-sm text-xs font-medium tracking-wider whitespace-nowrap transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer ${
                 isActive
-                  ? "bg-white text-black font-semibold shadow-[0_0_15px_rgba(255,255,255,0.2)]"
-                  : "bg-white/[0.02] border border-white/10 text-gray-400 hover:text-white hover:border-white/30"
+                  ? "bg-white text-black font-semibold shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-[1.02]"
+                  : "bg-white/[0.02] border border-white/[0.08] text-zinc-300 hover:text-white hover:bg-white/[0.05] hover:border-white/20"
               }`}
             >
-              {platform}
+              <Icon size={18} className="shrink-0" />
+              <span>{p.name}</span>
             </button>
           );
         })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Interactive Order Form */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="p-6 border border-white/10 bg-white/[0.02] rounded-sm relative shadow-[0_0_30px_rgba(255,255,255,0.02)]">
-            {/* Subtle corner brackets from ExamCodes */}
-            <div className="absolute top-2 left-2 w-3 h-3 border-t border-l border-white/30 pointer-events-none" />
-            <div className="absolute top-2 right-2 w-3 h-3 border-t border-r border-white/30 pointer-events-none" />
-            <div className="absolute bottom-2 left-2 w-3 h-3 border-b border-l border-white/30 pointer-events-none" />
-            <div className="absolute bottom-2 right-2 w-3 h-3 border-b border-r border-white/30 pointer-events-none" />
+        {/* Left Column: Clean Order Form */}
+        <div className="lg:col-span-7">
+          <div className="p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+            <h3 className="text-base sm:text-lg font-semibold tracking-wide text-white mb-6 flex items-center justify-between">
+              <span>Order Configuration</span>
+              <span className="text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live Wholesale Node
+              </span>
+            </h3>
 
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-base sm:text-lg font-bold tracking-[0.14em] text-white flex items-center gap-2">
-                  <span>DISPATCH ORDER</span>
-                  <span className="text-[10px] text-white/40">❖</span>
-                </h2>
-                <p className="text-[11px] text-gray-500 font-mono tracking-wider">
-                  INSTANT WHOLESALE SMM PROVISIONING
-                </p>
-              </div>
-              <div className="text-[10px] font-mono text-gray-400 border border-white/10 px-2 py-1 bg-white/[0.02] rounded-sm">
-                NODE: ASIA-CENTRAL
-              </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Quick Search across 2174 services */}
-              <div>
-                <label className="block text-[10px] tracking-[0.2em] text-gray-400 font-bold mb-2">
-                  QUICK FILTER / SEARCH
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search keywords or ID (e.g. Followers, Views, 1420)..."
-                    className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-4 py-2.5 text-xs font-mono rounded-sm outline-none transition-all placeholder:text-gray-600"
-                  />
-                  <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-3.5" />
-                </div>
-              </div>
-
+            <form onSubmit={handleSubmit} className="space-y-6">
               {/* Category Dropdown */}
               <div>
-                <label className="block text-[10px] tracking-[0.2em] text-gray-400 font-bold mb-2">
-                  CATEGORY ({categories.length})
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
+                  1. Select Category ({categories.length} available)
                 </label>
                 <select
                   value={selectedCategory}
-                  onChange={(e) => {
-                    setSelectedCategory(e.target.value);
-                  }}
-                  className="w-full bg-black/80 border border-white/10 focus:border-white/40 text-white px-3 py-2.5 text-xs font-mono rounded-sm outline-none transition-all"
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full bg-black/80 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-xl outline-none transition-all cursor-pointer"
                 >
                   {categories.map((cat) => (
-                    <option key={cat} value={cat} className="bg-neutral-900 text-white">
+                    <option key={cat} value={cat} className="bg-zinc-900 text-white">
                       {cat}
                     </option>
                   ))}
@@ -307,17 +331,17 @@ export default function NewOrder({
 
               {/* Service Dropdown */}
               <div>
-                <label className="block text-[10px] tracking-[0.2em] text-gray-400 font-bold mb-2">
-                  SERVICE ({servicesInCategory.length} IN THIS CATEGORY)
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
+                  2. Select Service Package
                 </label>
                 <select
-                  value={currentService?.service || ""}
+                  value={selectedServiceId}
                   onChange={(e) => setSelectedServiceId(e.target.value)}
-                  className="w-full bg-black/80 border border-white/10 focus:border-white/40 text-white px-3 py-2.5 text-xs font-mono rounded-sm outline-none transition-all truncate"
+                  className="w-full bg-black/80 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-xl outline-none transition-all cursor-pointer truncate"
                 >
                   {servicesInCategory.map((s) => (
-                    <option key={s.service} value={s.service} className="bg-neutral-900 text-white">
-                      #{s.service} — {s.name} ({formatINR(s.rate)}/1K)
+                    <option key={s.service} value={s.service} className="bg-zinc-900 text-white">
+                      #{s.service} — {s.name} ({formatINR(s.rate)} / 1K)
                     </option>
                   ))}
                 </select>
@@ -325,218 +349,222 @@ export default function NewOrder({
 
               {/* Target Link */}
               <div>
-                <label className="block text-[10px] tracking-[0.2em] text-gray-400 font-bold mb-2">
-                  TARGET LINK / USERNAME
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
+                  3. Target Link or Username
                 </label>
                 <div className="relative">
+                  <Link2 className="w-4 h-4 text-zinc-400 absolute left-4 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={link}
                     onChange={(e) => setLink(e.target.value)}
-                    placeholder="https://instagram.com/p/... or @channel"
-                    className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-4 py-2.5 text-xs font-mono rounded-sm outline-none transition-all placeholder:text-gray-600"
+                    placeholder="https://t.me/channel or https://instagram.com/p/..."
                     required
+                    className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
                   />
-                  <Link2 className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-3.5" />
                 </div>
               </div>
 
-              {/* Custom Comments vs Standard Quantity */}
+              {/* Quantity or Custom Comments */}
               {currentService?.type === "Custom Comments" ? (
                 <div>
-                  <label className="block text-[10px] tracking-[0.2em] text-gray-400 font-bold mb-2">
-                    CUSTOM COMMENTS (1 PER LINE)
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
+                    Comments (One per line)
                   </label>
                   <textarea
                     rows={4}
                     value={comments}
                     onChange={(e) => setComments(e.target.value)}
-                    placeholder="Nice picture!&#10;Great work&#10;Love this post"
-                    className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white p-3 text-xs font-mono rounded-sm outline-none transition-all placeholder:text-gray-600"
-                    required
+                    placeholder="Nice work!&#10;Great video!&#10;Keep it up!"
+                    className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white p-4 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
                   />
-                  <div className="text-[10px] text-gray-500 font-mono mt-1">
-                    Count: {comments.split("\n").filter((l) => l.trim().length > 0).length} comments
-                  </div>
                 </div>
               ) : currentService?.type === "Package" ? (
-                <div className="p-3 border border-white/10 bg-white/[0.01] rounded-sm text-xs text-gray-400 font-mono">
-                  Package Service: Fixed quantity provisioned on submission.
+                <div className="p-4 rounded-xl border border-white/10 bg-white/[0.02] text-sm text-zinc-300">
+                  Fixed Package: 1 Complete Delivery Unit
                 </div>
               ) : (
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <label className="text-[10px] tracking-[0.2em] text-gray-400 font-bold">
-                      QUANTITY
+                    <label className="text-xs font-semibold uppercase tracking-wider text-zinc-300">
+                      4. Quantity
                     </label>
-                    <span className="text-[10px] text-gray-500 font-mono">
-                      Min: {formatNumber(currentService?.min)} — Max: {formatNumber(currentService?.max)}
-                    </span>
+                    {currentService && (
+                      <span className="text-xs text-zinc-400">
+                        Min: <strong className="text-white">{formatNumber(currentService.min)}</strong> — Max: <strong className="text-white">{formatNumber(currentService.max)}</strong>
+                      </span>
+                    )}
                   </div>
-                  <input
-                    type="number"
-                    value={quantity}
-                    min={currentService?.min || 10}
-                    max={currentService?.max || 100000}
-                    onChange={(e) => setQuantity(e.target.value)}
-                    className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white px-4 py-2.5 text-xs font-mono rounded-sm outline-none transition-all"
-                    required
-                  />
-
-                  {/* Quick-add chips */}
-                  <div className="flex gap-1.5 mt-2">
-                    {[100, 500, 1000, 5000].map((chip) => (
-                      <button
-                        key={chip}
-                        type="button"
-                        onClick={() => setQuantity(chip)}
-                        className="px-2 py-1 border border-white/10 hover:border-white/30 text-[10px] font-mono text-gray-400 hover:text-white rounded-sm transition-colors cursor-pointer"
-                      >
-                        +{chip}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setQuantity(currentService?.max || 10000)}
-                      className="px-2 py-1 border border-white/10 hover:border-white/30 text-[10px] font-mono text-gray-400 hover:text-white rounded-sm transition-colors cursor-pointer"
-                    >
-                      MAX
-                    </button>
+                  <div className="relative">
+                    <Hash className="w-4 h-4 text-zinc-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="number"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      min={currentService?.min || 1}
+                      max={currentService?.max || 1000000}
+                      placeholder={currentService ? `e.g. ${currentService.min}` : "1000"}
+                      required
+                      className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
+                    />
                   </div>
                 </div>
               )}
 
-              {/* Status & Alerts */}
+              {/* Dynamic Charge Summary Card */}
+              <div className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">Total Cost</span>
+                  <span className="text-2xl font-bold text-white tracking-tight">
+                    {formatINR(calculatedCharge)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs pt-3 border-t border-white/[0.06]">
+                  <span className="text-zinc-400">Your Wallet Balance:</span>
+                  {user ? (
+                    <span className={`font-semibold ${userBalance >= calculatedCharge ? "text-emerald-400" : "text-rose-400"}`}>
+                      {formatINR(userBalance)}
+                    </span>
+                  ) : (
+                    <span className="text-zinc-500">Sign in to check</span>
+                  )}
+                </div>
+
+                {user && userBalance < calculatedCharge && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={onOpenWallet}
+                      className="w-full py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-xs tracking-wider hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Wallet className="w-4 h-4" />
+                      <span>Wallet Low — Add Funds via 0% UPI</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Status Messages */}
               {errorMsg && (
-                <div className="p-3 border border-red-500/30 bg-red-500/10 text-red-400 text-xs font-mono rounded-sm flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
               {successMsg && (
-                <div className="p-3 border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono rounded-sm flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs sm:text-sm flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-400" />
                   <span>{successMsg}</span>
                 </div>
               )}
 
-              {/* Submit Button */}
-              {user ? (
-                hasEnoughBalance ? (
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="w-full py-3 bg-white text-black font-bold text-xs tracking-[0.2em] rounded-sm hover:bg-neutral-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.3)] disabled:opacity-50"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{submitting ? "PROVISIONING ORDER..." : `CONFIRM & SUBMIT ORDER (${formatINR(calculatedCharge)})`}</span>
-                  </button>
+              {/* Dispatch Button */}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-3.5 px-6 rounded-xl bg-white text-black font-bold tracking-[0.12em] text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2.5 cursor-pointer"
+              >
+                {submitting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    <span>Transmitting to Wholesale Node...</span>
+                  </>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={onOpenWallet}
-                    className="w-full py-3 border border-emerald-500/50 bg-emerald-500/10 text-emerald-400 font-bold text-xs tracking-[0.2em] rounded-sm hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(52,211,153,0.15)]"
-                  >
-                    <span>INSUFFICIENT FUNDS — ADD {formatINR(calculatedCharge - (user.balance || 0))}</span>
-                  </button>
-                )
-              ) : (
-                <button
-                  type="button"
-                  onClick={onOpenAuth}
-                  className="w-full py-3 bg-white text-black font-bold text-xs tracking-[0.2em] rounded-sm hover:bg-neutral-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  SIGN IN TO PLACE ORDER
-                </button>
-              )}
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Confirm & Dispatch Order</span>
+                  </>
+                )}
+              </button>
             </form>
           </div>
         </div>
 
-        {/* Right Column: Service Intel & Cost Breakdown */}
+        {/* Right Column: Service Intelligence & Rules */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Cost Summary Box */}
-          <div className="p-6 border border-white/10 bg-white/[0.02] rounded-sm relative">
-            <h3 className="text-xs font-bold tracking-[0.16em] text-white uppercase mb-4 flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5 text-emerald-400" />
-              <span>LIVE COST BREAKDOWN</span>
-            </h3>
-
-            <div className="space-y-3 font-mono text-xs border-b border-white/10 pb-4 mb-4">
-              <div className="flex justify-between items-center text-gray-400">
-                <span>Rate per 1,000</span>
-                <span className="text-white font-semibold">{formatINR(currentService?.rate)}</span>
+          {currentService && platformInfo ? (
+            <div className="p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+              {/* Header with SVG */}
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center border border-white/10 bg-white/[0.03]">
+                  <ActivePlatformIcon size={26} />
+                </div>
+                <div>
+                  <span className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
+                    {platformInfo.name} Channel
+                  </span>
+                  <h4 className="text-base font-bold text-white leading-tight">
+                    Service #{currentService.service}
+                  </h4>
+                </div>
               </div>
-              <div className="flex justify-between items-center text-gray-400">
-                <span>Quantity</span>
-                <span className="text-white">
-                  {currentService?.type === "Custom Comments"
-                    ? `${comments.split("\n").filter((l) => l.trim().length > 0).length} lines`
-                    : formatNumber(quantity)}
+
+              {/* Title */}
+              <h5 className="text-sm font-semibold text-white leading-snug mb-4">
+                {currentService.name}
+              </h5>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Wholesale Rate</span>
+                  <span className="text-base font-bold text-emerald-400">
+                    {formatINR(currentService.rate)} <span className="text-xs text-zinc-400 font-normal">/ 1K</span>
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Start Speed</span>
+                  <span className="text-sm font-semibold text-white flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                    {currentService.average_time || "Instant"}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Refill Policy</span>
+                  <span className={`text-sm font-semibold flex items-center gap-1.5 ${currentService.refill ? "text-emerald-400" : "text-zinc-500"}`}>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    {currentService.refill ? "30 Days Guaranteed" : "No Refill"}
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Cancel Option</span>
+                  <span className="text-sm font-semibold text-zinc-300">
+                    {currentService.cancel ? "Supported" : "Immediate Lock"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2 mb-6">
+                <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300 block">
+                  Service Description & Instructions
                 </span>
+                <div className="p-4 rounded-xl border border-white/[0.06] bg-black/30 text-xs text-zinc-300 leading-relaxed whitespace-pre-line max-h-56 overflow-y-auto">
+                  {currentService.description || "High quality instant automated delivery node. Ensure target account is completely PUBLIC."}
+                </div>
               </div>
-              <div className="flex justify-between items-center text-gray-400">
-                <span>Account Balance</span>
-                <span className="text-white">{formatINR(user?.balance || 0)}</span>
+
+              {/* Guarantees */}
+              <div className="space-y-2.5 pt-4 border-t border-white/[0.06] text-xs text-zinc-400">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Account privacy strictly maintained. Never requires passwords.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-zinc-300 shrink-0" />
+                  <span>Real-time tracking through wholesale API nodes.</span>
+                </div>
               </div>
             </div>
-
-            <div className="flex justify-between items-baseline mb-4">
-              <span className="text-xs font-bold tracking-wider text-gray-400">TOTAL CHARGE</span>
-              <span className="text-2xl font-mono font-bold text-white tracking-tight">
-                {formatINR(calculatedCharge)}
-              </span>
-            </div>
-
-            <div className="text-[10px] text-gray-500 font-mono">
-              * Charges are debited atomically upon wholesale verification.
-            </div>
-          </div>
-
-          {/* Service Specifications Card */}
-          {currentService && (
-            <div className="p-6 border border-white/10 bg-white/[0.02] rounded-sm space-y-4">
-              <h3 className="text-xs font-bold tracking-[0.16em] text-white uppercase flex items-center gap-2">
-                <Info className="w-3.5 h-3.5 text-blue-400" />
-                <span>SERVICE SPECIFICATIONS</span>
-              </h3>
-
-              <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                <div className="p-3 border border-white/[0.06] bg-black/40 rounded-sm">
-                  <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">SERVICE ID</div>
-                  <div className="text-white font-bold">#{currentService.service}</div>
-                </div>
-                <div className="p-3 border border-white/[0.06] bg-black/40 rounded-sm">
-                  <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">AVG SPEED</div>
-                  <div className="text-white flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-emerald-400" />
-                    <span>{currentService.average_time || "Instant"}</span>
-                  </div>
-                </div>
-                <div className="p-3 border border-white/[0.06] bg-black/40 rounded-sm">
-                  <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">REFILL</div>
-                  <div className={currentService.refill ? "text-emerald-400 font-bold" : "text-gray-500"}>
-                    {currentService.refill ? "GUARANTEED REFILL" : "NO REFILL"}
-                  </div>
-                </div>
-                <div className="p-3 border border-white/[0.06] bg-black/40 rounded-sm">
-                  <div className="text-[9px] text-gray-500 uppercase tracking-wider mb-1">CANCELABLE</div>
-                  <div className={currentService.cancel ? "text-emerald-400" : "text-gray-500"}>
-                    {currentService.cancel ? "YES" : "NO"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Service Description */}
-              <div>
-                <div className="text-[9px] font-mono tracking-widest text-gray-500 uppercase mb-1">
-                  DESCRIPTION & INSTRUCTIONS
-                </div>
-                <div className="p-3 border border-white/[0.06] bg-black/60 text-gray-400 text-xs font-mono leading-relaxed rounded-sm whitespace-pre-wrap max-h-48 overflow-y-auto">
-                  {currentService.description || "Instant high-speed delivery node. Account must be set to public."}
-                </div>
-              </div>
+          ) : (
+            <div className="p-8 rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl text-center">
+              <Sparkles className="w-8 h-8 text-zinc-500 mx-auto mb-3" />
+              <p className="text-sm text-zinc-400">Select a category and service to inspect specifications.</p>
             </div>
           )}
         </div>

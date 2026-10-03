@@ -1,5 +1,5 @@
 import React from "react";
-import { Layers, Send, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Layers, Send, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import confetti from "canvas-confetti";
 import { formatINR } from "../lib/utils";
 
@@ -40,7 +40,7 @@ export default function MassOrder({
       const qty = parseInt(parts[2], 10);
 
       if (isNaN(sId) || !link || isNaN(qty) || qty <= 0) {
-        return { valid: false, error: "Invalid numeric parameters", raw: l };
+        return { valid: false, error: "Invalid parameters", raw: l };
       }
 
       const s = services.find((srv) => Number(srv.service) === sId);
@@ -60,42 +60,54 @@ export default function MassOrder({
       return;
     }
 
-    const valids = parsedOrders.filter((p) => p.valid);
-    if (valids.length === 0) {
-      alert("No valid order lines found.");
+    const validItems = parsedOrders.filter((p) => p.valid);
+    if (validItems.length === 0) {
+      alert("No valid orders found to submit.");
       return;
     }
 
     if ((user.balance || 0) < totalEstimated) {
-      alert(`Insufficient balance. Required: ${formatINR(totalEstimated)}, Available: ${formatINR(user.balance)}`);
+      alert(`Insufficient wallet balance. Total required: ${formatINR(totalEstimated)}`);
       onOpenWallet();
       return;
     }
 
     setSubmitting(true);
     setResults([]);
-    const localResults: { line: string; success: boolean; msg: string }[] = [];
+    const localResults = [];
 
-    for (const ord of valids) {
+    for (const item of validItems) {
       try {
         const res = await fetch("/api/orders/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            serviceId: ord.serviceId,
-            link: ord.link,
-            quantity: ord.quantity,
+            serviceId: item.serviceId,
+            link: item.link,
+            quantity: item.quantity,
           }),
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          localResults.push({ line: ord.raw, success: true, msg: `Order #${data.providerOrderId} Placed` });
+          localResults.push({
+            line: `${item.serviceId} | ${item.link}`,
+            success: true,
+            msg: `Dispatched #${data.providerOrderId || data.orderId}`,
+          });
           onOrderSuccess(data);
         } else {
-          localResults.push({ line: ord.raw, success: false, msg: data.error || "Failed" });
+          localResults.push({
+            line: `${item.serviceId} | ${item.link}`,
+            success: false,
+            msg: data.error || "Order failed",
+          });
         }
-      } catch (err) {
-        localResults.push({ line: ord.raw, success: false, msg: "Network error" });
+      } catch {
+        localResults.push({
+          line: `${item.serviceId} | ${item.link}`,
+          success: false,
+          msg: "Network error",
+        });
       }
     }
 
@@ -107,64 +119,69 @@ export default function MassOrder({
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      <div className="p-6 border border-white/10 bg-white/[0.02] rounded-sm relative shadow-[0_0_30px_rgba(255,255,255,0.02)]">
-        {/* Corner Brackets */}
-        <div className="absolute top-2 left-2 w-3 h-3 border-t border-l border-white/30 pointer-events-none" />
-        <div className="absolute top-2 right-2 w-3 h-3 border-t border-r border-white/30 pointer-events-none" />
-        <div className="absolute bottom-2 left-2 w-3 h-3 border-b border-l border-white/30 pointer-events-none" />
-        <div className="absolute bottom-2 right-2 w-3 h-3 border-b border-r border-white/30 pointer-events-none" />
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 relative z-10">
+      {/* Title */}
+      <div className="text-center mb-10">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
+          MASS ORDER
+        </h2>
+        <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
+        <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-xl mx-auto">
+          Batch dispatch multiple campaigns across channels simultaneously.
+        </p>
+      </div>
 
-        <div className="flex items-center justify-between mb-6">
+      <div className="p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <h2 className="text-base sm:text-lg font-bold tracking-[0.14em] text-white flex items-center gap-2">
-              <Layers className="w-4 h-4" />
-              <span>MASS ORDER ENGINE</span>
-              <span className="text-[10px] text-white/40">❖</span>
-            </h2>
-            <p className="text-[11px] text-gray-500 font-mono tracking-wider">
-              BATCH PROVISIONING FOR AGENCIES & RESELLERS
-            </p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-[10px] tracking-[0.2em] text-gray-400 font-bold mb-2">
-              ENTER ONE ORDER PER LINE IN FORMAT:
+            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
+              Enter one order per line:
             </label>
-            <div className="p-2.5 bg-black/60 border border-white/10 text-[11px] font-mono text-gray-400 rounded-sm mb-3">
-              service_id | link | quantity
-              <br />
-              <span className="text-gray-600">Example: 1420 | https://instagram.com/myaccount | 1000</span>
+            <div className="p-3.5 bg-black/50 border border-white/10 rounded-xl text-xs text-zinc-400 mb-3 space-y-1">
+              <span className="font-semibold text-white">Format:</span> <code>service_id | target_link | quantity</code>
+              <div className="text-zinc-500">Example: 2664 | https://instagram.com/p/test1234 | 1000</div>
             </div>
             <textarea
               rows={8}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="1420 | https://instagram.com/thatonearyan | 1000&#10;85 | https://t.me/telegram_channel | 500"
-              className="w-full bg-black/80 border border-white/10 focus:border-white/40 text-white p-3 text-xs font-mono rounded-sm outline-none transition-all placeholder:text-gray-600"
+              placeholder="2664 | https://instagram.com/p/reel1 | 1000&#10;508 | https://t.me/channel | 500"
+              className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white p-4 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500 font-mono"
               required
             />
           </div>
 
           {/* Validation stats */}
-          <div className="flex flex-wrap justify-between items-center text-xs font-mono p-3 border border-white/10 bg-black/40 rounded-sm">
-            <div>
-              Total Lines: <span className="text-white font-bold">{parsedOrders.length}</span> (
-              <span className="text-emerald-400">{parsedOrders.filter((p) => p.valid).length} valid</span>)
+          <div className="flex flex-wrap justify-between items-center text-xs p-4 border border-white/10 bg-black/40 rounded-xl">
+            <div className="text-zinc-300">
+              Total Lines: <strong className="text-white">{parsedOrders.length}</strong> (
+              <span className="text-emerald-400 font-semibold">
+                {parsedOrders.filter((p) => p.valid).length} valid
+              </span>
+              )
             </div>
-            <div>
-              Est. Total: <span className="text-white font-bold">{formatINR(totalEstimated)}</span>
+            <div className="text-zinc-300">
+              Estimated Total: <strong className="text-white text-sm">{formatINR(totalEstimated)}</strong>
             </div>
           </div>
 
           {results.length > 0 && (
-            <div className="space-y-1.5 max-h-48 overflow-y-auto p-3 border border-white/10 bg-black/60 rounded-sm text-xs font-mono">
+            <div className="space-y-2 max-h-48 overflow-y-auto p-4 border border-white/10 bg-black/60 rounded-xl text-xs">
               {results.map((r, i) => (
-                <div key={i} className={`flex items-center gap-2 ${r.success ? "text-emerald-400" : "text-red-400"}`}>
-                  {r.success ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                  <span className="truncate">{r.line} &rarr; {r.msg}</span>
+                <div
+                  key={i}
+                  className={`flex items-center gap-2 ${
+                    r.success ? "text-emerald-400" : "text-rose-400"
+                  }`}
+                >
+                  {r.success ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  <span className="truncate">
+                    {r.line} &rarr; {r.msg}
+                  </span>
                 </div>
               ))}
             </div>
@@ -173,10 +190,14 @@ export default function MassOrder({
           <button
             type="submit"
             disabled={submitting || parsedOrders.length === 0}
-            className="w-full py-3 bg-white text-black font-bold text-xs tracking-[0.2em] rounded-sm hover:bg-neutral-200 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(255,255,255,0.3)] disabled:opacity-50"
+            className="w-full py-3.5 px-6 rounded-xl bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
-            <Send className="w-3.5 h-3.5" />
-            <span>{submitting ? "SUBMITTING BATCH..." : `DISPATCH ALL ORDERS (${formatINR(totalEstimated)})`}</span>
+            <Send className="w-4 h-4" />
+            <span>
+              {submitting
+                ? "Dispatching Batch Orders..."
+                : `Dispatch Batch (${formatINR(totalEstimated)})`}
+            </span>
           </button>
         </form>
       </div>

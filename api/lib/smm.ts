@@ -3,6 +3,7 @@ export interface SMMService {
   name: string;
   type: string;
   category: string;
+  platform: string;
   rate: number; // Retail rate in INR
   wholesale_rate: number; // Original wholesale rate in INR
   min: number;
@@ -54,6 +55,22 @@ let cachedServices: SMMService[] | null = null;
 let lastCacheTime = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
+export function detectPlatform(category: string, name: string): string {
+  const combined = (category + " " + name).toLowerCase();
+  if (/telegram|\btg\b/i.test(combined)) return "Telegram";
+  if (/instagram|\big\b|reels/i.test(combined)) return "Instagram";
+  if (/youtube|\byt\b/i.test(combined)) return "YouTube";
+  if (/facebook|\bfb\b/i.test(combined)) return "Facebook";
+  if (/twitter|\bx\b|tweet/i.test(combined)) return "Twitter / X";
+  if (/tiktok/i.test(combined)) return "TikTok";
+  if (/spotify/i.test(combined)) return "Spotify";
+  if (/discord/i.test(combined)) return "Discord";
+  if (/linkedin/i.test(combined)) return "LinkedIn";
+  if (/whatsapp/i.test(combined)) return "WhatsApp";
+  if (/traffic|website|visitor|seo/i.test(combined)) return "Traffic";
+  return "Other";
+}
+
 export async function fetchAllServices(forceRefresh = false): Promise<SMMService[]> {
   const now = Date.now();
   if (!forceRefresh && cachedServices && now - lastCacheTime < CACHE_TTL_MS) {
@@ -85,12 +102,15 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
   const sanitized: SMMService[] = data.map((s: any) => {
     const wRate = parseFloat(s.rate) || 0;
     const retailRate = calculateRetailRate(wRate);
+    const category = String(s.category || "General").trim();
+    const name = String(s.name || "Service");
 
     return {
       service: Number(s.service),
-      name: String(s.name || "Service"),
+      name: name,
       type: String(s.type || "Default"),
-      category: String(s.category || "General").trim(),
+      category: category,
+      platform: detectPlatform(category, name),
       rate: retailRate,
       wholesale_rate: wRate,
       min: parseInt(s.min, 10) || 10,

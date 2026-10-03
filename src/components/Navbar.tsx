@@ -1,6 +1,5 @@
 import React from "react";
 import {
-  Zap,
   Wallet,
   ShoppingBag,
   ListOrdered,
@@ -10,9 +9,10 @@ import {
   Shield,
   Menu,
   X,
-  PlusCircle,
-  Copy,
-  Check,
+  Plus,
+  Key,
+  Globe,
+  Sparkles,
 } from "lucide-react";
 import { formatINR } from "../lib/utils";
 
@@ -41,7 +41,7 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const prevScrollY = React.useRef(0);
 
-  // Smart hide-on-scroll logic from ExamCodes
+  // Smooth scroll hide/reveal from ExamCodes
   React.useEffect(() => {
     const handleScroll = () => {
       const currentY = window.scrollY;
@@ -56,9 +56,9 @@ export default function Navbar({
       }
 
       const diff = currentY - prevScrollY.current;
-      if (diff > 6) {
+      if (diff > 8) {
         setNavVisible(false);
-      } else if (diff < -4) {
+      } else if (diff < -5) {
         setNavVisible(true);
       }
       prevScrollY.current = currentY;
@@ -70,41 +70,34 @@ export default function Navbar({
 
   const navLinks = [
     { id: "store", label: "NEW ORDER", icon: ShoppingBag },
+    { id: "services", label: "SERVICES CATALOG", icon: Sparkles },
     { id: "mass", label: "MASS ORDER", icon: Layers },
-    { id: "orders", label: "ORDERS", icon: ListOrdered },
-    { id: "services", label: "SERVICES", icon: Zap },
+    { id: "orders", label: "ORDER HISTORY", icon: ListOrdered },
   ];
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-300 backdrop-blur-md bg-black/85 border-b border-white/10 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl bg-black/80 border-b border-white/[0.08] ${
         navVisible ? "translate-y-0" : "-translate-y-full"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Brand */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setCurrentTab("store")}
-            className="flex items-center gap-2 text-left group cursor-pointer"
-          >
-            <div className="w-8 h-8 rounded-sm bg-white text-black font-black flex items-center justify-center text-sm tracking-tighter group-hover:bg-neutral-200 transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-              UP
-            </div>
-            <div>
-              <div className="text-base font-bold tracking-[0.18em] text-white flex items-center gap-1.5 leading-none">
-                <span>SMM UP</span>
-                <span className="text-[10px] text-white/40">❖</span>
-              </div>
-              <div className="text-[8px] tracking-[0.25em] text-gray-500 font-mono mt-0.5">
-                INSTITUTIONAL GROWTH
-              </div>
-            </div>
-          </button>
-        </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
+        {/* Brand Logo in ExamCodes Style */}
+        <button
+          onClick={() => {
+            setCurrentTab("store");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className="text-lg sm:text-2xl font-light tracking-[0.22em] text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.85)] flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity"
+        >
+          <span className="w-8 h-8 rounded-xl bg-white text-black font-bold flex items-center justify-center text-xs tracking-tight shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+            UP
+          </span>
+          <span className="whitespace-nowrap">SMM UP</span>
+        </button>
 
-        {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-1 lg:gap-2">
+        {/* Desktop Nav Links */}
+        <nav className="hidden md:flex items-center gap-1.5 lg:gap-2">
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = currentTab === link.id;
@@ -112,10 +105,10 @@ export default function Navbar({
               <button
                 key={link.id}
                 onClick={() => setCurrentTab(link.id)}
-                className={`px-3 py-1.5 rounded-sm text-[11px] font-medium tracking-[0.14em] flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-4 py-2 rounded-xl text-xs font-semibold tracking-wider flex items-center gap-2 transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? "bg-white text-black font-semibold shadow-[0_0_15px_rgba(255,255,255,0.15)]"
-                    : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                    ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.25)]"
+                    : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -125,70 +118,72 @@ export default function Navbar({
           })}
         </nav>
 
-        {/* Right Section: Balance Pill & User Controls */}
+        {/* User Balance & Actions */}
         <div className="flex items-center gap-2.5 sm:gap-3">
           {user ? (
             <>
-              {/* Wallet Balance Pill */}
+              {/* Wallet Button */}
               <button
                 onClick={onOpenWallet}
-                className="flex items-center gap-2 px-3 py-1.5 border border-white/15 bg-white/[0.03] hover:border-white/40 hover:bg-white/[0.06] rounded-sm transition-all cursor-pointer shadow-[0_0_15px_rgba(255,255,255,0.05)]"
-                title="Click to Add Funds via Instant UPI"
+                className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-white/15 bg-white/[0.03] hover:bg-white/[0.07] hover:border-white/30 transition-all cursor-pointer shadow-[0_0_15px_rgba(255,255,255,0.05)]"
+                title="Deposit Funds via Instant 0% UPI"
               >
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-[11px] sm:text-xs font-mono font-semibold tracking-wider text-white">
+                <span className="text-xs sm:text-sm font-semibold text-white tracking-wide">
                   {formatINR(user.balance)}
                 </span>
-                <span className="text-[9px] tracking-wider text-emerald-400 font-semibold flex items-center gap-0.5 border-l border-white/10 pl-2">
-                  <PlusCircle className="w-3 h-3" />
-                  <span className="hidden sm:inline">ADD</span>
+                <span className="text-[11px] font-semibold text-emerald-400 border-l border-white/10 pl-2 flex items-center gap-1">
+                  <Plus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Add</span>
                 </span>
               </button>
 
-              {/* Profile / Codename */}
+              {/* Profile Button */}
               <button
                 onClick={onOpenProfile}
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 border border-white/10 bg-white/[0.02] hover:border-white/30 text-gray-300 hover:text-white text-xs font-mono rounded-sm transition-all cursor-pointer"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-200 hover:text-white text-xs font-medium transition-all cursor-pointer"
+                title="Account Settings & API Key"
               >
-                <User className="w-3.5 h-3.5 text-gray-400" />
-                <span className="max-w-[100px] truncate uppercase">{user.username || "OPERATIVE"}</span>
+                <User className="w-3.5 h-3.5 text-zinc-400" />
+                <span className="max-w-[100px] truncate">{user.username}</span>
               </button>
 
-              {/* Admin Button (if admin) */}
+              {/* Admin Button */}
               {user.role === "admin" && (
                 <button
                   onClick={onOpenAdmin}
-                  className="px-2.5 py-1.5 border border-amber-500/30 bg-amber-500/10 hover:border-amber-500/60 text-amber-400 text-xs font-mono rounded-sm transition-all cursor-pointer flex items-center gap-1"
+                  className="px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
                   title="Admin Dashboard"
                 >
                   <Shield className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline">ADMIN</span>
+                  <span className="hidden md:inline">Admin</span>
                 </button>
               )}
             </>
           ) : (
             <button
               onClick={onOpenAuth}
-              className="px-4 py-1.5 bg-white text-black font-semibold text-xs tracking-[0.15em] rounded-sm hover:bg-neutral-200 transition-all cursor-pointer shadow-[0_0_15px_rgba(255,255,255,0.2)]"
+              className="px-5 py-2.5 rounded-xl bg-white text-black font-semibold text-xs tracking-wider hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] cursor-pointer"
             >
               SIGN IN
             </button>
           )}
 
-          {/* Mobile Menu Toggle Button */}
+          {/* Mobile Hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-1.5 text-gray-400 hover:text-white border border-white/10 rounded-sm cursor-pointer"
+            className="md:hidden p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            aria-label="Toggle menu"
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
+      {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-white/10 bg-black/95 backdrop-blur-xl px-4 py-5 space-y-3">
-          <div className="grid grid-cols-2 gap-2">
+        <div className="md:hidden border-t border-white/10 bg-black/95 backdrop-blur-2xl px-5 py-6 space-y-4">
+          <div className="space-y-2">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive = currentTab === link.id;
@@ -199,13 +194,13 @@ export default function Navbar({
                     setCurrentTab(link.id);
                     setMobileMenuOpen(false);
                   }}
-                  className={`p-3 border rounded-sm text-left flex items-center gap-2.5 text-xs tracking-wider transition-all cursor-pointer ${
+                  className={`w-full px-4 py-3 rounded-xl text-xs font-semibold tracking-wider flex items-center gap-3 transition-all cursor-pointer ${
                     isActive
-                      ? "border-white/40 bg-white/10 text-white font-bold"
-                      : "border-white/10 bg-white/[0.02] text-gray-400"
+                      ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.2)]"
+                      : "text-zinc-300 hover:bg-white/[0.04]"
                   }`}
                 >
-                  <Icon className="w-4 h-4 text-white" />
+                  <Icon className="w-4 h-4" />
                   <span>{link.label}</span>
                 </button>
               );
@@ -213,51 +208,30 @@ export default function Navbar({
           </div>
 
           {user && (
-            <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  onOpenWallet();
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full py-2.5 px-3 bg-white text-black font-bold text-xs tracking-[0.15em] rounded-sm flex items-center justify-center gap-2"
-              >
-                <Wallet className="w-4 h-4" />
-                ADD FUNDS (INSTANT 0% UPI)
-              </button>
-
+            <div className="pt-4 border-t border-white/10 space-y-3">
               <button
                 onClick={() => {
                   onOpenProfile();
                   setMobileMenuOpen(false);
                 }}
-                className="w-full py-2.5 px-3 border border-white/15 text-gray-300 text-xs font-mono rounded-sm flex items-center justify-center gap-2"
+                className="w-full px-4 py-3 rounded-xl border border-white/10 text-zinc-200 flex items-center justify-between text-xs font-semibold"
               >
-                <User className="w-4 h-4" />
-                MY PROFILE & API KEY
+                <span className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-zinc-400" />
+                  <span>Account &amp; API Key</span>
+                </span>
+                <span className="text-zinc-400">{user.username}</span>
               </button>
-
-              {user.role === "admin" && (
-                <button
-                  onClick={() => {
-                    onOpenAdmin();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full py-2.5 px-3 border border-amber-500/40 text-amber-400 text-xs font-mono rounded-sm flex items-center justify-center gap-2"
-                >
-                  <Shield className="w-4 h-4" />
-                  ADMIN CONTROL PANEL
-                </button>
-              )}
 
               <button
                 onClick={() => {
                   onLogout();
                   setMobileMenuOpen(false);
                 }}
-                className="w-full py-2 text-gray-500 hover:text-red-400 text-xs font-mono tracking-wider flex items-center justify-center gap-1.5"
+                className="w-full px-4 py-3 rounded-xl border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 flex items-center gap-2 text-xs font-semibold"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                LOGOUT
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
               </button>
             </div>
           )}
