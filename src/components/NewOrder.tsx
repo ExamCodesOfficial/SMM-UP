@@ -23,7 +23,7 @@ import {
   FileText,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { formatINR, formatNumber } from "../lib/utils";
+import { formatINR, formatNumber, cleanServiceDescription } from "../lib/utils";
 import {
   ExecutiveOrderIcon,
   ExecutiveWalletIcon,
@@ -740,7 +740,7 @@ export default function NewOrder({
                   Service Description &amp; Instructions
                 </span>
                 <div className="p-4 rounded-xl border border-white/[0.06] bg-black/30 text-xs text-zinc-300 leading-relaxed whitespace-pre-line max-h-56 overflow-y-auto">
-                  {currentService.description || "High quality instant automated delivery node. Ensure target account is completely PUBLIC."}
+                  {cleanServiceDescription(currentService.description)}
                 </div>
               </div>
 
