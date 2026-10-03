@@ -115,3 +115,67 @@ export function cleanServiceDescription(raw: string | undefined | null): string 
   return str.trim() || "Instant automated delivery node. Ensure target account is completely PUBLIC.";
 }
 
+export interface ServiceRefillPolicy {
+  hasRefill: boolean;
+  days: number;
+  label: string; // e.g. "Lifetime Guaranteed", "365 Days Guaranteed", "30 Days Guaranteed", "7 Days Guaranteed", "No Refill"
+  shortLabel: string; // e.g. "Lifetime", "365D Refill", "30D Refill", "7D Refill", "No Refill"
+}
+
+/**
+ * Dynamically resolves the exact refill duration and guarantee policy for any SMM service.
+ * Handles 7-day, 15-day, 30-day, 60-day, 90-day, 365-day, and Lifetime non-drop guarantees.
+ */
+export function parseRefillPolicy(service: any): ServiceRefillPolicy {
+  if (!service) {
+    return { hasRefill: false, days: 0, label: "No Refill", shortLabel: "No Refill" };
+  }
+
+  // 1. If backend already computed dynamic policy
+  if (service.refill_label && service.refill_short !== undefined) {
+    return {
+      hasRefill: Boolean(service.refill),
+      days: Number(service.refill_days) || (service.refill ? 30 : 0),
+      label: service.refill_label,
+      shortLabel: service.refill_short,
+    };
+  }
+
+  const text = ((service.name || "") + " " + (service.description || "")).trim();
+
+  // 2. Explicit No Refill
+  if (/(?:⚠️\s*)?no\s*refill|without\s*refill|refill\s*none|non[\s\-]*refill/i.test(text)) {
+    return { hasRefill: false, days: 0, label: "No Refill", shortLabel: "No Refill" };
+  }
+
+  // 3. Lifetime Guaranteed
+  if (/lifetime|life\s*time|forever|permanent/i.test(text) || /♻️\s*lifetime/i.test(text)) {
+    return { hasRefill: true, days: 9999, label: "Lifetime Guaranteed", shortLabel: "Lifetime" };
+  }
+
+  // 4. Explicit numeric days (e.g. 7 Days, 15 Days, 30 Days, 60 Days, 90 Days, 365 Days)
+  const dayMatch =
+    text.match(/(?:♻️|⚡)?\s*(\d+)\s*(?:days?|d)\s*(?:auto\s*refill|refill|guarantee|warranty|sla|drop)?/i) ||
+    text.match(/(?:refill|guarantee|warranty|sla)\s*[:\-]?\s*(\d+)\s*(?:days?|d)/i) ||
+    text.match(/\b(\d+)\s*(?:days?|d)\s*♻️/i);
+
+  if (dayMatch) {
+    const days = parseInt(dayMatch[1], 10);
+    if (!isNaN(days) && days > 0 && days < 2000) {
+      return {
+        hasRefill: true,
+        days: days,
+        label: `${days} Days Guaranteed`,
+        shortLabel: `${days}D Refill`,
+      };
+    }
+  }
+
+  // 5. Fallback: if provider flagged refill === true
+  if (service.refill) {
+    return { hasRefill: true, days: 30, label: "30 Days Guaranteed", shortLabel: "30D Refill" };
+  }
+
+  return { hasRefill: false, days: 0, label: "No Refill", shortLabel: "No Refill" };
+}
+

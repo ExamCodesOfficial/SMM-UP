@@ -14,7 +14,7 @@ import {
   ChevronRight,
   Filter,
 } from "lucide-react";
-import { formatINR, formatNumber, sanitizeBrandText } from "../lib/utils";
+import { formatINR, formatNumber, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
 import { ExecutiveCatalogIcon } from "./icons/ExecutiveIcons";
 import {
   TelegramIcon,
@@ -43,6 +43,9 @@ interface Service {
   max: number;
   dripfeed: boolean;
   refill: boolean;
+  refill_days?: number;
+  refill_label?: string;
+  refill_short?: string;
   cancel: boolean;
   average_time: string;
   description: string;
@@ -339,11 +342,24 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                     {sanitizeBrandText(s.name)}
                   </h3>
 
-                  {/* Category Pill */}
-                  <div className="mb-4">
-                    <span className="inline-block px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] text-zinc-400 max-w-full truncate">
+                  {/* Category Pill & Dynamic Refill Badge */}
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <span className="inline-block px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] text-zinc-400 max-w-[70%] truncate">
                       {sanitizeBrandText(s.category)}
                     </span>
+                    {(() => {
+                      const policy = parseRefillPolicy(s);
+                      return policy.hasRefill ? (
+                        <span className="px-2 py-0.5 rounded-md border border-[#F5E8D0]/30 bg-[#F5E8D0]/10 text-[#F5E8D0] text-[10px] font-semibold flex items-center gap-1 shrink-0">
+                          <RotateCcw className="w-2.5 h-2.5" />
+                          {policy.shortLabel}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md border border-white/5 bg-black/40 text-zinc-600 text-[10px] font-medium shrink-0">
+                          No Refill
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Key Metrics Grid */}
@@ -430,13 +446,16 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                         {formatNumber(s.min)} – {formatNumber(s.max)}
                       </td>
                       <td className="py-3.5 px-5 whitespace-nowrap">
-                        {s.refill ? (
-                          <span className="text-[11px] text-emerald-400 font-semibold flex items-center gap-1">
-                            <RotateCcw className="w-3 h-3" /> Refill
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-zinc-600">No Refill</span>
-                        )}
+                        {(() => {
+                          const policy = parseRefillPolicy(s);
+                          return policy.hasRefill ? (
+                            <span className="text-[11px] text-[#F5E8D0] font-semibold flex items-center gap-1">
+                              <RotateCcw className="w-3 h-3" /> {policy.shortLabel}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-zinc-600">No Refill</span>
+                          );
+                        })()}
                       </td>
                       <td className="py-3.5 px-5 text-right whitespace-nowrap">
                         <button

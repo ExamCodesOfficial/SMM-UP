@@ -58,7 +58,7 @@ export default function Footer({
             </div>
 
             <p className="text-xs sm:text-sm text-zinc-400 font-light leading-relaxed max-w-sm">
-              Institutional direct-node social media marketing engine. Bank-direct 0% fee UPI instant clearing, 2,177+ wholesale channels, sub-second API dispatch, and automated 30-day retention refill protection.
+              Institutional direct-node social media marketing engine. Bank-direct 0% fee UPI instant clearing, 2,177+ wholesale channels, sub-second API dispatch, and automated multi-tier retention refill protection (7D to Lifetime SLA).
             </p>
 
             {/* Realtime Live Operational Status Pill */}
@@ -213,7 +213,7 @@ export default function Footer({
                 </div>
                 <div className="flex items-center gap-2">
                   <RotateCcw className="w-3.5 h-3.5 text-[#F5E8D0] shrink-0" />
-                  <span>30-Day Auto Refill Guarantee</span>
+                  <span>Automated Node Refill SLA (7D to Lifetime)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Lock className="w-3.5 h-3.5 text-[#F5E8D0] shrink-0" />

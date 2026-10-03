@@ -50,6 +50,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           max: s.max,
           dripfeed: s.dripfeed,
           refill: s.refill,
+          refill_days: s.refill_days,
+          refill_type: s.refill_label,
           cancel: s.cancel,
         }));
         return res.status(200).json(formatted);

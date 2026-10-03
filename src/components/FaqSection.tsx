@@ -22,9 +22,9 @@ const FAQS: FAQ[] = [
   },
   {
     id: "3",
-    question: "How is the 30-Day Refill Guarantee calculated?",
+    question: "How do the dynamic Refill Guarantees (7D to Lifetime) work?",
     answer:
-      "Refill tracking follows the exact formula: [Start Count + Order Quantity = Target Count]. For example, if your channel or post starts with 1,000 followers and you order 1,000, your target count is 2,000. If your count drops below 2,000 within the 30-day guarantee period, simply click the 'Refill' action button in your Order History. Drops above 5% trigger automated replenishment within 24 to 72 hours.",
+      "Every service package clearly displays its exact refill duration: ranging from 7-day rapid replenishment to 30-day, 60-day, 90-day, 365-day, or Lifetime non-drop protection. Refill tracking follows the mathematical formula: [Start Count + Order Quantity = Target Count]. If natural algorithm drops bring the count below your target count during your active guarantee period, simply click 'Refill' in your Order History desk to trigger automated replenishment within 24 to 72 hours.",
   },
   {
     id: "4",

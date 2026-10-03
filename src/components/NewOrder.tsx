@@ -23,7 +23,7 @@ import {
   FileText,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { formatINR, formatNumber, cleanServiceDescription, sanitizeBrandText } from "../lib/utils";
+import { formatINR, formatNumber, cleanServiceDescription, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
 import {
   ExecutiveOrderIcon,
   ExecutiveWalletIcon,
@@ -56,6 +56,9 @@ interface Service {
   max: number;
   dripfeed: boolean;
   refill: boolean;
+  refill_days?: number;
+  refill_label?: string;
+  refill_short?: string;
   cancel: boolean;
   average_time: string;
   description: string;
@@ -542,11 +545,16 @@ export default function NewOrder({
                               </div>
                               <div className="flex items-center gap-3 text-[10px] text-zinc-400">
                                 <span>Min: {formatNumber(s.min)} &bull; Max: {formatNumber(s.max)}</span>
-                                {s.refill && (
-                                  <span className="text-[#F5E8D0] font-medium flex items-center gap-0.5">
-                                    <RotateCcw className="w-2.5 h-2.5" /> 30D Refill
-                                  </span>
-                                )}
+                                {(() => {
+                                  const policy = parseRefillPolicy(s);
+                                  return policy.hasRefill ? (
+                                    <span className="text-[#F5E8D0] font-medium flex items-center gap-0.5">
+                                      <RotateCcw className="w-2.5 h-2.5" /> {policy.shortLabel}
+                                    </span>
+                                  ) : (
+                                    <span className="text-zinc-600 font-normal">No Refill</span>
+                                  );
+                                })()}
                               </div>
                             </button>
                           );
@@ -752,13 +760,18 @@ export default function NewOrder({
                   </span>
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
-                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Refill Policy</span>
-                  <span className={`text-sm font-semibold flex items-center gap-1.5 ${currentService.refill ? "text-[#F5E8D0]" : "text-zinc-500"}`}>
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    {currentService.refill ? "30 Days Guaranteed" : "No Refill"}
-                  </span>
-                </div>
+                {(() => {
+                  const policy = parseRefillPolicy(currentService);
+                  return (
+                    <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Refill Policy</span>
+                      <span className={`text-sm font-semibold flex items-center gap-1.5 ${policy.hasRefill ? "text-[#F5E8D0]" : "text-zinc-500"}`}>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        {policy.label}
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Cancel Option</span>

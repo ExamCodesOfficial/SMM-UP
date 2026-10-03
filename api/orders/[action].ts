@@ -135,6 +135,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         provider_order_id: providerRes.orderId,
         status: "In progress",
         refill_available: service.refill,
+        refill_days: service.refill_days,
+        refill_label: service.refill_label,
         cancel_available: service.cancel,
         created_at: new Date(),
         updated_at: new Date(),
@@ -184,6 +186,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         charge: o.charge,
         status: o.status || "Pending",
         refillAvailable: Boolean(o.refill_available),
+        refillDays: o.refill_days,
+        refillLabel: o.refill_label,
         cancelAvailable: Boolean(o.cancel_available),
         createdAt: o.created_at,
       }));

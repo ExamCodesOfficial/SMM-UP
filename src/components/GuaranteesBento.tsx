@@ -80,7 +80,7 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: Guarantee
           </div>
         </div>
 
-        {/* Card 3: 30D Refill Guarantee (Span 5) */}
+        {/* Card 3: Dynamic Multi-Tier Refill Guarantee (Span 5) */}
         <div className="md:col-span-5 p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 relative overflow-hidden group">
           <div className="w-12 h-12 rounded-xl border border-white/[0.1] bg-white/[0.03] flex items-center justify-center text-[#F5E8D0] mb-6">
             <RotateCcw className="w-6 h-6" />
@@ -90,10 +90,10 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: Guarantee
             Retention Protection
           </span>
           <h3 className="text-lg sm:text-xl font-medium tracking-wide text-white mb-2">
-            30-Day Refill Guarantee
+            Dynamic Refill Guarantees (7D to Lifetime)
           </h3>
           <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed font-light mb-6">
-            Eligible service channels feature continuous retention monitoring. In the event of natural algorithm fluctuations, one-click replenishment is available directly in your order history.
+            Eligible service channels feature guaranteed retention protection tailored to the package tier — from 7-day rapid replenishment to 30-day, 365-day, and Lifetime non-drop coverage with 1-click re-delivery.
           </p>
 
           {onOpenTerms && (

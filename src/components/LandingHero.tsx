@@ -201,7 +201,7 @@ export default function LandingHero({
 
               {/* Spacious Subtitle with wide tracking (Centered on mobile, left on desktop) */}
               <p className="text-sm sm:text-base md:text-lg text-zinc-400 max-w-xl mx-auto lg:mx-0 font-light tracking-wide leading-relaxed pt-1">
-                Institutional direct-to-node social marketing infrastructure. Direct 0% fee bank UPI clearing, 2,177+ wholesale channels, and automated 30-day retention refill protection.
+                Institutional direct-to-node social marketing infrastructure. Direct 0% fee bank UPI clearing, 2,177+ wholesale channels, and automated retention refill protection (7D to Lifetime SLA).
               </p>
 
               {/* Action Buttons with Negative Space (Centered on mobile, left on desktop) */}
@@ -232,7 +232,7 @@ export default function LandingHero({
                 </div>
                 <div className="flex items-center gap-2">
                   <RotateCcw className="w-4 h-4 text-[#F5E8D0]" />
-                  <span>30-Day Auto Refill SLA</span>
+                  <span>Automated Node Refill SLA</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Zap className="w-4 h-4 text-[#F5E8D0]" />
