@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUpRight, ShieldCheck, Zap, RotateCcw, ChevronUp, FileText, Lock } from "lucide-react";
+import { ArrowUpRight, ShieldCheck, Zap, RotateCcw, ChevronUp, FileText, Lock, MessageCircle } from "lucide-react";
 import { SmmUpLogo } from "./icons/ExecutiveIcons";
 import {
   TelegramIcon,
@@ -15,6 +15,7 @@ interface FooterProps {
   onNavigateTab: (tab: string) => void;
   onOpenTerms: () => void;
   onOpenWallet: () => void;
+  onOpenSupport?: () => void;
 }
 
 const PLATFORMS = [
@@ -27,7 +28,12 @@ const PLATFORMS = [
   { name: "Facebook", icon: FacebookIcon, rate: "From ₹12.00" },
 ];
 
-export default function Footer({ onNavigateTab, onOpenTerms, onOpenWallet }: FooterProps) {
+export default function Footer({
+  onNavigateTab,
+  onOpenTerms,
+  onOpenWallet,
+  onOpenSupport,
+}: FooterProps) {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -149,6 +155,15 @@ export default function Footer({ onNavigateTab, onOpenTerms, onOpenWallet }: Foo
               >
                 Wallet Top-Up (0% UPI)
               </button>
+              {onOpenSupport && (
+                <button
+                  onClick={onOpenSupport}
+                  className="text-left text-[#F5E8D0] hover:text-white transition-colors cursor-pointer font-medium flex items-center gap-1.5"
+                >
+                  <MessageCircle className="w-3.5 h-3.5 text-[#F5E8D0]" />
+                  <span>24/7 Telegram Support</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   onNavigateTab("orders");
@@ -164,7 +179,7 @@ export default function Footer({ onNavigateTab, onOpenTerms, onOpenWallet }: Foo
           {/* Column 4: SLA & Guarantees (3 cols) */}
           <div className="lg:col-span-3 space-y-4">
             <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-white font-mono">
-              Policies &amp; SLA
+              Policies &amp; Support
             </h4>
             <div className="space-y-3 text-xs">
               <button
@@ -177,6 +192,19 @@ export default function Footer({ onNavigateTab, onOpenTerms, onOpenWallet }: Foo
                 </div>
                 <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-white transition-colors" />
               </button>
+
+              {onOpenSupport && (
+                <button
+                  onClick={onOpenSupport}
+                  className="w-full text-left p-3 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20 transition-all flex items-center justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-emerald-400" />
+                    <span className="text-white font-medium">Chat on Telegram Desk</span>
+                  </div>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-white transition-colors" />
+                </button>
+              )}
 
               <div className="space-y-2 pt-1 text-[11px] text-zinc-400 font-light">
                 <div className="flex items-center gap-2">

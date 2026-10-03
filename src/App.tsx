@@ -12,6 +12,7 @@ import AdminModal from "./components/AdminModal";
 import MobileBottomNav from "./components/MobileBottomNav";
 import FaqSection from "./components/FaqSection";
 import TermsModal from "./components/TermsModal";
+import SupportModal from "./components/SupportModal";
 import LandingHero from "./components/LandingHero";
 import GuaranteesBento from "./components/GuaranteesBento";
 import TestimonialsTicker from "./components/TestimonialsTicker";
@@ -33,6 +34,7 @@ export default function App() {
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
   const [adminModalOpen, setAdminModalOpen] = React.useState(false);
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
+  const [supportModalOpen, setSupportModalOpen] = React.useState(false);
 
   React.useEffect(() => {
     checkAuth();
@@ -155,6 +157,7 @@ export default function App() {
         onOpenProfile={() => setProfileModalOpen(true)}
         onOpenAdmin={() => setAdminModalOpen(true)}
         onOpenTerms={() => setTermsModalOpen(true)}
+        onOpenSupport={() => setSupportModalOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -246,6 +249,7 @@ export default function App() {
           if (!user) setAuthModalOpen(true);
           else setWalletModalOpen(true);
         }}
+        onOpenSupport={() => setSupportModalOpen(true)}
       />
 
       {/* Mobile Bottom Thumb Navigation */}
@@ -276,6 +280,7 @@ export default function App() {
         onClose={() => setWalletModalOpen(false)}
         user={user}
         onDepositSuccess={handleDepositSuccess}
+        onOpenSupport={() => setSupportModalOpen(true)}
       />
 
       <ProfileModal
@@ -295,6 +300,12 @@ export default function App() {
       <TermsModal
         isOpen={termsModalOpen}
         onClose={() => setTermsModalOpen(false)}
+      />
+
+      <SupportModal
+        isOpen={supportModalOpen}
+        onClose={() => setSupportModalOpen(false)}
+        user={user}
       />
     </div>
   );
