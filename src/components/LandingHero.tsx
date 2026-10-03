@@ -175,8 +175,8 @@ export default function LandingHero({
       <section className="relative pt-20 pb-20 md:pt-28 md:pb-28 lg:pt-36 lg:pb-36 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-            {/* Left Content Column (7 cols): Majestic Typography & Pacing */}
-            <div className="lg:col-span-7 text-left space-y-6">
+            {/* Left Content Column (7 cols): Majestic Typography & Pacing (Centered on mobile, left-aligned on desktop) */}
+            <div className="lg:col-span-7 text-center lg:text-left space-y-6">
               {/* Protocol Status Pill in ExamCodes Style */}
               <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-white/[0.08] bg-[#0E0D0B]/80 text-[#F5E8D0] text-[11px] font-mono tracking-wider uppercase shadow-[0_0_20px_rgba(245,232,208,0.06)]">
                 <span className="relative flex h-2 w-2">
@@ -186,29 +186,26 @@ export default function LandingHero({
                 <span>Wholesale Protocol Initialized &bull; 0% UPI Clearing</span>
               </div>
 
-              {/* Refined Motto with Ambient Atmospheric Backlight (No Box Feeling, Soft Radiance Behind Text) */}
+              {/* Streamlined Monolithic Motto: SMM UP ENGINE with Centered Atmospheric Backlight */}
               <div className="relative inline-block py-2">
                 {/* Atmospheric Backlight Bloom (Radiates softly from BEHIND the text) */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[140%] bg-gradient-to-r from-transparent via-[#F5E8D0]/10 to-transparent rounded-full blur-3xl pointer-events-none -z-10" />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 sm:w-72 h-16 sm:h-24 bg-white/[0.06] rounded-full blur-2xl pointer-events-none -z-10" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[130%] h-[160%] bg-gradient-to-r from-transparent via-[#F5E8D0]/12 to-transparent rounded-full blur-3xl pointer-events-none -z-10" />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 sm:w-80 h-16 sm:h-28 bg-white/[0.08] rounded-full blur-2xl pointer-events-none -z-10" />
 
-                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-light tracking-[0.14em] sm:tracking-[0.18em] uppercase leading-tight text-white relative z-10">
-                  <span className="block text-zinc-300 font-extralight tracking-[0.2em]">
-                    SCALE SOCIAL
-                  </span>
-                  <span className="block mt-1 sm:mt-1.5 text-[#FAF7F2] font-normal tracking-[0.14em]">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-light tracking-[0.14em] sm:tracking-[0.18em] uppercase leading-tight text-white relative z-10">
+                  <span className="text-[#FAF7F2] font-normal drop-shadow-[0_0_25px_rgba(255,255,255,0.4)]">
                     SMM UP ENGINE
                   </span>
                 </h1>
               </div>
 
-              {/* Spacious Subtitle with wide tracking */}
-              <p className="text-sm sm:text-base md:text-lg text-zinc-400 max-w-xl font-light tracking-wide leading-relaxed pt-2">
+              {/* Spacious Subtitle with wide tracking (Centered on mobile, left on desktop) */}
+              <p className="text-sm sm:text-base md:text-lg text-zinc-400 max-w-xl mx-auto lg:mx-0 font-light tracking-wide leading-relaxed pt-1">
                 Institutional direct-to-node social marketing infrastructure. Direct 0% fee bank UPI clearing, 2,177+ wholesale channels, and automated 30-day retention refill protection.
               </p>
 
-              {/* Action Buttons with Negative Space */}
-              <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+              {/* Action Buttons with Negative Space (Centered on mobile, left on desktop) */}
+              <div className="pt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-4">
                 <button
                   onClick={() => onNavigateTab("store")}
                   className="px-8 py-4 rounded-xl bg-white text-black font-bold tracking-[0.14em] text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,255,255,0.4)] flex items-center justify-center gap-3 cursor-pointer group"
@@ -227,8 +224,8 @@ export default function LandingHero({
                 </button>
               </div>
 
-              {/* Micro Trust Indicators */}
-              <div className="pt-6 flex flex-wrap items-center gap-6 text-xs text-zinc-400 font-light border-t border-white/[0.06]">
+              {/* Micro Trust Indicators (Centered on mobile, left on desktop) */}
+              <div className="pt-6 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-xs text-zinc-400 font-light border-t border-white/[0.06]">
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-[#F5E8D0]" />
                   <span>Zero Password Requirement</span>
