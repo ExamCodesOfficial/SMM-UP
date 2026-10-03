@@ -1,5 +1,6 @@
 import React from "react";
 import { X, Lock, Mail, User, ArrowRight, AlertCircle, Sparkles } from "lucide-react";
+import { SmmUpLogo } from "./icons/ExecutiveIcons";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
-      <div className="relative w-full max-w-md border border-white/10 bg-zinc-950/95 rounded-2xl shadow-[0_4px_40px_rgba(0,0,0,0.8)] p-6 sm:p-8">
+      <div className="relative w-full max-w-md border border-white/10 bg-[#0E0D0B] rounded-2xl shadow-[0_10px_50px_rgba(0,0,0,0.8)] p-6 sm:p-8">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -61,11 +62,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
 
         {/* Modal Header */}
         <div className="text-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-white text-black font-bold flex items-center justify-center text-sm mx-auto mb-4 shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-            UP
-          </div>
-          <h2 className="text-xl sm:text-2xl font-light tracking-[0.2em] text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.4)] uppercase">
-            {isRegister ? "CREATE ACCOUNT" : "SIGN IN"}
+          <SmmUpLogo size={48} className="mx-auto mb-4" />
+          <h2 className="text-xl sm:text-2xl font-light tracking-[0.16em] text-white uppercase">
+            {isRegister ? "Create Account" : "Sign In"}
           </h2>
           <div className="w-12 h-0.5 bg-white/20 mx-auto my-2.5" />
           <p className="text-xs text-zinc-400">

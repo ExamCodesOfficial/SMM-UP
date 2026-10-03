@@ -15,6 +15,7 @@ import TermsModal from "./components/TermsModal";
 import LandingHero from "./components/LandingHero";
 import GuaranteesBento from "./components/GuaranteesBento";
 import TestimonialsTicker from "./components/TestimonialsTicker";
+import Footer from "./components/Footer";
 import { SmmUpLogo } from "./components/icons/ExecutiveIcons";
 
 export default function App() {
@@ -220,39 +221,18 @@ export default function App() {
         )}
       </main>
 
-      {/* Luxury Minimal Footer */}
-      <footer className="border-t border-white/[0.08] bg-[#090807]/90 py-12 relative z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <SmmUpLogo size={28} />
-            <div className="flex flex-col text-left">
-              <span className="text-white font-light tracking-[0.2em] text-sm leading-tight">
-                SMM UP
-              </span>
-              <span className="text-[#8E877B] text-[10px] uppercase font-mono tracking-wider">
-                Automated Growth Engine
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-zinc-400">
-            <button
-              onClick={() => setTermsModalOpen(true)}
-              className="text-zinc-400 hover:text-white transition-colors cursor-pointer underline"
-            >
-              Terms of Service &amp; SLA
-            </button>
-            <span>&bull;</span>
-            <span>Direct 0% UPI Instant Clearing</span>
-            <span>&bull;</span>
-            <span>SMM v2 API Ready</span>
-          </div>
-
-          <div className="text-xs text-zinc-500">
-            &copy; {new Date().getFullYear()} SMM UP. All rights reserved.
-          </div>
-        </div>
-      </footer>
+      {/* Grand ExamCodes-Style Multi-Column Architectural Footer */}
+      <Footer
+        onNavigateTab={(tab) => {
+          setCurrentTab(tab);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+        onOpenTerms={() => setTermsModalOpen(true)}
+        onOpenWallet={() => {
+          if (!user) setAuthModalOpen(true);
+          else setWalletModalOpen(true);
+        }}
+      />
 
       {/* Mobile Bottom Thumb Navigation */}
       <MobileBottomNav

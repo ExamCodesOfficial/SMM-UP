@@ -20,64 +20,57 @@ export function SmmUpLogo({ size = 32, className = "" }: IconProps) {
       role="img"
       aria-label="SMM UP Emblem"
     >
-      <rect width="128" height="128" rx="28" fill="#090807" />
+      <rect width="128" height="128" rx="20" fill="#000000" />
       <rect
         x="4"
         y="4"
         width="120"
         height="120"
-        rx="24"
+        rx="16"
         fill="none"
-        stroke="rgba(255, 245, 230, 0.12)"
-        strokeWidth="1.5"
+        stroke="rgba(255, 255, 255, 0.18)"
+        strokeWidth="2"
       />
       <defs>
         <filter id="logoGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
         </filter>
-        <linearGradient id="logoChampagne" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="55%" stopColor="#F5E8D0" />
-          <stop offset="100%" stopColor="#D4C4A8" />
-        </linearGradient>
       </defs>
 
-      <g fill="url(#logoChampagne)" filter="url(#logoGlow)">
+      <g fill="#FFFFFF" filter="url(#logoGlow)">
         {/* 'U' Channel */}
-        <path d="M 28 36 L 28 66 C 28 77 37 84 48 84 C 59 84 68 77 68 66 L 68 36 L 56 36 L 56 65 C 56 70 52 73 48 73 C 44 73 40 70 40 65 L 40 36 Z" />
+        <path d="M 28 36 L 40 36 L 40 64 C 40 68 43 71 47 71 C 51 71 54 68 54 64 L 54 36 L 66 36 L 66 65 C 66 76 58 83 47 83 C 36 83 28 76 28 65 Z" />
         {/* 'P' Pillar & Loop */}
-        <rect x="74" y="36" width="11" height="48" rx="2" />
-        <path
-          d="M 85 36 L 98 36 C 105 36 110 40 110 48 C 110 56 105 60 98 60 L 85 60 Z M 95 46 L 95 50 C 97 50 99 49 99 48 C 99 47 97 46 95 46 Z"
-          fillRule="evenodd"
-        />
-        {/* Supersonic Apex Arrow */}
-        <polygon points="79.5,24 85,32 74,32" />
+        <path d="M 74 36 L 94 36 C 103 36 109 41 109 49 C 109 57 103 62 94 62 L 86 62 L 86 83 L 74 83 Z M 86 46 L 86 52 L 93 52 C 96 52 98 51 98 49 C 98 47 96 46 93 46 Z" />
+        {/* Apex Arrow Beacon */}
+        <polygon points="47,20 54,28 40,28" />
       </g>
 
-      <circle cx="85" cy="48" r="3" fill="#FFFFFF" />
-      <circle cx="85" cy="48" r="1.5" fill="#090807" />
+      <circle cx="86" cy="49" r="2.5" fill="#000000" />
 
       {/* Signature Telemetry Lines */}
       <line
-        x1="32"
+        x1="30"
         y1="102"
-        x2="96"
+        x2="98"
         y2="102"
-        stroke="#FAF7F2"
-        strokeWidth="2"
-        opacity="0.6"
+        stroke="#FFFFFF"
+        strokeWidth="2.5"
+        opacity="0.8"
         strokeLinecap="round"
       />
       <line
         x1="42"
-        y1="108"
+        y1="110"
         x2="86"
-        y2="108"
-        stroke="#FAF7F2"
-        strokeWidth="1.5"
-        opacity="0.3"
+        y2="110"
+        stroke="#FFFFFF"
+        strokeWidth="1.8"
+        opacity="0.4"
         strokeLinecap="round"
       />
     </svg>
