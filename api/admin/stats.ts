@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ObjectId } from "mongodb";
-import { getDb } from "../lib/db";
-import { getUserFromRequest } from "../lib/auth";
-import { getWholesaleBalance } from "../lib/smm";
+import { getDb } from "../lib/db.js";
+import { getUserFromRequest } from "../lib/auth.js";
+import { getWholesaleBalance } from "../lib/smm.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const authUser = getUserFromRequest(req);
@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Target email and adjustment amount are required" });
     }
 
-    const targetUser = await db.collection("users").findOneAndUpdate(
+    const targetUser: any = await db.collection("users").findOneAndUpdate(
       { email: String(targetEmail).trim().toLowerCase() },
       { $inc: { balance: amt }, $set: { updated_at: new Date() } },
       { returnDocument: "after" }
