@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   ChevronRight,
   Flame,
+  Sparkles,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { formatINR, formatNumber } from "../lib/utils";
