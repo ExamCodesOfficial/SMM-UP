@@ -1,0 +1,22 @@
+{
+  "name": "smm-up-admin-bot",
+  "version": "1.0.0",
+  "description": "Zero-Web-Surface Telegram Administration Bot & Background IMAP Settlement Worker for SMM UP",
+  "main": "bot.ts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx bot.ts",
+    "dev": "tsx watch bot.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "imapflow": "^1.0.170",
+    "mongodb": "^6.13.0",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

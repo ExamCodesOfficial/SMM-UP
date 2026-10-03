@@ -36,9 +36,12 @@ export async function getDb(): Promise<Db> {
       db.collection("users").createIndex({ email: 1 }, { unique: true }),
       db.collection("users").createIndex({ username: 1 }),
       db.collection("users").createIndex({ api_key: 1 }),
-      db.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true }),
+      db.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true, sparse: true }),
+      db.collection("processed_transactions").createIndex({ transaction_id: 1 }, { unique: true, sparse: true }),
+      db.collection("processed_transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
       db.collection("orders").createIndex({ user_id: 1, created_at: -1 }),
       db.collection("transactions").createIndex({ user_id: 1, created_at: -1 }),
+      db.collection("transactions").createIndex({ memo: 1 }, { sparse: true }),
     ]).catch(() => {});
   }
 

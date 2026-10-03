@@ -140,115 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }).catch((e) => console.error("Delay alert send error:", e));
       }
 
-      // Live IMAP Check for incoming email with this memo
-      const parsedPayment = await searchFamPayPayment({
-        memo: tx.memo,
-        expectedAmount: tx.amount,
-        minDate: tx.created_at,
-      });
-
-      if (parsedPayment) {
-        const cleanUtr = parsedPayment.utr || `MEMO_${tx.memo}`;
-        const cleanTxId = parsedPayment.transactionId || `TXN_${tx.memo}`;
-
-        // Check Anti-Replay
-        const alreadyClaimed = await db.collection("processed_transactions").findOne({
-          $or: [
-            { memo: tx.memo },
-            { utr: cleanUtr },
-            ...(parsedPayment.transactionId ? [{ transaction_id: parsedPayment.transactionId }] : []),
-          ],
-        });
-
-        if (alreadyClaimed) {
-          await db.collection("transactions").updateOne(
-            { _id: tx._id },
-            { $set: { status: "paid", utr: cleanUtr, transaction_id: cleanTxId, paid_at: new Date() } }
-          );
-
-          const currentUser = await db.collection("users").findOne({ _id: userObjectId });
-          return res.status(200).json({
-            status: "paid",
-            amount: tx.amount,
-            utr: cleanUtr,
-            newBalance: currentUser?.balance || 0,
-            message: "Payment previously verified and credited.",
-          });
-        }
-
-        // Insert into processed_transactions
-        try {
-          await db.collection("processed_transactions").insertOne({
-            memo: tx.memo,
-            utr: cleanUtr,
-            transaction_id: cleanTxId,
-            amount: parsedPayment.amount,
-            user_id: userObjectId,
-            user_email: authUser.email,
-            sender: parsedPayment.sender || "",
-            method: "FAMPAY_MEMO_AUTODETECT",
-            processed_at: new Date(),
-          });
-        } catch (dupErr: any) {
-          if (dupErr.code === 11000) {
-            const currentUser = await db.collection("users").findOne({ _id: userObjectId });
-            return res.status(200).json({
-              status: "paid",
-              amount: tx.amount,
-              newBalance: currentUser?.balance || 0,
-            });
-          }
-          throw dupErr;
-        }
-
-        // Atomic Wallet Increment
-        const updateResult: any = await db.collection("users").findOneAndUpdate(
-          { _id: userObjectId },
-          {
-            $inc: { balance: parsedPayment.amount },
-            $set: { updated_at: new Date() },
-          },
-          { returnDocument: "after" }
-        );
-
-        // Update Ledger
-        await db.collection("transactions").updateOne(
-          { _id: tx._id },
-          {
-            $set: {
-              status: "paid",
-              utr: cleanUtr,
-              transaction_id: cleanTxId,
-              sender: parsedPayment.sender,
-              paid_at: new Date(),
-            },
-          }
-        );
-
-        const newBalance = updateResult?.balance ?? parsedPayment.amount;
-
-        // Dispatch Payment Success Audit Log to Telegram Admin Group
-        sendPaymentSuccessAlert({
-          userEmail: authUser.email,
-          amount: parsedPayment.amount,
-          method: "Dynamic QR Auto-Detect (Memo)",
-          memo: tx.memo,
-          utr: parsedPayment.utr,
-          transactionId: parsedPayment.transactionId,
-          newBalance: newBalance,
-        }).catch((e) => console.error("Telegram log error:", e));
-
-        return res.status(200).json({
-          status: "paid",
-          amount: parsedPayment.amount,
-          memo: tx.memo,
-          utr: cleanUtr,
-          newBalance: newBalance,
-          message: `Payment confirmed! ₹${parsedPayment.amount.toFixed(2)} credited automatically.`,
-        });
-      }
-
-      // Still awaiting bank notification
+      // MongoDB poll only: instant 1ms response, 0 Gmail IMAP connections
       return res.status(200).json({
         status: "pending",
         elapsedSeconds: Math.round(elapsedSeconds),
@@ -264,7 +156,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === "verify-identifier" || action === "verify-utr") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-    // Rate limit: max 5 verification attempts per 3 minutes
+    // Rate limit: max 5 verification attempts per 3 minutes (cooldown guard)
     const rateLimitKey = `payment_verify_${authUser.userId}`;
     const { allowed, remainingSec } = checkRateLimit(rateLimitKey, 5, 180);
     if (!allowed) {
@@ -275,9 +167,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { identifier, utr, amount } = req.body || {};
     const rawInput = String(identifier || utr || "").trim();
+    // Sanitize strictly to alphanumeric characters
+    const cleanInput = rawInput.replace(/[^A-Za-z0-9]/g, "");
     const requestedAmount = parseFloat(amount);
 
-    if (!rawInput || rawInput.length < 6 || rawInput.length > 40) {
+    if (!cleanInput || cleanInput.length < 6 || cleanInput.length > 40) {
       return res.status(400).json({
         error: "Please enter a valid 12-digit UTR, FamPay Transaction ID, or Bank Reference number.",
       });
@@ -291,9 +185,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Check Anti-Replay in MongoDB
       const alreadyProcessed = await db.collection("processed_transactions").findOne({
         $or: [
-          { utr: rawInput },
-          { transaction_id: rawInput },
-          { memo: rawInput.toUpperCase() },
+          { utr: cleanInput },
+          { transaction_id: cleanInput },
+          { memo: cleanInput.toUpperCase() },
         ],
       });
 
@@ -303,9 +197,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
-      // Search Gmail Inbox via IMAP
+      // Search Gmail Inbox via Hardened IMAP
       const parsedPayment = await searchFamPayPayment({
-        identifier: rawInput,
+        identifier: cleanInput,
         expectedAmount: requestedAmount,
       });
 

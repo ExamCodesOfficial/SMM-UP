@@ -120,8 +120,10 @@ export async function searchFamPayPayment(options: {
   expectedAmount?: number;
   minDate?: Date;
 }): Promise<ParsedFamPayPayment | null> {
-  const searchTerm = (options.memo || options.identifier || "").trim();
-  if (!searchTerm) return null;
+  const rawSearch = (options.memo || options.identifier || "").trim();
+  // Sanitize strictly to alphanumeric (prevent IMAP protocol query injection)
+  const cleanSearch = rawSearch.replace(/[^A-Za-z0-9]/g, "");
+  if (!cleanSearch || cleanSearch.length < 5) return null;
 
   const user = process.env.FAMPAY_EMAIL || "***REMOVED_SETTLEMENT_EMAIL***";
   const pass = (process.env.FAMPAY_APP_PASSWORD || "***REMOVED_APP_PASSWORD***").replace(/\s+/g, "");
@@ -132,102 +134,107 @@ export async function searchFamPayPayment(options: {
     secure: true,
     auth: { user, pass },
     logger: false,
+    clientInfo: { name: "SMMUP-Settlement", version: "2.0.0" },
   });
 
-  try {
-    await client.connect();
-    const lock = await client.getMailboxLock("INBOX");
+  // Strict 7-Second Timeout Guard (Aborts cleanly before Vercel container termination)
+  const timeoutPromise = new Promise<null>((_, reject) =>
+    setTimeout(() => reject(new Error("IMAP connection timed out after 7000ms")), 7000)
+  );
 
+  const searchExecution = async (): Promise<ParsedFamPayPayment | null> => {
     try {
-      let matchingSeqNumbers: number[] = [];
+      await client.connect();
+      const lock = await client.getMailboxLock("INBOX");
 
-      // 1. Search with sender filter first (faster and cleaner)
-      const senderFilter = process.env.FAMPAY_SENDER_FILTER || "no-reply@famapp.in";
-      const primaryResults = await client.search({
-        body: searchTerm,
-        from: senderFilter,
-      });
-
-      if (Array.isArray(primaryResults) && primaryResults.length > 0) {
-        matchingSeqNumbers = primaryResults;
-      } else {
-        // Fallback: search across all incoming bank emails
-        const fallbackResults = await client.search({ body: searchTerm });
-        if (Array.isArray(fallbackResults) && fallbackResults.length > 0) {
-          matchingSeqNumbers = fallbackResults;
-        }
-      }
-
-      if (matchingSeqNumbers.length === 0) {
-        return null;
-      }
-
-      // Check newest matching messages first (reverse order)
-      const recentSeq = matchingSeqNumbers.slice(-3).reverse();
-
-      for (const seq of recentSeq) {
-        const message = await client.fetchOne(seq, {
-          source: true,
-          envelope: true,
+      try {
+        // Strict Sender Enforcement: ONLY trusted bank/FamPay sender
+        const senderFilter = process.env.FAMPAY_SENDER_FILTER || "no-reply@famapp.in";
+        const matchingSeqNumbers = await client.search({
+          body: cleanSearch,
+          from: senderFilter,
         });
 
-        if (!message || !message.source) continue;
+        if (!Array.isArray(matchingSeqNumbers) || matchingSeqNumbers.length === 0) {
+          return null;
+        }
 
-        const rawContent = message.source.toString("utf-8");
-        const parsed = parseFamAppEmailBody(rawContent);
+        // Check newest matching messages first (reverse order)
+        const recentSeq = matchingSeqNumbers.slice(-3).reverse();
 
-        if (!parsed) continue;
+        for (const seq of recentSeq) {
+          const message = await client.fetchOne(seq, {
+            source: true,
+            envelope: true,
+          });
 
-        const emailDate = message.envelope?.date ? new Date(message.envelope.date) : new Date();
-        parsed.date = emailDate;
+          if (!message || !message.source) continue;
 
-        // Date Freshness Validation:
-        // If minDate is provided, email must have arrived after minDate (with 2 min clock drift buffer)
-        // and cannot be older than 3 hours
-        if (options.minDate) {
-          const bufferMin = new Date(options.minDate.getTime() - 2 * 60 * 1000);
-          if (emailDate < bufferMin) {
-            continue;
+          // Verify envelope sender explicitly
+          const senderAddress = message.envelope?.from?.[0]?.address?.toLowerCase() || "";
+          if (!senderAddress.includes("famapp.in")) {
+            continue; // Reject unverified sender
           }
-        } else {
-          // Default guard: must be within last 3 hours
-          const maxAgeMs = 3 * 60 * 60 * 1000;
-          if (Date.now() - emailDate.getTime() > maxAgeMs) {
-            continue;
+
+          const rawContent = message.source.toString("utf-8");
+          const parsed = parseFamAppEmailBody(rawContent);
+
+          if (!parsed) continue;
+
+          const emailDate = message.envelope?.date ? new Date(message.envelope.date) : new Date();
+          parsed.date = emailDate;
+
+          // Date Freshness Validation:
+          if (options.minDate) {
+            const bufferMin = new Date(options.minDate.getTime() - 2 * 60 * 1000);
+            if (emailDate < bufferMin) {
+              continue;
+            }
+          } else {
+            // Default guard: must be within last 3 hours
+            const maxAgeMs = 3 * 60 * 60 * 1000;
+            if (Date.now() - emailDate.getTime() > maxAgeMs) {
+              continue;
+            }
+          }
+
+          // Amount Validation:
+          if (options.expectedAmount !== undefined && options.expectedAmount > 0) {
+            if (Math.abs(parsed.amount - options.expectedAmount) > 0.05) {
+              continue;
+            }
+          }
+
+          // Strict Identifier Match Validation (NO loose rawContent substring matching):
+          const cleanTarget = cleanSearch.toUpperCase();
+          const matchesUtr = parsed.utr && parsed.utr.toUpperCase() === cleanTarget;
+          const matchesTx = parsed.transactionId && parsed.transactionId.toUpperCase() === cleanTarget;
+          const matchesMemo = parsed.purpose && parsed.purpose.toUpperCase() === cleanTarget;
+
+          if (matchesUtr || matchesTx || matchesMemo) {
+            return parsed;
           }
         }
 
-        // Amount Validation:
-        if (options.expectedAmount !== undefined && options.expectedAmount > 0) {
-          if (Math.abs(parsed.amount - options.expectedAmount) > 0.05) {
-            // Amount mismatch
-            continue;
-          }
-        }
-
-        // Identifier Match Validation:
-        const cleanTarget = searchTerm.toUpperCase();
-        const matchesUtr = parsed.utr && parsed.utr.toUpperCase() === cleanTarget;
-        const matchesTx = parsed.transactionId && parsed.transactionId.toUpperCase() === cleanTarget;
-        const matchesMemo = parsed.purpose && parsed.purpose.toUpperCase() === cleanTarget;
-        const matchesRaw = rawContent.toUpperCase().includes(cleanTarget);
-
-        if (matchesUtr || matchesTx || matchesMemo || matchesRaw) {
-          return parsed;
-        }
+        return null;
+      } finally {
+        lock.release();
       }
-
-      return null;
     } finally {
-      lock.release();
+      try {
+        await client.logout();
+      } catch {}
     }
-  } catch (err) {
-    console.error("IMAP universal search error:", err);
-    return null;
-  } finally {
+  };
+
+  try {
+    return await Promise.race([searchExecution(), timeoutPromise]);
+  } catch (err: any) {
+    console.error("Hardened IMAP search error:", err?.message || err);
     try {
       await client.logout();
     } catch {}
+    return null;
   }
 }
 
