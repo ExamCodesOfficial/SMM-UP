@@ -56,7 +56,7 @@
 - **`api/orders/`**:
   - `create.ts`: Deducts user balance atomically, dispatches order to wholesale node, stores order log.
   - `list.ts`: Fetches user's order history, queries real-time status from upstream nodes.
-  - `refill.ts`: Triggers 30-day refill SLA request.
+  - `refill.ts`: Triggers automated multi-tier refill SLA request.
 - **`api/wallet/`**:
   - `deposit.ts`: Generates dynamic UPI QR for UPI ID `aryan888@fam` with pre-filled amount and memo.
   - `verify.ts`: Verifies submitted 12-digit UTR via IMAP SSL; enforces atomic duplicate protection; credits wallet balance instantly upon match.
@@ -89,7 +89,7 @@
 - **`src/components/TermsModal.tsx`**:
   - 6-point institutional Terms of Service & SLA modal.
 - **`src/components/GuaranteesBento.tsx`**:
-  - ExamCodes-style architectural bento grid (0% Bank UPI, Tier-1 Wholesale Node, 30D Refill SLA, Zero Password Privacy).
+  - ExamCodes-style architectural bento grid (0% Bank UPI, Tier-1 Wholesale Node, Dynamic Refill SLA 7D to Lifetime, Zero Password Privacy).
 - **`src/components/TestimonialsTicker.tsx`**:
   - Live dispatch telemetry ticker and verified agency reviews.
 - **`src/index.css`**:

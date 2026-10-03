@@ -13,7 +13,7 @@ import {
   XCircle,
   HelpCircle,
 } from "lucide-react";
-import { formatINR, formatNumber, sanitizeBrandText } from "../lib/utils";
+import { formatINR, formatNumber, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
 import { getPlatformInfo } from "./icons/PlatformIcons";
 
 interface Order {
@@ -27,6 +27,8 @@ interface Order {
   charge: number;
   status: string;
   refillAvailable: boolean;
+  refillDays?: number;
+  refillLabel?: string;
   cancelAvailable: boolean;
   createdAt: string;
 }
@@ -273,6 +275,25 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                           </span>
                         </div>
                         <div className="font-medium text-white truncate">{sanitizedName}</div>
+                        <div className="mt-1">
+                          {(() => {
+                            const policy = parseRefillPolicy({
+                              name: sanitizedName,
+                              category: sanitizedCategory,
+                              refill: ord.refillAvailable,
+                              refill_label: ord.refillLabel,
+                              refill_days: ord.refillDays,
+                            });
+                            return policy.hasRefill ? (
+                              <span className="text-[10px] text-[#F5E8D0] font-medium flex items-center gap-1">
+                                <RotateCcw className="w-2.5 h-2.5" />
+                                {policy.label}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-zinc-600 font-medium">No Refill</span>
+                            );
+                          })()}
+                        </div>
                       </td>
 
                       {/* Target Link */}

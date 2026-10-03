@@ -28,9 +28,9 @@ const SECTIONS = [
       "If a delivery node encounters a network limit or platform restriction and can only deliver a portion of your requested quantity, the order status is marked as 'Partial'. SMM UP automatically calculates the unfulfilled units and credits 100% of the remaining amount back to your account wallet immediately.",
   },
   {
-    title: "5. 30-DAY REFILL SLA SPECIFICATIONS & FORMULA",
+    title: "5. REFILL SLA SPECIFICATIONS & DYNAMIC FORMULA (7D TO LIFETIME)",
     content:
-      "Services designated with the 'Refill' guarantee are covered by a 30-day automated retention SLA following the formula: [Start Count + Order Quantity = Target Count]. If the public count falls below the target count during the guarantee period, a refill can be triggered via the Order History desk. Refills typically process within 24 to 72 hours. Note: Refills are voided if the target account changes username/handle or is switched to private.",
+      "Services designated with a refill guarantee are covered by their explicitly specified retention SLA (e.g. 7-Day, 15-Day, 30-Day, 60-Day, 90-Day, 365-Day, or Lifetime non-drop protection as indicated on the service package). Refill calculations strictly follow the formula: [Start Count + Order Quantity = Target Count]. If the public count falls below the target count during the active guarantee window, a refill can be initiated via the Order History desk. Refills typically process within 24 to 72 hours. Note: Refills are voided if the target account changes username/handle or is switched to private.",
   },
   {
     title: "6. ORDER CANCELLATIONS & NON-WORKING LINKS",

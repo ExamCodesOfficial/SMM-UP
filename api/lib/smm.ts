@@ -1,3 +1,10 @@
+export interface RefillPolicy {
+  hasRefill: boolean;
+  days: number;
+  label: string;
+  shortLabel: string;
+}
+
 export interface SMMService {
   service: number | string;
   name: string;
@@ -10,6 +17,9 @@ export interface SMMService {
   max: number;
   dripfeed: boolean;
   refill: boolean;
+  refill_days: number;
+  refill_label: string;
+  refill_short: string;
   cancel: boolean;
   average_time: string;
   description: string;
@@ -133,6 +143,45 @@ export function cleanServiceDescription(raw: string | undefined | null): string 
   return str.trim() || "Instant automated delivery node. Ensure target account is completely PUBLIC.";
 }
 
+export function extractRefillPolicy(name: string, description: string, providerRefill: boolean): RefillPolicy {
+  const text = ((name || "") + " " + (description || "")).trim();
+
+  // 1. Explicit No Refill
+  if (/(?:⚠️\s*)?no\s*refill|without\s*refill|refill\s*none|non[\s\-]*refill/i.test(text)) {
+    return { hasRefill: false, days: 0, label: "No Refill", shortLabel: "No Refill" };
+  }
+
+  // 2. Lifetime Guaranteed
+  if (/lifetime|life\s*time|forever|permanent/i.test(text) || /♻️\s*lifetime/i.test(text)) {
+    return { hasRefill: true, days: 9999, label: "Lifetime Guaranteed", shortLabel: "Lifetime" };
+  }
+
+  // 3. Explicit numeric days (e.g. 7 Days, 15 Days, 30 Days, 60 Days, 90 Days, 365 Days)
+  const dayMatch =
+    text.match(/(?:♻️|⚡)?\s*(\d+)\s*(?:days?|d)\s*(?:auto\s*refill|refill|guarantee|warranty|sla|drop)?/i) ||
+    text.match(/(?:refill|guarantee|warranty|sla)\s*[:\-]?\s*(\d+)\s*(?:days?|d)/i) ||
+    text.match(/\b(\d+)\s*(?:days?|d)\s*♻️/i);
+
+  if (dayMatch) {
+    const days = parseInt(dayMatch[1], 10);
+    if (!isNaN(days) && days > 0 && days < 2000) {
+      return {
+        hasRefill: true,
+        days: days,
+        label: `${days} Days Guaranteed`,
+        shortLabel: `${days}D Refill`,
+      };
+    }
+  }
+
+  // 4. Fallback: if provider flagged refill === true
+  if (providerRefill) {
+    return { hasRefill: true, days: 30, label: "30 Days Guaranteed", shortLabel: "30D Refill" };
+  }
+
+  return { hasRefill: false, days: 0, label: "No Refill", shortLabel: "No Refill" };
+}
+
 export async function fetchAllServices(forceRefresh = false): Promise<SMMService[]> {
   const now = Date.now();
   if (!forceRefresh && cachedServices && now - lastCacheTime < CACHE_TTL_MS) {
@@ -167,6 +216,8 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
     const category = sanitizeBrandText(decodeHtmlEntities(String(s.category || "General")).trim());
     const name = sanitizeBrandText(decodeHtmlEntities(String(s.name || "Service")).trim());
     const description = cleanServiceDescription(s.description || s.desc);
+    const rawRefill = Boolean(s.refill === true || s.refill === "true" || s.refill === 1);
+    const refillPolicy = extractRefillPolicy(name, description, rawRefill);
 
     return {
       service: Number(s.service),
@@ -179,7 +230,10 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
       min: parseInt(s.min, 10) || 10,
       max: parseInt(s.max, 10) || 100000,
       dripfeed: Boolean(s.dripfeed === true || s.dripfeed === "true"),
-      refill: Boolean(s.refill === true || s.refill === "true" || s.refill === 1),
+      refill: refillPolicy.hasRefill,
+      refill_days: refillPolicy.days,
+      refill_label: refillPolicy.label,
+      refill_short: refillPolicy.shortLabel,
       cancel: Boolean(s.cancel === true || s.cancel === "true" || s.cancel === 1),
       average_time: String(s.average_time || "Instant"),
       description: description,
