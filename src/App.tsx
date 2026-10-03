@@ -12,9 +12,13 @@ import AdminModal from "./components/AdminModal";
 import MobileBottomNav from "./components/MobileBottomNav";
 import FaqSection from "./components/FaqSection";
 import TermsModal from "./components/TermsModal";
+import LandingHero from "./components/LandingHero";
+import GuaranteesBento from "./components/GuaranteesBento";
+import TestimonialsTicker from "./components/TestimonialsTicker";
+import { SmmUpLogo } from "./components/icons/ExecutiveIcons";
 
 export default function App() {
-  const [currentTab, setCurrentTab] = React.useState<string>("store");
+  const [currentTab, setCurrentTab] = React.useState<string>("home");
   const [user, setUser] = React.useState<any>(null);
   const [services, setServices] = React.useState<any[]>([]);
   const [orders, setOrders] = React.useState<any[]>([]);
@@ -141,20 +145,49 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 pt-18 pb-20 md:pb-12 relative z-10">
-        {/* Animated Hero Counters */}
-        <HeroStats totalServices={services.length || 2174} />
+        {/* Home: Spacious ExamCodes-Style Landing Experience */}
+        {currentTab === "home" && (
+          <>
+            <LandingHero
+              user={user}
+              onNavigateTab={(tab) => {
+                setCurrentTab(tab);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenWallet={() => {
+                if (!user) setAuthModalOpen(true);
+                else setWalletModalOpen(true);
+              }}
+              onOpenTerms={() => setTermsModalOpen(true)}
+              totalServices={services.length || 2177}
+            />
+            <GuaranteesBento
+              onOpenTerms={() => setTermsModalOpen(true)}
+              onOpenWallet={() => {
+                if (!user) setAuthModalOpen(true);
+                else setWalletModalOpen(true);
+              }}
+            />
+            <TestimonialsTicker />
+            <FaqSection />
+          </>
+        )}
 
         {/* Tab Views */}
         {currentTab === "store" && (
-          <NewOrder
-            services={services}
-            user={user}
-            onOrderSuccess={handleOrderSuccess}
-            onOpenWallet={() => setWalletModalOpen(true)}
-            onOpenAuth={() => setAuthModalOpen(true)}
-            onOpenTerms={() => setTermsModalOpen(true)}
-            preselectedServiceId={preselectedServiceId}
-          />
+          <div className="pt-6">
+            <NewOrder
+              services={services}
+              user={user}
+              onOrderSuccess={handleOrderSuccess}
+              onOpenWallet={() => setWalletModalOpen(true)}
+              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenTerms={() => setTermsModalOpen(true)}
+              preselectedServiceId={preselectedServiceId}
+            />
+            <FaqSection />
+          </div>
         )}
 
         {currentTab === "services" && (
@@ -165,39 +198,41 @@ export default function App() {
         )}
 
         {currentTab === "mass" && (
-          <MassOrder
-            services={services}
-            user={user}
-            onOpenAuth={() => setAuthModalOpen(true)}
-            onOpenWallet={() => setWalletModalOpen(true)}
-            onOrderSuccess={handleOrderSuccess}
-          />
+          <div className="pt-6">
+            <MassOrder
+              services={services}
+              user={user}
+              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenWallet={() => setWalletModalOpen(true)}
+              onOrderSuccess={handleOrderSuccess}
+            />
+          </div>
         )}
 
         {currentTab === "orders" && (
-          <OrderHistory
-            orders={orders}
-            onRefresh={loadOrders}
-            loading={loadingOrders}
-          />
+          <div className="pt-6">
+            <OrderHistory
+              orders={orders}
+              onRefresh={loadOrders}
+              loading={loadingOrders}
+            />
+          </div>
         )}
-
-        {/* Executive FAQ Section */}
-        <FaqSection />
       </main>
 
       {/* Luxury Minimal Footer */}
-      <footer className="border-t border-white/[0.08] bg-black/90 py-10 relative z-10">
+      <footer className="border-t border-white/[0.08] bg-[#090807]/90 py-12 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <span className="w-6 h-6 rounded-lg bg-white text-black font-bold flex items-center justify-center text-[10px]">
-              UP
-            </span>
-            <span className="text-white font-light tracking-[0.2em] text-sm">
-              SMM UP
-            </span>
-            <span className="text-zinc-600 text-xs">&bull;</span>
-            <span className="text-zinc-400 text-xs">Automated Growth Engine</span>
+          <div className="flex items-center gap-3">
+            <SmmUpLogo size={28} />
+            <div className="flex flex-col text-left">
+              <span className="text-white font-light tracking-[0.2em] text-sm leading-tight">
+                SMM UP
+              </span>
+              <span className="text-[#8E877B] text-[10px] uppercase font-mono tracking-wider">
+                Automated Growth Engine
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-zinc-400">

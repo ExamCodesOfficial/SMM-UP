@@ -9,6 +9,7 @@ import {
   Key,
   Globe,
   FileText,
+  Home,
 } from "lucide-react";
 import { formatINR } from "../lib/utils";
 import {
@@ -75,6 +76,7 @@ export default function Navbar({
   }, [mobileMenuOpen]);
 
   const navLinks = [
+    { id: "home", label: "HOME", icon: Home },
     { id: "store", label: "ORDER", icon: ExecutiveOrderIcon },
     { id: "services", label: "CATALOG", icon: ExecutiveCatalogIcon },
     { id: "mass", label: "MASS", icon: ExecutiveMassIcon },
@@ -91,7 +93,7 @@ export default function Navbar({
         {/* Brand Logo in thatonearyan-sh / ExamCodes Style */}
         <button
           onClick={() => {
-            setCurrentTab("store");
+            setCurrentTab("home");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
           className="flex items-center gap-3 cursor-pointer group text-left"
