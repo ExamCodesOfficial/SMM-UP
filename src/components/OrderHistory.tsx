@@ -13,7 +13,7 @@ import {
   XCircle,
   HelpCircle,
 } from "lucide-react";
-import { formatINR, formatNumber } from "../lib/utils";
+import { formatINR, formatNumber, sanitizeBrandText } from "../lib/utils";
 import { getPlatformInfo } from "./icons/PlatformIcons";
 
 interface Order {
@@ -236,7 +236,9 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                 </tr>
               ) : (
                 filteredOrders.map((ord) => {
-                  const platformInfo = getPlatformInfo(ord.category, ord.serviceName);
+                  const sanitizedName = sanitizeBrandText(ord.serviceName);
+                  const sanitizedCategory = sanitizeBrandText(ord.category);
+                  const platformInfo = getPlatformInfo(sanitizedCategory, sanitizedName);
                   const PlatformIcon = platformInfo.icon;
 
                   return (
@@ -270,7 +272,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                             {platformInfo.name}
                           </span>
                         </div>
-                        <div className="font-medium text-white truncate">{ord.serviceName}</div>
+                        <div className="font-medium text-white truncate">{sanitizedName}</div>
                       </td>
 
                       {/* Target Link */}
@@ -297,7 +299,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                       </td>
 
                       {/* Charge */}
-                      <td className="py-4 px-5 font-bold text-emerald-400 whitespace-nowrap text-sm">
+                      <td className="py-4 px-5 font-bold text-[#F5E8D0] whitespace-nowrap text-sm">
                         {formatINR(ord.charge)}
                       </td>
 

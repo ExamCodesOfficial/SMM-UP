@@ -3,7 +3,8 @@ import { fetchAllServices } from "../lib/smm.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const services = await fetchAllServices();
+    const forceRefresh = req.query.refresh === "1" || req.query.refresh === "true";
+    const services = await fetchAllServices(forceRefresh);
 
     // Group categories & platforms
     const categoriesMap: { [cat: string]: number } = {};

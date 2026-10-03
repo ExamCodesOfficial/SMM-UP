@@ -14,7 +14,7 @@ import {
   ChevronRight,
   Filter,
 } from "lucide-react";
-import { formatINR, formatNumber } from "../lib/utils";
+import { formatINR, formatNumber, sanitizeBrandText } from "../lib/utils";
 import { ExecutiveCatalogIcon } from "./icons/ExecutiveIcons";
 import {
   TelegramIcon,
@@ -106,7 +106,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
   // Categories within active platform
   const categories = React.useMemo(() => {
     const set = new Set<string>();
-    platformFiltered.forEach((s) => set.add(s.category));
+    platformFiltered.forEach((s) => set.add(sanitizeBrandText(s.category)));
     return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [platformFiltered]);
 
@@ -126,11 +126,13 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
   // Final filtered list
   const filtered = React.useMemo(() => {
     return platformFiltered.filter((s) => {
-      const matchCat = selectedCat === "All" || s.category === selectedCat;
+      const sCat = sanitizeBrandText(s.category);
+      const matchCat = selectedCat === "All" || sCat === selectedCat || s.category === selectedCat;
       const matchSearch =
         !search ||
         s.name.toLowerCase().includes(search.toLowerCase()) ||
         String(s.service) === search.trim() ||
+        sCat.toLowerCase().includes(search.toLowerCase()) ||
         s.category.toLowerCase().includes(search.toLowerCase());
       return matchCat && matchSearch;
     });
@@ -334,13 +336,13 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
 
                   {/* Service Title */}
                   <h3 className="text-sm font-semibold text-white leading-relaxed mb-2.5 group-hover:text-zinc-100 transition-colors line-clamp-2">
-                    {s.name}
+                    {sanitizeBrandText(s.name)}
                   </h3>
 
                   {/* Category Pill */}
                   <div className="mb-4">
                     <span className="inline-block px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] text-zinc-400 max-w-full truncate">
-                      {s.category}
+                      {sanitizeBrandText(s.category)}
                     </span>
                   </div>
 
@@ -418,10 +420,10 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                         </div>
                       </td>
                       <td className="py-3.5 px-5 max-w-md">
-                        <div className="font-medium text-white line-clamp-1">{s.name}</div>
-                        <div className="text-[11px] text-zinc-500 truncate">{s.category}</div>
+                        <div className="font-medium text-white line-clamp-1">{sanitizeBrandText(s.name)}</div>
+                        <div className="text-[11px] text-zinc-500 truncate">{sanitizeBrandText(s.category)}</div>
                       </td>
-                      <td className="py-3.5 px-5 font-bold text-emerald-400 whitespace-nowrap text-sm">
+                      <td className="py-3.5 px-5 font-bold text-[#F5E8D0] whitespace-nowrap text-sm">
                         {formatINR(s.rate)}
                       </td>
                       <td className="py-3.5 px-5 text-zinc-300 whitespace-nowrap">

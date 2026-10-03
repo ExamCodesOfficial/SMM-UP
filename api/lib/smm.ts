@@ -100,9 +100,34 @@ export function decodeHtmlEntities(raw: string | undefined | null): string {
   return str;
 }
 
+export function sanitizeBrandText(raw: string | undefined | null): string {
+  if (!raw) return "";
+  let str = String(raw);
+
+  // Replace upstream-brand.invalid domain
+  str = str.replace(/smm[\s_\-]*bin\.com/gi, "smmup.vercel.app");
+
+  // Replace mathematical bold/sans Unicode variants (e.g. 𝗦𝗠𝗠 𝗕𝗜N)
+  str = str.replace(/[\u{1D5E6}\u{1D5B2}\u{1D412}s][\u{1D5E0}\u{1D5C6}\u{1D40C}m]{2}\s*[\u{1D5D5}\u{1D5BB}\u{1D401}b][\u{1D5DC}\u{1D5C2}\u{1D408}i][\u{1D5E1}\u{1D5C7}\u{1D40D}n]/giu, "SMM UP");
+
+  // Replace standard UpstreamProvider / SMM BIN / upstream-brand / upstream_brand
+  str = str.replace(/smm[\s_\-]*bin/gi, "SMM UP");
+
+  // Check normalized form for any remaining unicode variations
+  const normalized = str.normalize("NFKD");
+  if (/smm[\s_\-]*bin/i.test(normalized)) {
+    str = normalized
+      .replace(/smm[\s_\-]*bin\.com/gi, "smmup.vercel.app")
+      .replace(/smm[\s_\-]*bin/gi, "SMM UP");
+  }
+
+  return str;
+}
+
 export function cleanServiceDescription(raw: string | undefined | null): string {
   if (!raw) return "Instant automated delivery node. Ensure target account is completely PUBLIC.";
   let str = decodeHtmlEntities(raw);
+  str = sanitizeBrandText(str);
   str = str.replace(/^[\s\S]*?(?:please read the description|please read before ordering[\.\:\!]?|important note[\.\:\!]?)/i, "");
   str = str.replace(/^[\s\n\r\-\:\_]+/, "");
   return str.trim() || "Instant automated delivery node. Ensure target account is completely PUBLIC.";
@@ -139,8 +164,8 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
   const sanitized: SMMService[] = data.map((s: any) => {
     const wRate = parseFloat(s.rate) || 0;
     const retailRate = calculateRetailRate(wRate);
-    const category = decodeHtmlEntities(String(s.category || "General")).trim();
-    const name = decodeHtmlEntities(String(s.name || "Service")).trim();
+    const category = sanitizeBrandText(decodeHtmlEntities(String(s.category || "General")).trim());
+    const name = sanitizeBrandText(decodeHtmlEntities(String(s.name || "Service")).trim());
     const description = cleanServiceDescription(s.description || s.desc);
 
     return {
