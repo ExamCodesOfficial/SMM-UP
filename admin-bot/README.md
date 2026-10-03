@@ -21,6 +21,8 @@ A dedicated Telegram administrative bot and 24/7 background payment settlement w
 | `/user <email>` | Inspect any user's profile, balance, spent, and registered date |
 | `/credit <email> <amount> [reason]` | Atomically credit a user's wallet balance with an audit log |
 | `/debit <email> <amount> [reason]` | Atomically debit balance (safeguarded against negative balances) |
+| `/failed` | View failed orders requiring manual administrative review |
+| `/refund <orderId> [reason]` | Manually refund debited order funds directly to user's wallet |
 | `/pending` | List the last 10 pending deposits awaiting settlement |
 | `/orders [limit]` | View recent provider orders and their live execution status |
 | `/checkmemo <memo>` | Inspect the database record of any specific payment memo |

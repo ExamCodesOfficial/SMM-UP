@@ -7,6 +7,7 @@ import {
   addProviderOrder,
   checkOrderStatus,
 } from "./lib/smm.js";
+import { sendFailedOrderAlert } from "./lib/telegram.js";
 
 // Standard SMM v2 API Specification for Resellers & Developers
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -116,18 +117,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         if (providerRes.error || !providerRes.orderId) {
-          // Refund atomically on provider rejection or failure
-          await db.collection("users").updateOne(
-            { _id: user._id },
-            {
-              $inc: {
-                balance: totalCharge,
-                total_spent: -totalCharge,
-                total_orders: -1,
-              },
-            }
-          );
-          return res.status(400).json({ error: providerRes.error || "Provider rejected order" });
+          // STRICT DIRECTIVE: Zero automatic refunds!
+          // Funds remain debited. Order is recorded with status: "Failed", refund_status: "requires_admin_review".
+          const failedOrder = {
+            user_id: user._id,
+            user_email: user.email,
+            service_id: matched.service,
+            service_name: matched.name,
+            category: matched.category,
+            platform: matched.platform,
+            link: link,
+            quantity: effQuantity,
+            charge: totalCharge,
+            provider_order_id: null,
+            provider_error: providerRes.error || "Provider rejected order",
+            status: "Failed",
+            refund_status: "requires_admin_review",
+            source: "v2_api",
+            created_at: new Date(),
+          };
+
+          const failedInsert = await db.collection("orders").insertOne(failedOrder);
+
+          // Dispatch alert to Telegram Admin
+          sendFailedOrderAlert({
+            orderId: failedInsert.insertedId.toString(),
+            userEmail: user.email,
+            serviceName: matched.name,
+            charge: totalCharge,
+            error: providerRes.error || "Provider rejected order",
+          }).catch((e) => console.error("v2 failed order alert error:", e));
+
+          return res.status(400).json({
+            error: providerRes.error || "Provider rejected order. Order flagged for administrative review.",
+            order: failedInsert.insertedId.toString(),
+          });
         }
 
         // Record order
