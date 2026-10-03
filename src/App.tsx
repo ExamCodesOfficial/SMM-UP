@@ -5,34 +5,31 @@ import NewOrder from "./components/NewOrder";
 import MassOrder from "./components/MassOrder";
 import OrderHistory from "./components/OrderHistory";
 import ServicesCatalog from "./components/ServicesCatalog";
-import AddFundsModal from "./components/AddFundsModal";
 import AuthModal from "./components/AuthModal";
+import AddFundsModal from "./components/AddFundsModal";
 import ProfileModal from "./components/ProfileModal";
 import AdminModal from "./components/AdminModal";
 import MobileBottomNav from "./components/MobileBottomNav";
-import { formatINR } from "./lib/utils";
 
 export default function App() {
   const [currentTab, setCurrentTab] = React.useState<string>("store");
   const [user, setUser] = React.useState<any>(null);
   const [services, setServices] = React.useState<any[]>([]);
   const [orders, setOrders] = React.useState<any[]>([]);
-  const [loadingOrders, setLoadingOrders] = React.useState(false);
+  const [loadingOrders, setLoadingOrders] = React.useState<boolean>(false);
   const [preselectedServiceId, setPreselectedServiceId] = React.useState<number | string | null>(null);
 
-  // Modals state
+  // Modals
   const [authModalOpen, setAuthModalOpen] = React.useState(false);
   const [walletModalOpen, setWalletModalOpen] = React.useState(false);
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
   const [adminModalOpen, setAdminModalOpen] = React.useState(false);
 
-  // Bootstrap user session & services
   React.useEffect(() => {
     checkAuth();
     loadServices();
   }, []);
 
-  // When user is authenticated, load their orders
   React.useEffect(() => {
     if (user) {
       loadOrders();
@@ -117,11 +114,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-white relative flex flex-col font-sans selection:bg-white selection:text-black">
-      {/* 40px grid background pattern from ExamCodes */}
+      {/* 40px grid pattern from ExamCodes */}
       <div className="absolute inset-0 bg-grid-pattern opacity-100 pointer-events-none z-0" />
 
-      {/* Top Ambient Lighting Orb */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[70vw] h-[300px] bg-white/[0.02] rounded-full blur-[140px] pointer-events-none z-0" />
+      {/* Top Ambient Light Orb */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[70vw] h-[350px] bg-white/[0.02] rounded-full blur-[140px] pointer-events-none z-0" />
 
       {/* Header */}
       <Navbar
@@ -138,7 +135,7 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <main className="flex-1 pt-18 pb-20 md:pb-12 relative z-10">
         {/* Animated Hero Counters */}
         <HeroStats totalServices={services.length || 2174} />
@@ -152,6 +149,13 @@ export default function App() {
             onOpenWallet={() => setWalletModalOpen(true)}
             onOpenAuth={() => setAuthModalOpen(true)}
             preselectedServiceId={preselectedServiceId}
+          />
+        )}
+
+        {currentTab === "services" && (
+          <ServicesCatalog
+            services={services}
+            onSelectService={handleSelectFromCatalog}
           />
         )}
 
@@ -172,30 +176,28 @@ export default function App() {
             loading={loadingOrders}
           />
         )}
-
-        {currentTab === "services" && (
-          <ServicesCatalog
-            services={services}
-            onSelectService={handleSelectFromCatalog}
-          />
-        )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 bg-black/80 py-8 relative z-10 text-center font-mono text-xs text-gray-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-white font-bold tracking-widest text-sm">
-            <span>SMM UP</span>
-            <span className="text-[10px] text-white/40">❖</span>
-            <span className="text-[10px] font-normal text-gray-500">PROTOCOL V2.0</span>
+      {/* Luxury Minimal Footer */}
+      <footer className="border-t border-white/[0.08] bg-black/90 py-10 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 h-6 rounded-lg bg-white text-black font-bold flex items-center justify-center text-[10px]">
+              UP
+            </span>
+            <span className="text-white font-light tracking-[0.2em] text-sm">
+              SMM UP
+            </span>
+            <span className="text-zinc-600 text-xs">&bull;</span>
+            <span className="text-zinc-400 text-xs">Automated Growth Engine</span>
           </div>
 
-          <div className="text-[11px] text-gray-500">
-            Automated FamPay UPI Clearing &bull; Zero Gateway Fees &bull; Instant Provisioning
+          <div className="text-xs text-zinc-400 text-center md:text-left">
+            Direct 0% UPI Instant Clearing &bull; Zero Gateway Surcharges &bull; Wholesale Execution
           </div>
 
-          <div className="text-[10px] text-gray-600">
-            &copy; {new Date().getFullYear()} SMM UP. All Rights Reserved.
+          <div className="text-xs text-zinc-500">
+            &copy; {new Date().getFullYear()} SMM UP. All rights reserved.
           </div>
         </div>
       </footer>

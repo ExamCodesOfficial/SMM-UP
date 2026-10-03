@@ -5,10 +5,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const services = await fetchAllServices();
 
-    // Group categories
+    // Group categories & platforms
     const categoriesMap: { [cat: string]: number } = {};
+    const platformMap: { [p: string]: number } = {};
     for (const s of services) {
       categoriesMap[s.category] = (categoriesMap[s.category] || 0) + 1;
+      const p = s.platform || "Other";
+      platformMap[p] = (platformMap[p] || 0) + 1;
     }
 
     const categories = Object.keys(categoriesMap).sort((a, b) => a.localeCompare(b));
@@ -19,6 +22,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       success: true,
       total: services.length,
+      platformCounts: platformMap,
       categories,
       services,
     });

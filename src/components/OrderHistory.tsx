@@ -11,8 +11,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
+  HelpCircle,
 } from "lucide-react";
 import { formatINR, formatNumber } from "../lib/utils";
+import { getPlatformInfo } from "./icons/PlatformIcons";
 
 interface Order {
   id: string;
@@ -67,115 +69,141 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  const handleRefill = async (order: Order) => {
-    setActionLoadingId(order.id);
+  const handleRefill = async (orderId: string) => {
+    setActionLoadingId(orderId);
     setActionMsg(null);
     try {
       const res = await fetch("/api/orders/refill", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: order.id }),
+        body: JSON.stringify({ id: orderId }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setActionMsg({ id: order.id, msg: "Refill Submitted!" });
+        setActionMsg({ id: orderId, msg: "Refill requested successfully" });
       } else {
-        setActionMsg({ id: order.id, msg: data.error || "Refill rejected", err: true });
+        setActionMsg({ id: orderId, msg: data.error || "Refill failed", err: true });
       }
     } catch {
-      setActionMsg({ id: order.id, msg: "Error", err: true });
+      setActionMsg({ id: orderId, msg: "Network error", err: true });
     } finally {
       setActionLoadingId(null);
     }
   };
 
-  const handleStatusCheck = async (order: Order) => {
-    setActionLoadingId(order.id);
+  const handleCheckStatus = async (orderId: string) => {
+    setActionLoadingId(orderId);
     setActionMsg(null);
     try {
-      const res = await fetch(`/api/orders/status?id=${order.id}`);
+      const res = await fetch(`/api/orders/status?id=${orderId}`);
       const data = await res.json();
-      if (res.ok && data.status) {
-        setActionMsg({ id: order.id, msg: `Status: ${data.status}` });
+      if (res.ok && data.success) {
+        setActionMsg({ id: orderId, msg: `Live status: ${data.status}` });
         onRefresh();
       } else {
-        setActionMsg({ id: order.id, msg: "Failed", err: true });
+        setActionMsg({ id: orderId, msg: data.error || "Failed to query status", err: true });
       }
     } catch {
-      setActionMsg({ id: order.id, msg: "Error", err: true });
+      setActionMsg({ id: orderId, msg: "Network error", err: true });
     } finally {
       setActionLoadingId(null);
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const s = (status || "Pending").toLowerCase();
+    const s = (status || "").toLowerCase();
     if (s.includes("completed")) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-          <CheckCircle2 className="w-3 h-3" /> COMPLETED
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>Completed</span>
         </span>
       );
     }
     if (s.includes("in progress") || s.includes("processing")) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-          <Clock className="w-3 h-3 animate-spin" /> {s.toUpperCase()}
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          <Clock className="w-3.5 h-3.5 animate-spin" />
+          <span>Processing</span>
         </span>
       );
     }
-    if (s.includes("partial")) {
+    if (s.includes("pending")) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-          <AlertTriangle className="w-3 h-3" /> PARTIAL
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+          <Clock className="w-3.5 h-3.5" />
+          <span>Pending</span>
         </span>
       );
     }
-    if (s.includes("cancel")) {
+    if (s.includes("cancel") || s.includes("refund")) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-red-500/10 text-red-400 border border-red-500/30">
-          <XCircle className="w-3 h-3" /> CANCELED
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+          <XCircle className="w-3.5 h-3.5" />
+          <span>Canceled</span>
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm text-[10px] font-mono font-bold bg-yellow-500/10 text-yellow-400 border border-yellow-500/30">
-        <Clock className="w-3 h-3" /> PENDING
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/10 text-zinc-300 border border-white/20">
+        <HelpCircle className="w-3.5 h-3.5" />
+        <span>{status}</span>
       </span>
     );
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header with Search and Refresh */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h2 className="text-base sm:text-lg font-bold tracking-[0.14em] text-white flex items-center gap-2">
-            <ListOrdered className="w-4 h-4" />
-            <span>DISPATCHED ORDERS</span>
-            <span className="text-[10px] text-white/40">❖</span>
-          </h2>
-          <p className="text-[11px] text-gray-500 font-mono tracking-wider">
-            REAL-TIME PROVISIONING LEDGER
-          </p>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
+      {/* Title Section */}
+      <div className="text-center mb-10">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
+          ORDER LOGS
+        </h2>
+        <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
+        <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-xl mx-auto">
+          Review real-time provisioning progress, automated refills, and delivery logs.
+        </p>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-6 p-4 rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+        {/* Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {["All", "Active", "Completed", "Canceled"].map((tab) => {
+            const isActive = filterTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setFilterTab(tab)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold tracking-wider transition-all duration-200 cursor-pointer ${
+                  isActive
+                    ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.25)]"
+                    : "text-zinc-400 hover:text-white hover:bg-white/[0.05]"
+                }`}
+              >
+                {tab.toUpperCase()}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        {/* Search & Refresh */}
+        <div className="flex items-center gap-2.5">
           <div className="relative flex-1 sm:w-64">
+            <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by ID or link..."
-              className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-8 pr-3 py-1.5 text-xs font-mono rounded-sm outline-none placeholder:text-gray-600"
+              placeholder="Search by ID or target link..."
+              className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-10 pr-4 py-2 rounded-xl text-xs outline-none transition-all placeholder:text-zinc-500"
             />
-            <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-2.5" />
           </div>
 
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="p-2 border border-white/15 hover:border-white/40 text-gray-300 hover:text-white rounded-sm transition-all cursor-pointer bg-white/[0.02]"
+            className="p-2.5 rounded-xl border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white transition-all bg-white/[0.02] cursor-pointer"
             title="Refresh order statuses"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -183,126 +211,137 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-4 scrollbar-none">
-        {["All", "Active", "Completed", "Partial", "Canceled"].map((tab) => {
-          const isActive = filterTab === tab;
-          return (
-            <button
-              key={tab}
-              onClick={() => setFilterTab(tab)}
-              className={`px-3 py-1 rounded-sm text-xs font-mono tracking-wider transition-all cursor-pointer ${
-                isActive
-                  ? "bg-white text-black font-semibold shadow-[0_0_15px_rgba(255,255,255,0.15)]"
-                  : "text-gray-400 hover:text-white hover:bg-white/[0.04] border border-white/5"
-              }`}
-            >
-              {tab.toUpperCase()}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Orders Table */}
-      <div className="border border-white/10 bg-white/[0.01] rounded-sm overflow-hidden shadow-[0_0_30px_rgba(255,255,255,0.02)]">
+      {/* Orders Table Container */}
+      <div className="rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
         <div className="overflow-x-auto">
-          <table className="w-full text-left font-mono text-xs">
-            <thead className="bg-black/80 border-b border-white/10 text-gray-500 uppercase tracking-widest text-[10px]">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-black/90 border-b border-white/10 text-zinc-400 uppercase tracking-wider text-[11px] font-semibold">
               <tr>
-                <th className="py-3 px-4">ORDER ID</th>
-                <th className="py-3 px-4">SERVICE</th>
-                <th className="py-3 px-4">TARGET LINK</th>
-                <th className="py-3 px-4">QUANTITY</th>
-                <th className="py-3 px-4">CHARGE</th>
-                <th className="py-3 px-4">STATUS</th>
-                <th className="py-3 px-4 text-right">ACTIONS</th>
+                <th className="py-4 px-5">Order ID</th>
+                <th className="py-4 px-5">Platform &amp; Service</th>
+                <th className="py-4 px-5">Target Link</th>
+                <th className="py-4 px-5">Quantity</th>
+                <th className="py-4 px-5">Charge</th>
+                <th className="py-4 px-5">Status</th>
+                <th className="py-4 px-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.06]">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-500 font-mono">
-                    No orders found matching current filter.
+                  <td colSpan={7} className="py-16 text-center text-zinc-400">
+                    <ListOrdered className="w-8 h-8 mx-auto mb-2 text-zinc-600" />
+                    <span>No orders found matching the filter.</span>
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((ord) => (
-                  <tr key={ord.id} className="hover:bg-white/[0.02] transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
-                      #{ord.orderId || ord.id.slice(-6)}
-                      <div className="text-[9px] text-gray-600 font-normal">
-                        {new Date(ord.createdAt).toLocaleDateString()}
-                      </div>
-                    </td>
+                filteredOrders.map((ord) => {
+                  const platformInfo = getPlatformInfo(ord.category, ord.serviceName);
+                  const PlatformIcon = platformInfo.icon;
 
-                    <td className="py-3.5 px-4 max-w-xs truncate text-gray-300">
-                      <div className="truncate font-semibold">{ord.serviceName}</div>
-                      <div className="text-[10px] text-gray-500 truncate">{ord.category}</div>
-                    </td>
-
-                    <td className="py-3.5 px-4 max-w-[200px]">
-                      <div className="flex items-center gap-1.5 text-gray-400">
-                        <span className="truncate">{ord.link}</span>
-                        <button
-                          onClick={() => copyToClipboard(ord.link, ord.id)}
-                          className="hover:text-white transition-colors cursor-pointer"
-                          title="Copy Link"
-                        >
-                          {copiedId === ord.id ? (
-                            <Check className="w-3 h-3 text-emerald-400" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
-                        </button>
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 text-white whitespace-nowrap">
-                      {formatNumber(ord.quantity)}
-                    </td>
-
-                    <td className="py-3.5 px-4 font-bold text-white whitespace-nowrap">
-                      {formatINR(ord.charge)}
-                    </td>
-
-                    <td className="py-3.5 px-4 whitespace-nowrap">
-                      {getStatusBadge(ord.status)}
-                    </td>
-
-                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Refill Button */}
-                        {ord.refillAvailable && (
+                  return (
+                    <tr key={ord.id} className="hover:bg-white/[0.02] transition-colors">
+                      {/* Order ID */}
+                      <td className="py-4 px-5 font-semibold text-white whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span>#{ord.orderId || ord.id.slice(-6)}</span>
                           <button
-                            onClick={() => handleRefill(ord)}
-                            disabled={actionLoadingId === ord.id}
-                            className="px-2 py-1 border border-white/10 hover:border-white/30 text-[10px] tracking-wider text-gray-300 hover:text-white rounded-sm transition-all flex items-center gap-1 cursor-pointer"
-                            title="Request Refill"
+                            onClick={() => copyToClipboard(String(ord.orderId || ord.id), ord.id)}
+                            className="text-zinc-500 hover:text-white transition-colors"
+                            title="Copy ID"
                           >
-                            <RotateCcw className="w-2.5 h-2.5" />
-                            <span>REFILL</span>
+                            {copiedId === ord.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
                           </button>
-                        )}
-
-                        {/* Status Check Button */}
-                        <button
-                          onClick={() => handleStatusCheck(ord)}
-                          disabled={actionLoadingId === ord.id}
-                          className="px-2 py-1 border border-white/10 hover:border-white/30 text-[10px] tracking-wider text-gray-400 hover:text-white rounded-sm transition-all flex items-center gap-1 cursor-pointer"
-                          title="Recheck Live Status"
-                        >
-                          <RefreshCw className={`w-2.5 h-2.5 ${actionLoadingId === ord.id ? "animate-spin" : ""}`} />
-                        </button>
-                      </div>
-
-                      {actionMsg && actionMsg.id === ord.id && (
-                        <div className={`text-[9px] font-mono mt-1 ${actionMsg.err ? "text-red-400" : "text-emerald-400"}`}>
-                          {actionMsg.msg}
                         </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                        <div className="text-[10px] text-zinc-500 font-normal mt-0.5">
+                          {new Date(ord.createdAt).toLocaleDateString()}
+                        </div>
+                      </td>
+
+                      {/* Platform & Service */}
+                      <td className="py-4 px-5 max-w-xs">
+                        <div className="flex items-center gap-2 mb-1">
+                          <PlatformIcon size={16} />
+                          <span className="text-[11px] font-semibold text-zinc-300 uppercase">
+                            {platformInfo.name}
+                          </span>
+                        </div>
+                        <div className="font-medium text-white truncate">{ord.serviceName}</div>
+                      </td>
+
+                      {/* Target Link */}
+                      <td className="py-4 px-5 max-w-[200px]">
+                        <div className="flex items-center gap-1.5 text-zinc-300">
+                          <span className="truncate">{ord.link}</span>
+                          <button
+                            onClick={() => copyToClipboard(ord.link, ord.id + "_link")}
+                            className="text-zinc-500 hover:text-white transition-colors shrink-0"
+                            title="Copy link"
+                          >
+                            {copiedId === ord.id + "_link" ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Quantity */}
+                      <td className="py-4 px-5 font-semibold text-white whitespace-nowrap">
+                        {formatNumber(ord.quantity)}
+                      </td>
+
+                      {/* Charge */}
+                      <td className="py-4 px-5 font-bold text-emerald-400 whitespace-nowrap text-sm">
+                        {formatINR(ord.charge)}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-4 px-5 whitespace-nowrap">
+                        {getStatusBadge(ord.status)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="py-4 px-5 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            onClick={() => handleCheckStatus(ord.id)}
+                            disabled={actionLoadingId === ord.id}
+                            className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
+                          >
+                            Status
+                          </button>
+
+                          {ord.refillAvailable && (
+                            <button
+                              onClick={() => handleRefill(ord.id)}
+                              disabled={actionLoadingId === ord.id}
+                              className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-xs font-medium transition-all cursor-pointer flex items-center gap-1"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Refill</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {actionMsg?.id === ord.id && (
+                          <div
+                            className={`text-[10px] mt-1 ${
+                              actionMsg.err ? "text-rose-400" : "text-emerald-400"
+                            }`}
+                          >
+                            {actionMsg.msg}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
