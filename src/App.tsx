@@ -17,6 +17,7 @@ import GuaranteesBento from "./components/GuaranteesBento";
 import TestimonialsTicker from "./components/TestimonialsTicker";
 import Footer from "./components/Footer";
 import { SmmUpLogo } from "./components/icons/ExecutiveIcons";
+import { sanitizeBrandText, cleanServiceDescription } from "./lib/utils";
 
 export default function App() {
   const [currentTab, setCurrentTab] = React.useState<string>("home");
@@ -63,7 +64,14 @@ export default function App() {
       const res = await fetch("/api/services/list");
       const data = await res.json();
       if (res.ok && data.services) {
-        setServices(data.services);
+        setServices(
+          data.services.map((s: any) => ({
+            ...s,
+            name: sanitizeBrandText(s.name),
+            category: sanitizeBrandText(s.category),
+            description: cleanServiceDescription(s.description),
+          }))
+        );
       }
     } catch (err) {
       console.error("Failed to load services:", err);
@@ -76,7 +84,13 @@ export default function App() {
       const res = await fetch("/api/orders/list");
       const data = await res.json();
       if (res.ok && data.orders) {
-        setOrders(data.orders);
+        setOrders(
+          data.orders.map((o: any) => ({
+            ...o,
+            serviceName: sanitizeBrandText(o.serviceName),
+            category: sanitizeBrandText(o.category),
+          }))
+        );
       }
     } catch (err) {
       console.error("Failed to load orders:", err);

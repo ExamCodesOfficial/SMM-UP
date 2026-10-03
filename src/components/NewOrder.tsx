@@ -23,7 +23,7 @@ import {
   FileText,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { formatINR, formatNumber, cleanServiceDescription } from "../lib/utils";
+import { formatINR, formatNumber, cleanServiceDescription, sanitizeBrandText } from "../lib/utils";
 import {
   ExecutiveOrderIcon,
   ExecutiveWalletIcon,
@@ -156,7 +156,7 @@ export default function NewOrder({
   // Categories in platform
   const categories = React.useMemo(() => {
     const set = new Set<string>();
-    platformFiltered.forEach((s) => set.add(s.category));
+    platformFiltered.forEach((s) => set.add(sanitizeBrandText(s.category)));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [platformFiltered]);
 
@@ -174,7 +174,9 @@ export default function NewOrder({
   // Filtered services in category
   const servicesInCategory = React.useMemo(() => {
     if (!selectedCategory) return [];
-    return platformFiltered.filter((s) => s.category === selectedCategory);
+    return platformFiltered.filter(
+      (s) => sanitizeBrandText(s.category) === selectedCategory || s.category === selectedCategory
+    );
   }, [platformFiltered, selectedCategory]);
 
   // Sync selected service

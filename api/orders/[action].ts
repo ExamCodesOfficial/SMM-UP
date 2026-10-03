@@ -8,6 +8,7 @@ import {
   addProviderOrder,
   checkOrderStatus,
   requestOrderRefill,
+  sanitizeBrandText,
 } from "../lib/smm.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -176,8 +177,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         id: o._id.toString(),
         orderId: o.provider_order_id,
         serviceId: o.service_id,
-        serviceName: o.service_name,
-        category: o.category,
+        serviceName: sanitizeBrandText(o.service_name),
+        category: sanitizeBrandText(o.category),
         link: o.link,
         quantity: o.quantity,
         charge: o.charge,
