@@ -24,6 +24,7 @@ interface NavbarProps {
   onOpenWallet: () => void;
   onOpenProfile: () => void;
   onOpenAdmin: () => void;
+  onOpenTerms?: () => void;
   onLogout: () => void;
 }
 
@@ -35,6 +36,7 @@ export default function Navbar({
   onOpenWallet,
   onOpenProfile,
   onOpenAdmin,
+  onOpenTerms,
   onLogout,
 }: NavbarProps) {
   const [navVisible, setNavVisible] = React.useState(true);

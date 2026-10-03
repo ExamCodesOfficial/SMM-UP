@@ -10,6 +10,8 @@ import AddFundsModal from "./components/AddFundsModal";
 import ProfileModal from "./components/ProfileModal";
 import AdminModal from "./components/AdminModal";
 import MobileBottomNav from "./components/MobileBottomNav";
+import FaqSection from "./components/FaqSection";
+import TermsModal from "./components/TermsModal";
 
 export default function App() {
   const [currentTab, setCurrentTab] = React.useState<string>("store");
@@ -24,6 +26,7 @@ export default function App() {
   const [walletModalOpen, setWalletModalOpen] = React.useState(false);
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
   const [adminModalOpen, setAdminModalOpen] = React.useState(false);
+  const [termsModalOpen, setTermsModalOpen] = React.useState(false);
 
   React.useEffect(() => {
     checkAuth();
@@ -132,6 +135,7 @@ export default function App() {
         }}
         onOpenProfile={() => setProfileModalOpen(true)}
         onOpenAdmin={() => setAdminModalOpen(true)}
+        onOpenTerms={() => setTermsModalOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -148,6 +152,7 @@ export default function App() {
             onOrderSuccess={handleOrderSuccess}
             onOpenWallet={() => setWalletModalOpen(true)}
             onOpenAuth={() => setAuthModalOpen(true)}
+            onOpenTerms={() => setTermsModalOpen(true)}
             preselectedServiceId={preselectedServiceId}
           />
         )}
@@ -176,6 +181,9 @@ export default function App() {
             loading={loadingOrders}
           />
         )}
+
+        {/* Executive FAQ Section */}
+        <FaqSection />
       </main>
 
       {/* Luxury Minimal Footer */}
@@ -192,8 +200,17 @@ export default function App() {
             <span className="text-zinc-400 text-xs">Automated Growth Engine</span>
           </div>
 
-          <div className="text-xs text-zinc-400 text-center md:text-left">
-            Direct 0% UPI Instant Clearing &bull; Zero Gateway Surcharges &bull; Wholesale Execution
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-zinc-400">
+            <button
+              onClick={() => setTermsModalOpen(true)}
+              className="text-zinc-400 hover:text-white transition-colors cursor-pointer underline"
+            >
+              Terms of Service &amp; SLA
+            </button>
+            <span>&bull;</span>
+            <span>Direct 0% UPI Instant Clearing</span>
+            <span>&bull;</span>
+            <span>SMM v2 API Ready</span>
           </div>
 
           <div className="text-xs text-zinc-500">
@@ -245,6 +262,11 @@ export default function App() {
           onClose={() => setAdminModalOpen(false)}
         />
       )}
+
+      <TermsModal
+        isOpen={termsModalOpen}
+        onClose={() => setTermsModalOpen(false)}
+      />
     </div>
   );
 }

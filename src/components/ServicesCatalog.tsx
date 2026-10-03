@@ -10,6 +10,9 @@ import {
   Check,
   ShieldCheck,
   Zap,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
 } from "lucide-react";
 import { formatINR, formatNumber } from "../lib/utils";
 import {
@@ -71,6 +74,12 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
   const [viewMode, setViewMode] = React.useState<"cards" | "table">("cards");
   const [copiedId, setCopiedId] = React.useState<number | string | null>(null);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [itemsPerPage, setItemsPerPage] = React.useState(24);
+
+  const catalogTopRef = React.useRef<HTMLDivElement>(null);
+
   // Platform filtering logic
   const platformFiltered = React.useMemo(() => {
     if (selectedPlatform === "All") return services;
@@ -100,12 +109,18 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
     return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [platformFiltered]);
 
-  // Reset category if not available in current platform
+  // Reset category & page when platform changes
   React.useEffect(() => {
     if (selectedCat !== "All" && !categories.includes(selectedCat)) {
       setSelectedCat("All");
     }
+    setCurrentPage(1);
   }, [selectedPlatform, categories]);
+
+  // Reset page when search or category changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCat, search]);
 
   // Final filtered list
   const filtered = React.useMemo(() => {
@@ -120,6 +135,26 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
     });
   }, [platformFiltered, selectedCat, search]);
 
+  // Pagination Math
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const paginatedItems = React.useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filtered.slice(start, start + itemsPerPage);
+  }, [filtered, currentPage, itemsPerPage]);
+
+  const scrollToTop = () => {
+    if (catalogTopRef.current) {
+      catalogTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      scrollToTop();
+    }
+  };
+
   const copyServiceId = (id: number | string) => {
     navigator.clipboard.writeText(String(id));
     setCopiedId(id);
@@ -127,7 +162,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
+    <div ref={catalogTopRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
       {/* Title Section */}
       <div className="text-center mb-10">
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
@@ -135,7 +170,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
         </h2>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
         <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-2xl mx-auto">
-          Explore {services.length.toLocaleString()} verified wholesale channels with real-time provisioning & zero retail markups.
+          Explore {services.length.toLocaleString()} verified wholesale channels with real-time provisioning &amp; zero retail markups.
         </p>
       </div>
 
@@ -165,7 +200,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-8 p-4 rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-6 p-4 rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
         {/* Search Input */}
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -216,25 +251,46 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
         </div>
       </div>
 
-      {/* Results Header */}
+      {/* Results Count & Current Slice Bar */}
       <div className="flex items-center justify-between mb-6 px-1">
         <span className="text-xs tracking-wider text-zinc-400 font-semibold uppercase">
-          Showing {filtered.length} available service nodes
+          Showing {filtered.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filtered.length)} of {filtered.length} service nodes
         </span>
-        {search && (
-          <button
-            onClick={() => setSearch("")}
-            className="text-xs text-zinc-400 hover:text-white underline cursor-pointer"
-          >
-            Clear Search
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="text-xs text-zinc-400 hover:text-white underline cursor-pointer"
+            >
+              Clear Search
+            </button>
+          )}
+          <div className="text-xs text-zinc-400">
+            <span>Per page:</span>
+            {[24, 48, 96].map((sz) => (
+              <button
+                key={sz}
+                onClick={() => {
+                  setItemsPerPage(sz);
+                  setCurrentPage(1);
+                }}
+                className={`ml-1.5 px-2 py-0.5 rounded-md text-xs font-semibold cursor-pointer ${
+                  itemsPerPage === sz
+                    ? "bg-white text-black"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {sz}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* ── CARD GRID VIEW ────────────────────────────────────── */}
+      {/* ── CARD GRID VIEW (Paginated) ────────────────────────── */}
       {viewMode === "cards" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filtered.slice(0, 90).map((s) => {
+          {paginatedItems.map((s) => {
             const platformInfo = getPlatformInfo(s.category, s.name);
             const PlatformIcon = platformInfo.icon;
 
@@ -324,7 +380,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
         </div>
       )}
 
-      {/* ── CLEAN TABLE VIEW ─────────────────────────────────── */}
+      {/* ── CLEAN TABLE VIEW (Paginated) ─────────────────────── */}
       {viewMode === "table" && (
         <div className="rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
           <div className="overflow-x-auto">
@@ -341,7 +397,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06]">
-                {filtered.slice(0, 100).map((s) => {
+                {paginatedItems.map((s) => {
                   const platformInfo = getPlatformInfo(s.category, s.name);
                   const PlatformIcon = platformInfo.icon;
 
@@ -393,10 +449,57 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
         </div>
       )}
 
-      {/* Pagination Note */}
-      {filtered.length > 90 && (
-        <div className="text-center text-xs text-zinc-400 mt-8">
-          Showing top {viewMode === "cards" ? 90 : 100} of {filtered.length} services. Use platform filters or keyword search to narrow down.
+      {/* ── PAGINATION CONTROLS ──────────────────────────────── */}
+      {totalPages > 1 && (
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+          <div className="text-xs text-zinc-400">
+            Page <strong className="text-white">{currentPage}</strong> of <strong className="text-white">{totalPages}</strong>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="px-3 py-2 rounded-xl border border-white/10 hover:border-white/30 text-xs font-semibold text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous</span>
+            </button>
+
+            {/* Page Number Chips */}
+            <div className="hidden sm:flex items-center gap-1 px-2">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pNum = i + 1;
+                if (totalPages > 5 && currentPage > 3) {
+                  pNum = currentPage - 2 + i;
+                  if (pNum > totalPages) pNum = totalPages - 4 + i;
+                }
+                const isCurrent = currentPage === pNum;
+                return (
+                  <button
+                    key={pNum}
+                    onClick={() => handlePageChange(pNum)}
+                    className={`w-8 h-8 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      isCurrent
+                        ? "bg-white text-black shadow-[0_0_12px_rgba(255,255,255,0.25)]"
+                        : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    {pNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 rounded-xl border border-white/10 hover:border-white/30 text-xs font-semibold text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
     </div>

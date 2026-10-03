@@ -13,9 +13,14 @@ import {
   Search,
   Wallet,
   ShieldCheck,
+  ChevronDown,
   ChevronRight,
   Flame,
   Sparkles,
+  Check,
+  SlidersHorizontal,
+  X,
+  FileText,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { formatINR, formatNumber } from "../lib/utils";
@@ -57,6 +62,7 @@ interface NewOrderProps {
   onOrderSuccess: (order: any) => void;
   onOpenWallet: () => void;
   onOpenAuth: () => void;
+  onOpenTerms?: () => void;
   preselectedServiceId?: number | string | null;
 }
 
@@ -81,12 +87,21 @@ export default function NewOrder({
   onOrderSuccess,
   onOpenWallet,
   onOpenAuth,
+  onOpenTerms,
   preselectedServiceId,
 }: NewOrderProps) {
   const [selectedPlatform, setSelectedPlatform] = React.useState("All");
-  const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedCategory, setSelectedCategory] = React.useState("");
   const [selectedServiceId, setSelectedServiceId] = React.useState<number | string>("");
+
+  // Custom Popover States (Replacing clunky native HTML selects)
+  const [catPickerOpen, setCatPickerOpen] = React.useState(false);
+  const [catSearch, setCatSearch] = React.useState("");
+  const [servicePickerOpen, setServicePickerOpen] = React.useState(false);
+  const [serviceSearch, setServiceSearch] = React.useState("");
+
+  const catPickerRef = React.useRef<HTMLDivElement>(null);
+  const servicePickerRef = React.useRef<HTMLDivElement>(null);
 
   const [link, setLink] = React.useState("");
   const [quantity, setQuantity] = React.useState<number | string>("");
@@ -96,6 +111,20 @@ export default function NewOrder({
   const [submitting, setSubmitting] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState("");
   const [successMsg, setSuccessMsg] = React.useState("");
+
+  // Close dropdowns on outside click
+  React.useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (catPickerRef.current && !catPickerRef.current.contains(e.target as Node)) {
+        setCatPickerOpen(false);
+      }
+      if (servicePickerRef.current && !servicePickerRef.current.contains(e.target as Node)) {
+        setServicePickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   // Filter services by platform
   const platformFiltered = React.useMemo(() => {
@@ -171,6 +200,24 @@ export default function NewOrder({
     return services.find((s) => Number(s.service) === Number(selectedServiceId)) || null;
   }, [services, selectedServiceId]);
 
+  // Filtered categories for picker search
+  const filteredCategoriesForPicker = React.useMemo(() => {
+    if (!catSearch.trim()) return categories;
+    return categories.filter((c) => c.toLowerCase().includes(catSearch.toLowerCase()));
+  }, [categories, catSearch]);
+
+  // Filtered services for package picker search
+  const filteredServicesForPicker = React.useMemo(() => {
+    if (!serviceSearch.trim()) return servicesInCategory;
+    const term = serviceSearch.toLowerCase();
+    return servicesInCategory.filter(
+      (s) =>
+        s.name.toLowerCase().includes(term) ||
+        String(s.service).includes(term) ||
+        s.category.toLowerCase().includes(term)
+    );
+  }, [servicesInCategory, serviceSearch]);
+
   // Calculation of charge
   const calculatedCharge = React.useMemo(() => {
     if (!currentService) return 0;
@@ -200,12 +247,12 @@ export default function NewOrder({
     }
 
     if (!currentService) {
-      setErrorMsg("Please select a service from the list.");
+      setErrorMsg("Please select a service from the catalog.");
       return;
     }
 
     if (!link.trim()) {
-      setErrorMsg("Please enter the target link or username.");
+      setErrorMsg("Please enter the target link or public username.");
       return;
     }
 
@@ -244,7 +291,7 @@ export default function NewOrder({
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        setErrorMsg(data.error || "Order execution failed. Please verify details.");
+        setErrorMsg(data.error || "Order execution failed. Please verify target link.");
       } else {
         setSuccessMsg(`Order #${data.providerOrderId || data.orderId} dispatched successfully!`);
         confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
@@ -284,7 +331,8 @@ export default function NewOrder({
               key={p.id}
               onClick={() => {
                 setSelectedPlatform(p.id);
-                setSearchQuery("");
+                setCatPickerOpen(false);
+                setServicePickerOpen(false);
               }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer ${
                 isActive
@@ -312,53 +360,184 @@ export default function NewOrder({
             </h3>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Category Dropdown */}
-              <div>
+              {/* 1. CUSTOM CATEGORY PICKER (No native select boxes!) */}
+              <div className="relative" ref={catPickerRef}>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
-                  1. Select Category {categories.length > 0 ? `(${categories.length} available)` : "(Loading catalog...)"}
+                  1. Select Category {categories.length > 0 ? `(${categories.length} available)` : "(Loading...)"}
                 </label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  disabled={categories.length === 0}
-                  className="w-full bg-black/80 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-xl outline-none transition-all cursor-pointer disabled:opacity-60"
+
+                {/* Trigger Pill Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatPickerOpen(!catPickerOpen);
+                    setServicePickerOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-xl border border-white/15 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/30 transition-all text-left cursor-pointer group"
                 >
-                  {categories.length === 0 ? (
-                    <option value="">Loading wholesale services catalog...</option>
-                  ) : (
-                    categories.map((cat) => (
-                      <option key={cat} value={cat} className="bg-zinc-900 text-white">
-                        {cat}
-                      </option>
-                    ))
-                  )}
-                </select>
+                  <div className="flex items-center gap-3 truncate pr-2">
+                    <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+                      <ActivePlatformIcon size={16} />
+                    </div>
+                    <span className="text-sm font-semibold text-white truncate">
+                      {selectedCategory || (categories.length === 0 ? "Loading wholesale catalog..." : "Choose a category")}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-200 ${
+                      catPickerOpen ? "rotate-180 text-white" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Floating Command Popover */}
+                {catPickerOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-2xl border border-white/15 bg-zinc-950/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.9)] p-3 space-y-2 max-h-80 flex flex-col">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={catSearch}
+                        onChange={(e) => setCatSearch(e.target.value)}
+                        placeholder="Search category (e.g. Followers, Views, Reels)..."
+                        autoFocus
+                        className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-3 py-2 text-xs rounded-xl outline-none"
+                      />
+                    </div>
+
+                    <div className="overflow-y-auto space-y-1 pr-1 flex-1">
+                      {filteredCategoriesForPicker.length === 0 ? (
+                        <div className="text-xs text-zinc-500 text-center py-4">No categories match your search.</div>
+                      ) : (
+                        filteredCategoriesForPicker.map((cat) => {
+                          const isSelected = selectedCategory === cat;
+                          return (
+                            <button
+                              key={cat}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCategory(cat);
+                                setCatPickerOpen(false);
+                                setCatSearch("");
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-white text-black font-semibold shadow-[0_0_12px_rgba(255,255,255,0.2)]"
+                                  : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
+                              }`}
+                            >
+                              <span className="truncate pr-2">{cat}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Service Dropdown */}
-              <div>
+              {/* 2. CUSTOM SERVICE PACKAGE PICKER (No native select boxes!) */}
+              <div className="relative" ref={servicePickerRef}>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
                   2. Select Service Package
                 </label>
-                <select
-                  value={selectedServiceId}
-                  onChange={(e) => setSelectedServiceId(e.target.value)}
-                  disabled={servicesInCategory.length === 0}
-                  className="w-full bg-black/80 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-xl outline-none transition-all cursor-pointer truncate disabled:opacity-60"
+
+                {/* Trigger Pill Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServicePickerOpen(!servicePickerOpen);
+                    setCatPickerOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-3.5 rounded-xl border border-white/15 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/30 transition-all text-left cursor-pointer group"
                 >
-                  {servicesInCategory.length === 0 ? (
-                    <option value="">Loading service nodes...</option>
-                  ) : (
-                    servicesInCategory.map((s) => (
-                      <option key={s.service} value={s.service} className="bg-zinc-900 text-white">
-                        #{s.service} — {s.name} ({formatINR(s.rate)} / 1K)
-                      </option>
-                    ))
-                  )}
-                </select>
+                  <div className="truncate pr-2">
+                    {currentService ? (
+                      <div>
+                        <div className="text-sm font-semibold text-white truncate flex items-center gap-2">
+                          <span className="px-1.5 py-0.5 rounded-md bg-white/[0.08] text-[11px] font-medium text-zinc-300">
+                            #{currentService.service}
+                          </span>
+                          <span className="truncate">{currentService.name}</span>
+                        </div>
+                        <div className="text-xs text-emerald-400 font-bold mt-1">
+                          {formatINR(currentService.rate)} <span className="text-[10px] text-zinc-400 font-normal">/ 1,000 units</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-zinc-400">Loading service nodes...</span>
+                    )}
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-200 ${
+                      servicePickerOpen ? "rotate-180 text-white" : ""
+                    }`}
+                  />
+                </button>
+
+                {/* Floating Service Popover */}
+                {servicePickerOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-2xl border border-white/15 bg-zinc-950/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.9)] p-3 space-y-2 max-h-96 flex flex-col">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={serviceSearch}
+                        onChange={(e) => setServiceSearch(e.target.value)}
+                        placeholder="Search service name, ID (e.g. 2664), or speed..."
+                        autoFocus
+                        className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-3 py-2 text-xs rounded-xl outline-none"
+                      />
+                    </div>
+
+                    <div className="overflow-y-auto space-y-2 pr-1 flex-1">
+                      {filteredServicesForPicker.length === 0 ? (
+                        <div className="text-xs text-zinc-500 text-center py-4">No services match your search in this category.</div>
+                      ) : (
+                        filteredServicesForPicker.map((s) => {
+                          const isSelected = Number(s.service) === Number(selectedServiceId);
+                          return (
+                            <button
+                              key={s.service}
+                              type="button"
+                              onClick={() => {
+                                setSelectedServiceId(s.service);
+                                setServicePickerOpen(false);
+                                setServiceSearch("");
+                              }}
+                              className={`w-full p-3 rounded-xl text-left transition-all cursor-pointer border ${
+                                isSelected
+                                  ? "bg-white/[0.08] border-white/30 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                                  : "bg-black/40 border-white/[0.06] hover:border-white/20 hover:bg-white/[0.03]"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-1.5">
+                                <span className="text-xs font-semibold text-white leading-snug line-clamp-2">
+                                  #{s.service} — {s.name}
+                                </span>
+                                <span className="text-xs font-bold text-emerald-400 shrink-0">
+                                  {formatINR(s.rate)} <span className="text-[10px] text-zinc-400 font-normal">/ 1K</span>
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-[10px] text-zinc-400">
+                                <span>Min: {formatNumber(s.min)} &bull; Max: {formatNumber(s.max)}</span>
+                                {s.refill && (
+                                  <span className="text-emerald-400 font-medium flex items-center gap-0.5">
+                                    <RotateCcw className="w-2.5 h-2.5" /> 30D Refill
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Target Link */}
+              {/* 3. Target Link */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
                   3. Target Link or Username
@@ -376,7 +555,7 @@ export default function NewOrder({
                 </div>
               </div>
 
-              {/* Quantity or Custom Comments */}
+              {/* 4. Quantity or Custom Comments */}
               {currentService?.type === "Custom Comments" ? (
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
@@ -450,7 +629,7 @@ export default function NewOrder({
                       className="w-full py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-xs tracking-wider hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <Wallet className="w-4 h-4" />
-                      <span>Wallet Low — Add Funds via 0% UPI</span>
+                      <span>Wallet Low — Add Funds via UPI</span>
                     </button>
                   </div>
                 )}
@@ -485,7 +664,7 @@ export default function NewOrder({
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    <span>Confirm & Dispatch Order</span>
+                    <span>Confirm &amp; Dispatch Order</span>
                   </>
                 )}
               </button>
@@ -553,7 +732,7 @@ export default function NewOrder({
               {/* Description */}
               <div className="space-y-2 mb-6">
                 <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300 block">
-                  Service Description & Instructions
+                  Service Description &amp; Instructions
                 </span>
                 <div className="p-4 rounded-xl border border-white/[0.06] bg-black/30 text-xs text-zinc-300 leading-relaxed whitespace-pre-line max-h-56 overflow-y-auto">
                   {currentService.description || "High quality instant automated delivery node. Ensure target account is completely PUBLIC."}
@@ -566,10 +745,16 @@ export default function NewOrder({
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>Account privacy strictly maintained. Never requires passwords.</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-zinc-300 shrink-0" />
-                  <span>Real-time tracking through wholesale API nodes.</span>
-                </div>
+                {onOpenTerms && (
+                  <button
+                    type="button"
+                    onClick={onOpenTerms}
+                    className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors cursor-pointer text-xs"
+                  >
+                    <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
+                    <span className="underline">Review Service Terms &amp; Policies</span>
+                  </button>
+                )}
               </div>
             </div>
           ) : (
