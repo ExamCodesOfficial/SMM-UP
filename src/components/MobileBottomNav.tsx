@@ -1,5 +1,5 @@
 import React from "react";
-import { User } from "lucide-react";
+import { User, Home } from "lucide-react";
 import {
   ExecutiveOrderIcon,
   ExecutiveCatalogIcon,
@@ -25,28 +25,34 @@ export default function MobileBottomNav({
   user,
 }: MobileBottomNavProps) {
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#090807]/92 backdrop-blur-2xl border-t border-white/[0.08] px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#090807]/92 backdrop-blur-2xl border-t border-white/[0.08] px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       <div className="grid grid-cols-5 gap-1 text-center">
+        {/* Home */}
+        <button
+          onClick={() => {
+            setCurrentTab("home");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
+            currentTab === "home" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          <Home className="w-4 h-4 mb-1" />
+          <span>HOME</span>
+        </button>
+
         {/* Order Desk */}
         <button
-          onClick={() => setCurrentTab("store")}
+          onClick={() => {
+            setCurrentTab("store");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
           className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
             currentTab === "store" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
           <ExecutiveOrderIcon size={16} className="mb-1" />
           <span>ORDER</span>
-        </button>
-
-        {/* Services Catalog */}
-        <button
-          onClick={() => setCurrentTab("services")}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
-            currentTab === "services" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          <ExecutiveCatalogIcon size={16} className="mb-1" />
-          <span>CATALOG</span>
         </button>
 
         {/* Luxury Champagne Platinum Wallet */}
@@ -60,15 +66,18 @@ export default function MobileBottomNav({
           <span>WALLET</span>
         </button>
 
-        {/* Order Logs */}
+        {/* Services Catalog */}
         <button
-          onClick={() => setCurrentTab("orders")}
+          onClick={() => {
+            setCurrentTab("services");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
           className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
-            currentTab === "orders" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
+            currentTab === "services" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
-          <ExecutiveHistoryIcon size={16} className="mb-1" />
-          <span>LOGS</span>
+          <ExecutiveCatalogIcon size={16} className="mb-1" />
+          <span>CATALOG</span>
         </button>
 
         {/* User Account */}
