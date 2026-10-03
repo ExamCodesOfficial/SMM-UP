@@ -315,18 +315,23 @@ export default function NewOrder({
               {/* Category Dropdown */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
-                  1. Select Category ({categories.length} available)
+                  1. Select Category {categories.length > 0 ? `(${categories.length} available)` : "(Loading catalog...)"}
                 </label>
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full bg-black/80 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-xl outline-none transition-all cursor-pointer"
+                  disabled={categories.length === 0}
+                  className="w-full bg-black/80 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-xl outline-none transition-all cursor-pointer disabled:opacity-60"
                 >
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat} className="bg-zinc-900 text-white">
-                      {cat}
-                    </option>
-                  ))}
+                  {categories.length === 0 ? (
+                    <option value="">Loading wholesale services catalog...</option>
+                  ) : (
+                    categories.map((cat) => (
+                      <option key={cat} value={cat} className="bg-zinc-900 text-white">
+                        {cat}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -338,13 +343,18 @@ export default function NewOrder({
                 <select
                   value={selectedServiceId}
                   onChange={(e) => setSelectedServiceId(e.target.value)}
-                  className="w-full bg-black/80 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-xl outline-none transition-all cursor-pointer truncate"
+                  disabled={servicesInCategory.length === 0}
+                  className="w-full bg-black/80 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-xl outline-none transition-all cursor-pointer truncate disabled:opacity-60"
                 >
-                  {servicesInCategory.map((s) => (
-                    <option key={s.service} value={s.service} className="bg-zinc-900 text-white">
-                      #{s.service} — {s.name} ({formatINR(s.rate)} / 1K)
-                    </option>
-                  ))}
+                  {servicesInCategory.length === 0 ? (
+                    <option value="">Loading service nodes...</option>
+                  ) : (
+                    servicesInCategory.map((s) => (
+                      <option key={s.service} value={s.service} className="bg-zinc-900 text-white">
+                        #{s.service} — {s.name} ({formatINR(s.rate)} / 1K)
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
