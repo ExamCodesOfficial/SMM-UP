@@ -8,7 +8,6 @@ import ServicesCatalog from "./components/ServicesCatalog";
 import AuthModal from "./components/AuthModal";
 import AddFundsModal from "./components/AddFundsModal";
 import ProfileModal from "./components/ProfileModal";
-import AdminModal from "./components/AdminModal";
 import MobileBottomNav from "./components/MobileBottomNav";
 import FaqSection from "./components/FaqSection";
 import TermsModal from "./components/TermsModal";
@@ -32,7 +31,6 @@ export default function App() {
   const [authModalOpen, setAuthModalOpen] = React.useState(false);
   const [walletModalOpen, setWalletModalOpen] = React.useState(false);
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
-  const [adminModalOpen, setAdminModalOpen] = React.useState(false);
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
   const [supportModalOpen, setSupportModalOpen] = React.useState(false);
 
@@ -155,7 +153,6 @@ export default function App() {
           else setWalletModalOpen(true);
         }}
         onOpenProfile={() => setProfileModalOpen(true)}
-        onOpenAdmin={() => setAdminModalOpen(true)}
         onOpenTerms={() => setTermsModalOpen(true)}
         onOpenSupport={() => setSupportModalOpen(true)}
         onLogout={handleLogout}
@@ -289,13 +286,6 @@ export default function App() {
         user={user}
         onLogout={handleLogout}
       />
-
-      {user?.role === "admin" && (
-        <AdminModal
-          isOpen={adminModalOpen}
-          onClose={() => setAdminModalOpen(false)}
-        />
-      )}
 
       <TermsModal
         isOpen={termsModalOpen}

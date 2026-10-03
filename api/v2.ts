@@ -86,7 +86,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         const { totalCharge } = calculateOrderTotal(matched.wholesale_rate, effQuantity);
-        if ((user.balance || 0) < totalCharge) {
+
+        // Atomic balance deduction BEFORE calling upstream provider
+        const debitResult: any = await db.collection("users").findOneAndUpdate(
+          { _id: user._id, balance: { $gte: totalCharge } },
+          {
+            $inc: {
+              balance: -totalCharge,
+              total_spent: totalCharge,
+              total_orders: 1,
+            },
+          },
+          { returnDocument: "after" }
+        );
+
+        if (!debitResult) {
           return res.status(400).json({ error: "Insufficient balance" });
         }
 
@@ -99,21 +113,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           interval: interval ? parseInt(String(interval), 10) : undefined,
         });
 
-        if (providerRes.error) {
-          return res.status(400).json({ error: providerRes.error });
+        if (providerRes.error || !providerRes.orderId) {
+          // Refund atomically on provider rejection or failure
+          await db.collection("users").updateOne(
+            { _id: user._id },
+            {
+              $inc: {
+                balance: totalCharge,
+                total_spent: -totalCharge,
+                total_orders: -1,
+              },
+            }
+          );
+          return res.status(400).json({ error: providerRes.error || "Provider rejected order" });
         }
-
-        // Atomic balance deduction
-        await db.collection("users").updateOne(
-          { _id: user._id },
-          {
-            $inc: {
-              balance: -totalCharge,
-              total_spent: totalCharge,
-              total_orders: 1,
-            },
-          }
-        );
 
         // Record order
         const newOrder = {

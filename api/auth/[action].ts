@@ -41,7 +41,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         balance: 0.0,
         total_spent: 0.0,
         total_orders: 0,
-        role: cleanEmail.includes("aryan") ? "admin" : "user",
+        role: "user",
         api_key: apiKey,
         created_at: new Date(),
         updated_at: new Date(),

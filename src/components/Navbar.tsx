@@ -29,7 +29,6 @@ interface NavbarProps {
   onOpenAuth: () => void;
   onOpenWallet: () => void;
   onOpenProfile: () => void;
-  onOpenAdmin: () => void;
   onOpenTerms?: () => void;
   onOpenSupport?: () => void;
   onLogout: () => void;
@@ -42,7 +41,6 @@ export default function Navbar({
   onOpenAuth,
   onOpenWallet,
   onOpenProfile,
-  onOpenAdmin,
   onOpenTerms,
   onOpenSupport,
   onLogout,
@@ -163,18 +161,6 @@ export default function Navbar({
                 <User className="w-3.5 h-3.5 text-zinc-400" />
                 <span className="max-w-[100px] truncate">{user.username}</span>
               </button>
-
-              {/* Admin Button */}
-              {user.role === "admin" && (
-                <button
-                  onClick={onOpenAdmin}
-                  className="px-3 py-2 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
-                  title="Admin Dashboard"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline">Admin</span>
-                </button>
-              )}
             </>
           ) : (
             <button
