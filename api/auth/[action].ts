@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
 import { ObjectId } from "mongodb";
-import { getDb } from "../lib/db";
+import { getDb } from "../lib/db.js";
 import {
   hashPassword,
   verifyPassword,
@@ -9,8 +9,8 @@ import {
   setAuthCookie,
   clearAuthCookie,
   getUserFromRequest,
-} from "../lib/auth";
-import { checkRateLimit } from "../lib/rateLimit";
+} from "../lib/auth.js";
+import { checkRateLimit } from "../lib/rateLimit.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;

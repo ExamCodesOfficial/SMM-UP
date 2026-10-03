@@ -1,14 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ObjectId } from "mongodb";
-import { getDb } from "../lib/db";
-import { getUserFromRequest } from "../lib/auth";
+import { getDb } from "../lib/db.js";
+import { getUserFromRequest } from "../lib/auth.js";
 import {
   fetchAllServices,
   calculateOrderTotal,
   addProviderOrder,
   checkOrderStatus,
   requestOrderRefill,
-} from "../lib/smm";
+} from "../lib/smm.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;

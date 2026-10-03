@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
 import { ObjectId } from "mongodb";
-import { getDb } from "../lib/db";
-import { getUserFromRequest } from "../lib/auth";
-import { checkRateLimit } from "../lib/rateLimit";
-import { searchFamPayEmailByUTR } from "../lib/imap";
+import { getDb } from "../lib/db.js";
+import { getUserFromRequest } from "../lib/auth.js";
+import { checkRateLimit } from "../lib/rateLimit.js";
+import { searchFamPayEmailByUTR } from "../lib/imap.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
