@@ -243,7 +243,7 @@ export default function Footer({
         {/* Bottom Bar (ExamCodes & thatonearyan-sh style) */}
         <div className="pt-8 flex flex-col items-center gap-3 text-xs">
           <div className="text-[10px] sm:text-[11px] tracking-[0.18em] text-zinc-400 font-mono uppercase text-center">
-            Founded &amp; Operated by <a href="mailto:examcodesofficial@gmail.com" className="text-[#E4E4E7] hover:text-white transition-colors">Aryan</a> &bull; CEO &amp; Owner &bull; <a href="mailto:examcodesofficial@gmail.com" className="text-zinc-300 hover:text-white transition-colors">examcodesofficial@gmail.com</a>
+            Founded &amp; Operated by <span className="text-[#E4E4E7]">Aryan</span> &bull; CEO &amp; Owner
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-4 pt-2">
