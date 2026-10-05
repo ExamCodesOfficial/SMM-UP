@@ -1,5 +1,6 @@
 import React from "react";
 import { User, Home } from "lucide-react";
+import { pathFor } from "../lib/routes";
 import {
   ExecutiveOrderIcon,
   ExecutiveCatalogIcon,
@@ -10,7 +11,6 @@ import {
 interface MobileBottomNavProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
-  onOpenWallet: () => void;
   onOpenProfile: () => void;
   onOpenAuth: () => void;
   user: any;
@@ -19,7 +19,6 @@ interface MobileBottomNavProps {
 export default function MobileBottomNav({
   currentTab,
   setCurrentTab,
-  onOpenWallet,
   onOpenProfile,
   onOpenAuth,
   user,
@@ -56,15 +55,16 @@ export default function MobileBottomNav({
         </button>
 
         {/* Wallet */}
-        <button
-          onClick={onOpenWallet}
-          className="flex flex-col items-center justify-center py-1 rounded-none text-[10px] font-semibold tracking-wider text-[#E4E4E7] cursor-pointer group"
+        <a
+          href={pathFor("add-funds")}
+          aria-current={currentTab === "add-funds" ? "page" : undefined}
+          className={`flex flex-col items-center justify-center py-1 rounded-none text-[10px] font-semibold tracking-wider text-[#E4E4E7] cursor-pointer group ${currentTab === "add-funds" ? "bg-white/[0.08]" : ""}`}
         >
           <div className="w-7 h-7 rounded-none bg-[#E4E4E7]/10 border border-[#E4E4E7]/30 flex items-center justify-center mb-0.5 shadow-[0_0_15px_rgba(255,255,255,0.2)] group-hover:scale-105 transition-transform">
             <ExecutiveWalletIcon size={14} className="text-[#E4E4E7]" />
           </div>
           <span>WALLET</span>
-        </button>
+        </a>
 
         {/* Services Catalog */}
         <button

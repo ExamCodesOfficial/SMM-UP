@@ -1,7 +1,6 @@
 import React from "react";
 import {
   Wallet,
-  X,
   QrCode,
   Smartphone,
   ShieldCheck,
@@ -21,12 +20,9 @@ import {
 import confetti from "canvas-confetti";
 import { formatINR } from "../lib/utils";
 
-interface AddFundsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+interface AddFundsPageProps {
   user: any;
   onDepositSuccess: (newBalance: number) => void;
-  onOpenSupport?: () => void;
 }
 
 const PRESET_AMOUNTS = [50, 100, 250, 500, 1000, 2500];
@@ -77,14 +73,12 @@ function loadRazorpayCheckout(): Promise<void> {
   return razorpayScriptPromise;
 }
 
-export default function AddFundsModal({
-  isOpen,
-  onClose,
+export default function AddFundsPage({
   user,
   onDepositSuccess,
-  onOpenSupport,
-}: AddFundsModalProps) {
+}: AddFundsPageProps) {
   const [amount, setAmount] = React.useState<number | string>(250);
+  const [amountError, setAmountError] = React.useState("");
   const [activeStep, setActiveStep] = React.useState<"select" | "method" | "upi-pay">("select");
   const [loading, setLoading] = React.useState(false);
   const [razorpayLoading, setRazorpayLoading] = React.useState(false);
@@ -123,23 +117,10 @@ export default function AddFundsModal({
   const [loadingHistory, setLoadingHistory] = React.useState(false);
 
   React.useEffect(() => {
-    if (isOpen) {
-      loadHistory();
-      loadRazorpayConfig();
-    } else {
-      stopPolling();
-      setActiveStep("select");
-      setVerifyError("");
-      setVerifySuccess("");
-      setRazorpayError("");
-      setRazorpaySuccess("");
-      setRazorpayLoading(false);
-      setRazorpayVerifying(false);
-      setUtrNumber("");
-      setElapsedSeconds(0);
-    }
+    loadHistory();
+    loadRazorpayConfig();
     return () => stopPolling();
-  }, [isOpen]);
+  }, []);
 
   // Clean polling when leaving pay step
   const stopPolling = () => {
@@ -231,8 +212,6 @@ export default function AddFundsModal({
     setLoadingHistory(false);
   };
 
-  if (!isOpen) return null;
-
   const getValidAmount = (): number | null => {
     const num = Number(amount);
     if (!Number.isFinite(num) || num < 10 || Math.abs(num * 100 - Math.round(num * 100)) > 0.0001) {
@@ -243,9 +222,10 @@ export default function AddFundsModal({
 
   const handleContinueToMethod = () => {
     if (getValidAmount() === null) {
-      alert("Enter a valid deposit amount of at least ₹10 with no more than 2 decimal places.");
+      setAmountError("Enter at least ₹10 with no more than 2 decimal places.");
       return;
     }
+    setAmountError("");
     setRazorpayError("");
     setRazorpaySuccess("");
     setActiveStep("method");
@@ -254,10 +234,13 @@ export default function AddFundsModal({
   const handleGenerateQR = async () => {
     const num = getValidAmount();
     if (num === null) {
-      alert("Enter a valid deposit amount of at least ₹10 with no more than 2 decimal places.");
+      setAmountError("Enter at least ₹10 with no more than 2 decimal places.");
+      setActiveStep("select");
       return;
     }
 
+    setAmountError("");
+    setRazorpayError("");
     setLoading(true);
     setVerifyError("");
     setVerifySuccess("");
@@ -273,10 +256,10 @@ export default function AddFundsModal({
         setQrData(data);
         setActiveStep("upi-pay");
       } else {
-        alert(data.error || "Failed to generate payment QR");
+        setRazorpayError(data.error || "Failed to generate the Direct UPI payment QR.");
       }
     } catch {
-      alert("Network error. Try again.");
+      setRazorpayError("Network error while creating the Direct UPI payment. Try again.");
     } finally {
       setLoading(false);
     }
@@ -470,30 +453,56 @@ export default function AddFundsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
-      <div className="relative w-full max-w-lg border border-white/10 bg-zinc-950/95 rounded-none shadow-[0_8px_40px_rgba(0,0,0,0.85)] p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between pb-5 border-b border-white/[0.08] mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-none bg-white/[0.04] border border-white/10 flex items-center justify-center text-[#E4E4E7]">
-              <Wallet className="w-5 h-5" />
+    <section className="min-h-[calc(100vh-4.5rem)] py-10 sm:py-14 lg:py-18">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 mb-7">
+          <a href="/" className="hover:text-white transition-colors">Home</a>
+          <span aria-hidden="true">/</span>
+          <span className="text-zinc-300">Add funds</span>
+        </nav>
+
+        <header className="grid lg:grid-cols-[1fr_auto] gap-6 items-end pb-8 border-b border-white/[0.09] mb-8">
+          <div>
+            <div className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.22em] text-zinc-400 mb-4">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Secure wallet funding
             </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold tracking-wide text-white">
-                Deposit Funds
-              </h2>
-              <p className="text-xs text-zinc-400">
-                Direct UPI or Razorpay Secure Checkout
-              </p>
-            </div>
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-light tracking-[0.02em] text-white">
+              Add funds
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm sm:text-base leading-relaxed text-zinc-400 font-light">
+              Choose Direct UPI with a 0% deposit fee, or use the completely separate Razorpay Secure Checkout when available.
+            </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-white rounded-none hover:bg-white/[0.05] transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          <div className="lg:text-right border-l border-white/10 pl-5">
+            <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 block mb-1">Available balance</span>
+            <span className="text-2xl sm:text-3xl font-semibold text-white">{formatINR(Number(user?.balance || 0))}</span>
+          </div>
+        </header>
+
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8 items-start">
+          <div className="border border-white/10 bg-[#090909]/90 shadow-[0_24px_80px_rgba(0,0,0,0.35)] p-5 sm:p-7 lg:p-9">
+            <div className="grid grid-cols-3 mb-8 border border-white/[0.08] bg-black/40">
+              {[
+                { id: "select", label: "Amount", number: "01" },
+                { id: "method", label: "Method", number: "02" },
+                { id: "upi-pay", label: "Payment", number: "03" },
+              ].map((step) => {
+                const active = activeStep === step.id;
+                const complete = step.id === "select"
+                  ? activeStep !== "select"
+                  : step.id === "method" && activeStep === "upi-pay";
+                return (
+                  <div
+                    key={step.id}
+                    className={`px-3 py-3.5 border-r last:border-r-0 border-white/[0.08] ${active ? "bg-white text-black" : complete ? "text-white" : "text-zinc-600"}`}
+                  >
+                    <span className="block text-[9px] font-mono tracking-wider mb-0.5">{step.number}</span>
+                    <span className="block text-[10px] sm:text-xs font-semibold uppercase tracking-wider">{step.label}</span>
+                  </div>
+                );
+              })}
+            </div>
 
         {activeStep === "select" ? (
           /* Step 1: Select Amount */
@@ -509,7 +518,10 @@ export default function AddFundsModal({
                     <button
                       key={amt}
                       type="button"
-                      onClick={() => setAmount(amt)}
+                      onClick={() => {
+                        setAmount(amt);
+                        setAmountError("");
+                      }}
                       className={`py-3 px-3 rounded-none text-sm font-semibold tracking-wide transition-all cursor-pointer ${
                         isSelected
                           ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.25)] scale-[1.02]"
@@ -532,11 +544,20 @@ export default function AddFundsModal({
                   min="10"
                   step="0.01"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    setAmount(e.target.value);
+                    setAmountError("");
+                  }}
                   placeholder="Or enter custom INR amount"
                   className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-9 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
                 />
               </div>
+              {amountError && (
+                <div className="mt-3 p-3 border border-white/15 bg-white/[0.04] text-xs text-zinc-200 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{amountError}</span>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
@@ -774,16 +795,13 @@ export default function AddFundsModal({
                 <p className="text-[11px] text-zinc-300 leading-relaxed">
                   Bank networks sometimes experience minor notification delays. You can enter your 12-digit UTR or FamPay Transaction ID below for instant clearance, or reach out to our team.
                 </p>
-                {onOpenSupport && (
-                  <button
-                    type="button"
-                    onClick={onOpenSupport}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#E4E4E7] hover:text-white underline underline-offset-4 cursor-pointer"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>Talk to Executive Support on Telegram</span>
-                  </button>
-                )}
+                <a
+                  href="/support"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#E4E4E7] hover:text-white underline underline-offset-4 cursor-pointer"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Talk to Executive Support on Telegram</span>
+                </a>
               </div>
             )}
 
@@ -855,9 +873,24 @@ export default function AddFundsModal({
             </form>
           </div>
         )}
+          </div>
 
-        {/* Deposit History */}
-        <div className="mt-8 pt-6 border-t border-white/[0.08]">
+          <aside className="space-y-5 lg:sticky lg:top-24">
+            <div className="border border-white/10 bg-[#090909]/90 p-5">
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 block mb-1">Funding account</span>
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <span className="text-sm font-semibold text-white block truncate">@{user?.username || "account"}</span>
+                  <span className="text-[11px] text-zinc-500 block truncate">{user?.email || "Signed-in account"}</span>
+                </div>
+                <div className="w-10 h-10 border border-white/10 bg-white/[0.03] flex items-center justify-center shrink-0">
+                  <Wallet className="w-4 h-4 text-zinc-200" />
+                </div>
+              </div>
+            </div>
+
+            {/* Deposit History */}
+            <div className="border border-white/10 bg-[#090909]/90 p-5">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
               <History className="w-3.5 h-3.5" />
@@ -897,8 +930,24 @@ export default function AddFundsModal({
               ))}
             </div>
           )}
+            </div>
+
+            <div className="border border-white/10 bg-white/[0.025] p-5 space-y-3">
+              <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+                <Lock className="w-4 h-4" />
+                Payment security
+              </div>
+              <p className="text-[11px] leading-relaxed text-zinc-500">
+                Direct UPI and Razorpay use separate records and verification systems. SMM UP never asks for your OTP, UPI PIN, card CVV or banking password.
+              </p>
+              <a href="/support" className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white underline underline-offset-4">
+                <MessageCircle className="w-3.5 h-3.5" />
+                Payment support
+              </a>
+            </div>
+          </aside>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

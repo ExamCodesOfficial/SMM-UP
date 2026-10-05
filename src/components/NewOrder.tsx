@@ -70,7 +70,6 @@ interface NewOrderProps {
   services: Service[];
   user: any;
   onOrderSuccess: (order: any) => void;
-  onOpenWallet: () => void;
   onOpenAuth: () => void;
   preselectedServiceId?: number | string | null;
 }
@@ -94,7 +93,6 @@ export default function NewOrder({
   services,
   user,
   onOrderSuccess,
-  onOpenWallet,
   onOpenAuth,
   preselectedServiceId,
 }: NewOrderProps) {
@@ -730,14 +728,13 @@ export default function NewOrder({
 
                 {user && userBalance < calculatedCharge && (
                   <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={onOpenWallet}
+                    <a
+                      href="/add-funds"
                       className="w-full py-2.5 rounded-none border border-white/15 bg-white/[0.06] text-zinc-100 font-semibold text-xs tracking-wider hover:bg-white/[0.06] transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <ExecutiveWalletIcon size={15} />
-                      <span>Wallet Low — Add Funds via 0% UPI</span>
-                    </button>
+                      <span>Wallet Low — Add Funds</span>
+                    </a>
                   </div>
                 )}
               </div>

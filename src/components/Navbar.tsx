@@ -29,9 +29,7 @@ interface NavbarProps {
   setCurrentTab: (tab: string) => void;
   user: any;
   onOpenAuth: (mode?: "login" | "register") => void;
-  onOpenWallet: () => void;
   onOpenProfile: () => void;
-  onOpenSupport?: () => void;
   onLogout: () => void;
 }
 
@@ -40,9 +38,7 @@ export default function Navbar({
   setCurrentTab,
   user,
   onOpenAuth,
-  onOpenWallet,
   onOpenProfile,
-  onOpenSupport,
   onLogout,
 }: NavbarProps) {
   const [navVisible, setNavVisible] = React.useState(true);
@@ -164,10 +160,11 @@ export default function Navbar({
           {user ? (
             <>
               {/* Luxury Champagne Platinum Wallet Button */}
-              <button
-                onClick={onOpenWallet}
-                className="flex items-center gap-2.5 px-3.5 py-2 rounded-none border border-white/10 bg-[#0A0A0A]/90 hover:bg-[#151310] hover:border-[#E4E4E7]/40 transition-all cursor-pointer shadow-[0_0_20px_rgba(0,0,0,0.6)] group"
-                title="Deposit Funds via Direct 0% UPI"
+              <a
+                href={pathFor("add-funds")}
+                aria-current={currentTab === "add-funds" ? "page" : undefined}
+                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-none border bg-[#0A0A0A]/90 hover:bg-[#151310] hover:border-[#E4E4E7]/40 transition-all cursor-pointer shadow-[0_0_20px_rgba(0,0,0,0.6)] group ${currentTab === "add-funds" ? "border-white/40" : "border-white/10"}`}
+                title="Add funds via Direct UPI or Razorpay"
               >
                 <ExecutiveWalletIcon size={16} className="text-[#E4E4E7] group-hover:scale-110 transition-transform" />
                 <span className="text-xs sm:text-sm font-semibold text-[#FFFFFF] tracking-wide drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">
@@ -177,7 +174,7 @@ export default function Navbar({
                   <Plus className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Add</span>
                 </span>
-              </button>
+              </a>
 
               {/* Profile Button */}
               <button
@@ -295,16 +292,14 @@ export default function Navbar({
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06]">
-                    <button
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        onOpenWallet();
-                      }}
+                    <a
+                      href={pathFor("add-funds")}
+                      onClick={() => setMobileMenuOpen(false)}
                       className="py-2.5 px-3 rounded-none border border-[#E4E4E7]/30 bg-[#E4E4E7]/10 text-[#E4E4E7] font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <ExecutiveWalletIcon size={14} />
-                      <span>Deposit 0%</span>
-                    </button>
+                      <span>Add funds</span>
+                    </a>
 
                     <button
                       onClick={() => {
