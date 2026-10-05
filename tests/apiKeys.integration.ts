@@ -13,8 +13,13 @@ async function run() {
     process.env.DATABASE_NAME = "api_key_integration_test";
     process.env.API_KEY_CREATION_FEE_INR = "29";
     process.env.API_KEY_MAX_IDENTITIES = "10";
+    process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
+    process.env.PANEL_URL = "https://invalid.test";
+    process.env.PANEL_KEY = crypto.randomBytes(16).toString("hex");
+    process.env.TIER1_MARKUP = String(1 + Math.random());
+    process.env.TIER2_MARKUP = String(2 + Math.random());
 
-    // The database module reads its environment at import time.
+    // The database and authentication modules read environment at import time.
     const dbLib = await import("../server/lib/db.js");
     const keys = await import("../server/lib/apiKeys.js");
     await dbLib.ensureApiKeyIndexes();
@@ -100,6 +105,42 @@ async function run() {
       1,
     );
 
+    const activityOrderId = new ObjectId();
+    await keys.recordApiKeyActivity(db, authenticated, {
+      action: "add",
+      scope: "orders:create",
+      httpStatus: 200,
+      result: "success",
+      requestId: crypto.randomUUID(),
+      orderId: activityOrderId,
+      serviceId: 123,
+      serviceName: "Integration service",
+      target: "https://example.com/public-target",
+      quantity: 100,
+      grossChargeInr: 7,
+      refundInr: 0,
+      netChargeInr: 7,
+      startedAt: new Date(Date.now() - 25),
+    });
+    const activity = await db.collection("api_key_activity").findOne({ api_key_id: first.key._id });
+    assert.equal(activity?.service_id, 123);
+    assert.equal(activity?.gross_charge_inr, 7);
+    assert.equal(activity?.net_charge_inr, 7);
+    assert.equal(JSON.stringify(activity).includes(first.raw!), false);
+    await db.collection("orders").insertOne({
+      _id: activityOrderId,
+      user_id: userId,
+      api_key_id: first.key._id,
+      api_key_version: 1,
+      service_id: 123,
+      service_name: "Integration service",
+      link: "https://example.com/public-target",
+      quantity: 100,
+      charge: 7,
+      status: "Pending",
+      created_at: new Date(),
+    });
+
     await keys.setApiKeyPaused(db, userId, first.key._id, true);
     await assert.rejects(
       () => keys.authenticateApiKey(db, first.raw!),
@@ -130,6 +171,55 @@ async function run() {
       () => keys.authenticateApiKey(db, rotated.raw),
       (error: any) => error?.code === "INVALID_KEY",
     );
+
+    const { signUserToken } = await import("../server/lib/auth.js");
+    const authHandler = (await import("../api/auth/[action].js")).default;
+    const token = signUserToken({
+      _id: userId,
+      email: "phase1@example.com",
+      username: "phase1",
+      role: "user",
+    });
+    const makeResponse = () => {
+      const response: any = {
+        statusCode: 200,
+        body: null,
+        headers: {},
+        status(code: number) { this.statusCode = code; return this; },
+        json(body: any) { this.body = body; return body; },
+        setHeader(name: string, value: any) { this.headers[name] = value; },
+      };
+      return response;
+    };
+    const reportResponse = makeResponse();
+    await authHandler({
+      method: "GET",
+      query: { action: "api-key-report", keyId: first.key._id.toString() },
+      headers: { cookie: `smm_up_session=${token}` },
+      socket: { remoteAddress: "127.0.0.1" },
+    } as any, reportResponse);
+    assert.equal(reportResponse.statusCode, 200);
+    assert.equal(reportResponse.body.summaries[0].key.status, "archived");
+    assert.equal(reportResponse.body.summaries[0].grossChargeInr, 7);
+    assert.equal(reportResponse.body.summaries[0].netChargeInr, 7);
+    assert.equal(reportResponse.body.orders[0].target, "https://example.com/public-target");
+
+    const activityResponse = makeResponse();
+    await authHandler({
+      method: "GET",
+      query: {
+        action: "api-key-activity",
+        keyId: first.key._id.toString(),
+        serviceId: "123",
+        outcome: "success",
+      },
+      headers: { cookie: `smm_up_session=${token}` },
+      socket: { remoteAddress: "127.0.0.1" },
+    } as any, activityResponse);
+    assert.equal(activityResponse.statusCode, 200);
+    assert.equal(activityResponse.body.activity.length, 1);
+    assert.equal(activityResponse.body.activity[0].serviceId, 123);
+    assert.equal(activityResponse.body.retentionDays, 90);
 
     const legacyUserId = new ObjectId();
     const legacyRaw = `sup_${crypto.randomBytes(24).toString("hex")}`;

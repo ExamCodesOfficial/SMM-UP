@@ -310,12 +310,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!ObjectId.isValid(keyId)) return res.status(400).json({ error: "Invalid API key ID." });
         query.api_key_id = new ObjectId(keyId);
       }
+      const from = req.query.from ? new Date(String(req.query.from)) : null;
+      const to = req.query.to ? new Date(String(req.query.to)) : null;
+      if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
+        return res.status(400).json({ error: "Invalid activity date filter." });
+      }
+      if (from || to) {
+        query.completed_at = {};
+        if (from) query.completed_at.$gte = from;
+        if (to) query.completed_at.$lte = to;
+      }
+      if (req.query.actionFilter) query.action = String(req.query.actionFilter);
+      if (req.query.result) query.result = String(req.query.result);
+      if (req.query.serviceId) {
+        const rawService = String(req.query.serviceId);
+        query.service_id = Number.isFinite(Number(rawService)) ? Number(rawService) : rawService;
+      }
+      if (req.query.orderId) {
+        const orderId = String(req.query.orderId);
+        if (!ObjectId.isValid(orderId)) return res.status(400).json({ error: "Invalid order ID filter." });
+        query.order_id = new ObjectId(orderId);
+      }
+      const minAmount = req.query.minAmount === undefined ? null : Number(req.query.minAmount);
+      const maxAmount = req.query.maxAmount === undefined ? null : Number(req.query.maxAmount);
+      if ((minAmount !== null && !Number.isFinite(minAmount)) || (maxAmount !== null && !Number.isFinite(maxAmount))) {
+        return res.status(400).json({ error: "Invalid amount filter." });
+      }
+      if (minAmount !== null || maxAmount !== null) {
+        query.gross_charge_inr = {};
+        if (minAmount !== null) query.gross_charge_inr.$gte = minAmount;
+        if (maxAmount !== null) query.gross_charge_inr.$lte = maxAmount;
+      }
+      if (req.query.outcome === "success") query.http_status = { $lt: 400 };
+      if (req.query.outcome === "error") query.http_status = { $gte: 400 };
+
       const activity = await db.collection("api_key_activity")
         .find(query, { projection: { ip_hash: 0 } })
         .sort({ completed_at: -1 })
         .limit(limit)
         .toArray();
       return res.status(200).json({
+        retentionDays: 90,
         activity: activity.map((item: any) => ({
           id: item._id.toString(),
           keyId: item.api_key_id.toString(),
@@ -326,10 +361,170 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           result: item.result,
           requestId: item.request_id,
           orderId: item.order_id?.toString?.() || item.order_id || null,
-          chargeInr: item.charge_inr ?? null,
+          orderIds: Array.isArray(item.order_ids)
+            ? item.order_ids.map((id: any) => id?.toString?.() || String(id))
+            : [],
+          serviceId: item.service_id ?? null,
+          serviceName: item.service_name ?? null,
+          target: item.target ?? null,
+          quantity: item.quantity ?? null,
+          grossChargeInr: item.gross_charge_inr ?? null,
+          refundInr: item.refund_inr ?? 0,
+          netChargeInr: item.net_charge_inr ?? null,
           startedAt: item.started_at,
           completedAt: item.completed_at,
           durationMs: item.duration_ms,
+        })),
+      });
+    }
+
+    if (action === "api-key-report") {
+      if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+      const keyId = String(req.query.keyId || "");
+      const keyObjectId = keyId && ObjectId.isValid(keyId) ? new ObjectId(keyId) : null;
+      if (keyId && !keyObjectId) return res.status(400).json({ error: "Invalid API key ID." });
+      if (keyObjectId) {
+        const owned = await db.collection("api_keys").findOne({ _id: keyObjectId, user_id: userId });
+        if (!owned) return res.status(404).json({ error: "API key not found." });
+      }
+
+      const from = req.query.from ? new Date(String(req.query.from)) : null;
+      const to = req.query.to ? new Date(String(req.query.to)) : null;
+      if ((from && Number.isNaN(from.getTime())) || (to && Number.isNaN(to.getTime()))) {
+        return res.status(400).json({ error: "Invalid report date filter." });
+      }
+      const orderMatch: any = { user_id: userId, api_key_id: { $type: "objectId" } };
+      const activityMatch: any = { user_id: userId };
+      if (keyObjectId) {
+        orderMatch.api_key_id = keyObjectId;
+        activityMatch.api_key_id = keyObjectId;
+      }
+      if (from || to) {
+        orderMatch.created_at = {};
+        activityMatch.completed_at = {};
+        if (from) {
+          orderMatch.created_at.$gte = from;
+          activityMatch.completed_at.$gte = from;
+        }
+        if (to) {
+          orderMatch.created_at.$lte = to;
+          activityMatch.completed_at.$lte = to;
+        }
+      }
+      if (req.query.serviceId) {
+        const rawService = String(req.query.serviceId);
+        orderMatch.service_id = Number.isFinite(Number(rawService)) ? Number(rawService) : rawService;
+      }
+      if (req.query.orderId) {
+        const orderId = String(req.query.orderId);
+        if (!ObjectId.isValid(orderId)) return res.status(400).json({ error: "Invalid order ID filter." });
+        orderMatch._id = new ObjectId(orderId);
+      }
+      const minAmount = req.query.minAmount === undefined ? null : Number(req.query.minAmount);
+      const maxAmount = req.query.maxAmount === undefined ? null : Number(req.query.maxAmount);
+      if ((minAmount !== null && !Number.isFinite(minAmount)) || (maxAmount !== null && !Number.isFinite(maxAmount))) {
+        return res.status(400).json({ error: "Invalid amount filter." });
+      }
+      if (minAmount !== null || maxAmount !== null) {
+        orderMatch.charge = {};
+        if (minAmount !== null) orderMatch.charge.$gte = minAmount;
+        if (maxAmount !== null) orderMatch.charge.$lte = maxAmount;
+      }
+
+      const [keyRecords, orderTotals, requestTotals, recentOrders] = await Promise.all([
+        db.collection("api_keys").find({
+          user_id: userId,
+          ...(keyObjectId ? { _id: keyObjectId } : {}),
+        }).sort({ created_at: -1 }).toArray(),
+        db.collection("orders").aggregate([
+          { $match: orderMatch },
+          {
+            $group: {
+              _id: "$api_key_id",
+              orderCount: { $sum: 1 },
+              failedOrders: { $sum: { $cond: [{ $eq: ["$status", "Failed"] }, 1, 0] } },
+              refundedOrders: { $sum: { $cond: [{ $eq: ["$refund_status", "refunded"] }, 1, 0] } },
+              grossChargeInr: { $sum: { $ifNull: ["$charge", 0] } },
+              refundInr: {
+                $sum: {
+                  $cond: [
+                    { $eq: ["$refund_status", "refunded"] },
+                    { $ifNull: ["$charge", 0] },
+                    0,
+                  ],
+                },
+              },
+              firstOrderAt: { $min: "$created_at" },
+              lastOrderAt: { $max: "$created_at" },
+            },
+          },
+        ]).toArray(),
+        db.collection("api_key_activity").aggregate([
+          { $match: activityMatch },
+          {
+            $group: {
+              _id: "$api_key_id",
+              requestCount: { $sum: 1 },
+              errorCount: { $sum: { $cond: [{ $gte: ["$http_status", 400] }, 1, 0] } },
+              averageLatencyMs: { $avg: "$duration_ms" },
+              lastRequestAt: { $max: "$completed_at" },
+            },
+          },
+        ]).toArray(),
+        db.collection("orders").find(orderMatch, {
+          projection: {
+            user_email: 0,
+            provider_error: 0,
+          },
+        }).sort({ created_at: -1 }).limit(100).toArray(),
+      ]);
+
+      const ordersByKey = new Map(orderTotals.map((item: any) => [item._id.toString(), item]));
+      const requestsByKey = new Map(requestTotals.map((item: any) => [item._id.toString(), item]));
+      const summaries = keyRecords.map((key: any) => {
+        const order = ordersByKey.get(key._id.toString()) as any;
+        const request = requestsByKey.get(key._id.toString()) as any;
+        const grossChargeInr = Number(order?.grossChargeInr || 0);
+        const refundInr = Number(order?.refundInr || 0);
+        const requestCount = Number(request?.requestCount || 0);
+        const errorCount = Number(request?.errorCount || 0);
+        return {
+          key: serializeApiKey(key),
+          requestCount,
+          errorCount,
+          errorRate: requestCount > 0 ? errorCount / requestCount : 0,
+          averageLatencyMs: Math.round(Number(request?.averageLatencyMs || 0)),
+          lastRequestAt: request?.lastRequestAt || key.last_used_at || null,
+          orderCount: Number(order?.orderCount || 0),
+          failedOrders: Number(order?.failedOrders || 0),
+          refundedOrders: Number(order?.refundedOrders || 0),
+          grossChargeInr,
+          refundInr,
+          netChargeInr: grossChargeInr - refundInr,
+          firstOrderAt: order?.firstOrderAt || null,
+          lastOrderAt: order?.lastOrderAt || null,
+        };
+      });
+
+      return res.status(200).json({
+        detailedActivityRetentionDays: 90,
+        summaries,
+        orders: recentOrders.map((order: any) => ({
+          id: order._id.toString(),
+          keyId: order.api_key_id?.toString?.() || null,
+          keyVersion: order.api_key_version || null,
+          providerOrderId: order.provider_order_id || null,
+          serviceId: order.service_id,
+          serviceName: order.service_name,
+          target: order.link,
+          quantity: order.quantity,
+          grossChargeInr: Number(order.charge || 0),
+          refundInr: order.refund_status === "refunded" ? Number(order.charge || 0) : 0,
+          netChargeInr: order.refund_status === "refunded" ? 0 : Number(order.charge || 0),
+          status: order.status,
+          refundStatus: order.refund_status || null,
+          createdAt: order.created_at,
+          refundedAt: order.refunded_at || null,
         })),
       });
     }

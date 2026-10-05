@@ -831,7 +831,14 @@ export async function recordApiKeyActivity(
     result: string;
     requestId: string;
     orderId?: ObjectId | string | null;
-    chargeInr?: number | null;
+    orderIds?: Array<ObjectId | string>;
+    serviceId?: number | string | null;
+    serviceName?: string | null;
+    target?: string | null;
+    quantity?: number | null;
+    grossChargeInr?: number | null;
+    refundInr?: number | null;
+    netChargeInr?: number | null;
     ipHash?: string | null;
     startedAt: Date;
   },
@@ -848,7 +855,14 @@ export async function recordApiKeyActivity(
       result: input.result,
       request_id: input.requestId,
       order_id: input.orderId || null,
-      charge_inr: input.chargeInr ?? null,
+      order_ids: input.orderIds || [],
+      service_id: input.serviceId ?? null,
+      service_name: input.serviceName ? String(input.serviceName).slice(0, 160) : null,
+      target: input.target ? String(input.target).slice(0, 2048) : null,
+      quantity: input.quantity ?? null,
+      gross_charge_inr: input.grossChargeInr ?? null,
+      refund_inr: input.refundInr ?? 0,
+      net_charge_inr: input.netChargeInr ?? input.grossChargeInr ?? null,
       ip_hash: input.ipHash || null,
       started_at: input.startedAt,
       completed_at: now,

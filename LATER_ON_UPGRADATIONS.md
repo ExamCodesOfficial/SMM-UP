@@ -54,17 +54,20 @@
 - [x] Static validation: root TypeScript, production build, diff check, admin-bot TypeScript and production dependency audit.
 - [x] Reproducible `npm run test:api-keys` replica-set gate: transaction rollback, one-time secret storage, serial and concurrent duplicate-request idempotency, single fee ledger, daily-limit rollback, concurrent-limit enforcement, pause/resume, permanent rotation, exact-name archive and lazy legacy migration.
 
-### Phase 2 — API activity and financial reporting
+### Phase 2 — API activity and financial reporting (code complete and validated)
 
-- [ ] Dedicated bounded `api_key_activity` collection.
-- [ ] Request timestamp, action, result, HTTP status and latency.
-- [ ] Order ID, service, target, quantity, gross charge, refund and net charge.
-- [ ] Per-key totals, error rate and last-used metadata.
-- [ ] Lifetime financial/order history and aggregates.
-- [ ] Ninety-day detailed non-financial telemetry retention.
-- [ ] Filter by key, date, action, service, order, result and amount.
-- [ ] Archived keys retain complete audit attribution.
-- [ ] Never store API secrets, authorization headers, passwords, cookies, OTPs or UPI PINs.
+- [x] Dedicated bounded `api_key_activity` collection.
+- [x] Request timestamp, action, result, HTTP status and latency.
+- [x] Order ID/version, service, target, quantity, gross charge, refund and net charge attribution.
+- [x] Per-key request/order totals, error rate, average latency and last-used metadata.
+- [x] Lifetime financial/order history and aggregates from retained orders and wallet records.
+- [x] Ninety-day TTL for detailed request telemetry; lifetime order/financial records are separate.
+- [x] Server filters for key, date, action, service, order, result/outcome and amount.
+- [x] Archived keys retain and can display complete audit attribution.
+- [x] API secrets, authorization headers, passwords, cookies, OTPs and UPI PINs are excluded.
+- [x] Owner refunds now preserve key/version attribution in an atomic idempotent wallet-ledger transaction.
+- [x] Account UI includes per-key lifetime financial summaries and 90-day action/date/outcome/service/order/amount filters.
+- [x] Authenticated endpoint smoke tests verify archived-key reporting, complete target/order attribution and filtered activity responses.
 
 ### Phase 3 — account recovery and temporary passwords
 

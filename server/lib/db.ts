@@ -100,6 +100,9 @@ export async function ensureApiKeyIndexes(): Promise<void> {
         db.collection("api_key_versions").createIndex({ key_id: 1, version: 1 }, { unique: true }),
         db.collection("api_key_activity").createIndex({ user_id: 1, completed_at: -1 }),
         db.collection("api_key_activity").createIndex({ api_key_id: 1, completed_at: -1 }),
+        db.collection("api_key_activity").createIndex({ api_key_id: 1, action: 1, completed_at: -1 }),
+        db.collection("api_key_activity").createIndex({ api_key_id: 1, order_id: 1 }),
+        db.collection("api_key_activity").createIndex({ api_key_id: 1, service_id: 1, completed_at: -1 }),
         db.collection("api_key_activity").createIndex(
           { completed_at: 1 },
           { expireAfterSeconds: 60 * 60 * 24 * 90 },
@@ -118,6 +121,8 @@ export async function ensureApiKeyIndexes(): Promise<void> {
           },
         ),
         db.collection("orders").createIndex({ api_key_id: 1, created_at: -1 }),
+        db.collection("orders").createIndex({ api_key_id: 1, service_id: 1, created_at: -1 }),
+        db.collection("wallet_ledger").createIndex({ api_key_id: 1, created_at: -1 }),
       ]);
     }).catch((error) => {
       apiKeyIndexesPromise = null;

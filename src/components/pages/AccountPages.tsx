@@ -116,6 +116,17 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
   const [archive, setArchive] = React.useState<{ id: string; name: string; value: string } | null>(null);
   const [activityKeyId, setActivityKeyId] = React.useState<string | null>(null);
   const [activity, setActivity] = React.useState<any[] | null>(null);
+  const [activityFilters, setActivityFilters] = React.useState({
+    action: "",
+    outcome: "",
+    from: "",
+    to: "",
+    serviceId: "",
+    orderId: "",
+    minAmount: "",
+    maxAmount: "",
+  });
+  const [reports, setReports] = React.useState<Record<string, any>>({});
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
@@ -141,6 +152,21 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
         hasApiKey: nextKeys.some((key: ApiKeyRecord) => key.status !== "archived"),
         apiKeyCount: nextKeys.filter((key: ApiKeyRecord) => key.status !== "archived").length,
       });
+
+      // Reporting is non-blocking: key lifecycle controls remain available even
+      // if an aggregate query is temporarily unavailable.
+      fetch("/api/auth/api-key-report", { cache: "no-store" })
+        .then(async (reportResponse) => ({
+          ok: reportResponse.ok,
+          data: await reportResponse.json().catch(() => ({})),
+        }))
+        .then(({ ok, data: reportData }) => {
+          if (!ok || !Array.isArray(reportData.summaries)) return;
+          setReports(Object.fromEntries(
+            reportData.summaries.map((summary: any) => [summary.key.id, summary]),
+          ));
+        })
+        .catch(() => {});
     } catch (loadError: any) {
       setKeys([]);
       setError(loadError?.message || "Failed to load API keys.");
@@ -305,16 +331,19 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
     }
   };
 
-  const showActivity = async (key: ApiKeyRecord) => {
-    if (activityKeyId === key.id) {
-      setActivityKeyId(null);
-      setActivity(null);
-      return;
-    }
-    setActivityKeyId(key.id);
+  const loadActivity = async (keyId: string, filters = activityFilters) => {
     setActivity(null);
     try {
-      const response = await fetch(`/api/auth/api-key-activity?keyId=${encodeURIComponent(key.id)}&limit=20`, { cache: "no-store" });
+      const params = new URLSearchParams({ keyId, limit: "100" });
+      if (filters.action) params.set("actionFilter", filters.action);
+      if (filters.outcome) params.set("outcome", filters.outcome);
+      if (filters.from) params.set("from", new Date(filters.from).toISOString());
+      if (filters.to) params.set("to", new Date(filters.to).toISOString());
+      if (filters.serviceId) params.set("serviceId", filters.serviceId);
+      if (filters.orderId) params.set("orderId", filters.orderId);
+      if (filters.minAmount) params.set("minAmount", filters.minAmount);
+      if (filters.maxAmount) params.set("maxAmount", filters.maxAmount);
+      const response = await fetch(`/api/auth/api-key-activity?${params.toString()}`, { cache: "no-store" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Failed to load activity.");
       setActivity(Array.isArray(data.activity) ? data.activity : []);
@@ -322,6 +351,17 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
       setActivity([]);
       setError(activityError?.message || "Failed to load activity.");
     }
+  };
+
+  const showActivity = async (key: ApiKeyRecord) => {
+    if (activityKeyId === key.id) {
+      setActivityKeyId(null);
+      setActivity(null);
+      return;
+    }
+    setActivityKeyId(key.id);
+    resetMessages();
+    await loadActivity(key.id);
   };
 
   const copySecret = async () => {
@@ -437,6 +477,16 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                       <div className="flex flex-wrap gap-1.5">{key.scopes.map((scope) => <span key={scope} className="px-2 py-1 bg-white/[0.03] border border-white/[0.07] text-[9px] text-zinc-500">{SCOPE_LABELS[scope] || scope}</span>)}</div>
                       <div className="grid sm:grid-cols-4 gap-2 text-[10px]"><div><span className="text-zinc-600 block">Created</span><span className="text-zinc-400">{formatDate(key.createdAt)}</span></div><div><span className="text-zinc-600 block">Last used</span><span className="text-zinc-400">{formatDate(key.lastUsedAt)}</span></div><div><span className="text-zinc-600 block">Daily limit</span><span className="text-zinc-400">{key.dailyLimitInr === null ? "None" : formatINR(key.dailyLimitInr)}</span></div><div><span className="text-zinc-600 block">Expires</span><span className="text-zinc-400">{formatDate(key.expiresAt)}</span></div></div>
 
+                      {reports[key.id] && (
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 border border-white/[0.06] bg-black/30 text-[10px]">
+                          <div><span className="text-zinc-600 block">Requests (90d)</span><span className="text-zinc-300">{formatNumber(reports[key.id].requestCount || 0)}</span></div>
+                          <div><span className="text-zinc-600 block">Error rate</span><span className="text-zinc-300">{((reports[key.id].errorRate || 0) * 100).toFixed(1)}%</span></div>
+                          <div><span className="text-zinc-600 block">Lifetime orders</span><span className="text-zinc-300">{formatNumber(reports[key.id].orderCount || 0)}</span></div>
+                          <div><span className="text-zinc-600 block">Gross spend</span><span className="text-zinc-300">{formatINR(reports[key.id].grossChargeInr || 0)}</span></div>
+                          <div><span className="text-zinc-600 block">Net spend</span><span className="text-zinc-300">{formatINR(reports[key.id].netChargeInr || 0)}</span></div>
+                        </div>
+                      )}
+
                       <div className="flex flex-wrap gap-2 pt-1">
                         {key.status !== "archived" && (
                           <>
@@ -454,7 +504,47 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                       )}
 
                       {activityKeyId === key.id && (
-                        <div className="border-t border-white/[0.07] pt-3"><p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Recent key activity</p>{activity === null ? <Loader2 className="w-4 h-4 animate-spin text-zinc-500" /> : activity.length === 0 ? <p className="text-[11px] text-zinc-600">No activity recorded yet.</p> : <div className="space-y-1.5">{activity.map((item) => <div key={item.id} className="grid sm:grid-cols-[1fr_auto_auto] gap-2 p-2 bg-black/40 text-[10px]"><span className="text-zinc-300">{item.action} · v{item.keyVersion}</span><span className={item.httpStatus < 400 ? "text-zinc-400" : "text-zinc-200"}>{item.httpStatus} {item.result}</span><span className="text-zinc-600">{formatDate(item.completedAt)}</span></div>)}</div>}</div>
+                        <div className="border-t border-white/[0.07] pt-3">
+                          <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Recent key activity · 90-day detail</p>
+                          <form
+                            onSubmit={(event) => { event.preventDefault(); loadActivity(key.id); }}
+                            className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3"
+                          >
+                            <select value={activityFilters.action} onChange={(event) => setActivityFilters({ ...activityFilters, action: event.target.value })} className="bg-black/70 border border-white/10 px-2 py-2 text-[10px] text-zinc-300 outline-none">
+                              <option value="">All actions</option>
+                              <option value="services">Services</option><option value="balance">Balance</option><option value="add">Add order</option><option value="status">Status</option><option value="cancel">Cancel</option><option value="refill">Refill</option><option value="refill_status">Refill status</option><option value="refund">Refund</option>
+                            </select>
+                            <select value={activityFilters.outcome} onChange={(event) => setActivityFilters({ ...activityFilters, outcome: event.target.value })} className="bg-black/70 border border-white/10 px-2 py-2 text-[10px] text-zinc-300 outline-none">
+                              <option value="">All outcomes</option><option value="success">Success</option><option value="error">Error</option>
+                            </select>
+                            <input type="datetime-local" aria-label="Activity from" value={activityFilters.from} onChange={(event) => setActivityFilters({ ...activityFilters, from: event.target.value })} className="bg-black/70 border border-white/10 px-2 py-2 text-[10px] text-zinc-300 outline-none" />
+                            <input type="datetime-local" aria-label="Activity to" value={activityFilters.to} onChange={(event) => setActivityFilters({ ...activityFilters, to: event.target.value })} className="bg-black/70 border border-white/10 px-2 py-2 text-[10px] text-zinc-300 outline-none" />
+                            <input aria-label="Service ID filter" value={activityFilters.serviceId} onChange={(event) => setActivityFilters({ ...activityFilters, serviceId: event.target.value })} placeholder="Service ID" className="bg-black/70 border border-white/10 px-2 py-2 text-[10px] text-zinc-300 outline-none" />
+                            <input aria-label="Order ID filter" value={activityFilters.orderId} onChange={(event) => setActivityFilters({ ...activityFilters, orderId: event.target.value })} placeholder="Order ID" className="bg-black/70 border border-white/10 px-2 py-2 text-[10px] text-zinc-300 outline-none" />
+                            <input type="number" min="0" step="0.01" aria-label="Minimum amount" value={activityFilters.minAmount} onChange={(event) => setActivityFilters({ ...activityFilters, minAmount: event.target.value })} placeholder="Min INR" className="bg-black/70 border border-white/10 px-2 py-2 text-[10px] text-zinc-300 outline-none" />
+                            <input type="number" min="0" step="0.01" aria-label="Maximum amount" value={activityFilters.maxAmount} onChange={(event) => setActivityFilters({ ...activityFilters, maxAmount: event.target.value })} placeholder="Max INR" className="bg-black/70 border border-white/10 px-2 py-2 text-[10px] text-zinc-300 outline-none" />
+                            <div className="flex gap-2 sm:col-span-2 lg:col-span-4">
+                              <button type="submit" className="btn-up btn-up-ghost btn-up-sm">Apply filters</button>
+                              <button type="button" onClick={() => { const empty = { action: "", outcome: "", from: "", to: "", serviceId: "", orderId: "", minAmount: "", maxAmount: "" }; setActivityFilters(empty); loadActivity(key.id, empty); }} className="btn-up btn-up-ghost btn-up-sm">Reset</button>
+                            </div>
+                          </form>
+                          {activity === null ? <Loader2 className="w-4 h-4 animate-spin text-zinc-500" /> : activity.length === 0 ? <p className="text-[11px] text-zinc-600">No activity recorded yet.</p> : (
+                            <div className="space-y-1.5">
+                              {activity.map((item) => (
+                                <div key={item.id} className="p-2.5 bg-black/40 text-[10px] space-y-1">
+                                  <div className="flex flex-wrap justify-between gap-2">
+                                    <span className="text-zinc-300">{item.action} · v{item.keyVersion}{item.serviceName ? ` · ${item.serviceName}` : ""}</span>
+                                    <span className={item.httpStatus < 400 ? "text-zinc-400" : "text-zinc-200"}>{item.httpStatus} · {item.durationMs || 0}ms</span>
+                                  </div>
+                                  <div className="flex flex-wrap justify-between gap-2 text-zinc-600">
+                                    <span>{item.orderId ? `Order ${item.orderId}` : item.result}{item.grossChargeInr != null ? ` · ${formatINR(item.grossChargeInr)}` : ""}</span>
+                                    <span>{formatDate(item.completedAt)}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </article>
                   ))}
