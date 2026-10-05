@@ -26,6 +26,7 @@ export default function MassOrder({
   const [content, setContent] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [results, setResults] = React.useState<{ line: string; success: boolean; msg: string }[]>([]);
+  const [errorMsg, setErrorMsg] = React.useState("");
 
   // Parse lines
   const parsedOrders = React.useMemo(() => {
@@ -55,6 +56,7 @@ export default function MassOrder({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg("");
     if (!user) {
       onOpenAuth();
       return;
@@ -62,13 +64,12 @@ export default function MassOrder({
 
     const validItems = parsedOrders.filter((p) => p.valid);
     if (validItems.length === 0) {
-      alert("No valid orders found to submit.");
+      setErrorMsg("No valid order lines detected. Use the format: service_id | target_link | quantity");
       return;
     }
 
     if ((user.balance || 0) < totalEstimated) {
-      alert(`Insufficient wallet balance. Total required: ${formatINR(totalEstimated)}`);
-      onOpenWallet();
+      setErrorMsg(`Insufficient wallet balance. Batch requires ${formatINR(totalEstimated)} — top up your wallet to proceed.`);
       return;
     }
 
@@ -164,6 +165,25 @@ export default function MassOrder({
               Estimated Total: <strong className="text-white text-sm">{formatINR(totalEstimated)}</strong>
             </div>
           </div>
+
+          {/* Inline error surface (replaces native alert popups) */}
+          {errorMsg && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm flex items-start gap-3 animate-fadeIn">
+              <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
+              <div className="flex-1">
+                <span>{errorMsg}</span>
+                {/insufficient/i.test(errorMsg) && (
+                  <button
+                    type="button"
+                    onClick={onOpenWallet}
+                    className="mt-2 inline-flex items-center gap-1.5 text-[#F5E8D0] hover:text-white font-semibold underline underline-offset-4 text-xs cursor-pointer"
+                  >
+                    Open 0% UPI Wallet Top-Up
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {results.length > 0 && (
             <div className="space-y-2 max-h-48 overflow-y-auto p-4 border border-white/10 bg-black/60 rounded-xl text-xs">

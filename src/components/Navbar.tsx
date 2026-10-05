@@ -48,7 +48,26 @@ export default function Navbar({
 }: NavbarProps) {
   const [navVisible, setNavVisible] = React.useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [scrollProgress, setScrollProgress] = React.useState(0);
   const prevScrollY = React.useRef(0);
+
+  // Champagne reading-progress line under the navbar
+  React.useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        setScrollProgress(Math.min(1, (window.scrollY || 0) / max));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
 
   // Smooth scroll hide/reveal from ExamCodes
   React.useEffect(() => {
@@ -92,6 +111,13 @@ export default function Navbar({
         navVisible ? "translate-y-0" : "-translate-y-full"
       }`}
     >
+      {/* Champagne reading-progress line */}
+      <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent pointer-events-none" aria-hidden="true">
+        <div
+          className="h-full bg-gradient-to-r from-[#F5E8D0]/40 via-[#F5E8D0] to-[#F5E8D0]/40 shadow-[0_0_8px_rgba(245,232,208,0.5)]"
+          style={{ width: `${(scrollProgress * 100).toFixed(2)}%`, transition: "width 120ms linear" }}
+        />
+      </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
         {/* Brand Logo in thatonearyan-sh / ExamCodes Style */}
         <button
@@ -121,6 +147,7 @@ export default function Navbar({
               <button
                 key={link.id}
                 onClick={() => setCurrentTab(link.id)}
+                aria-current={isActive ? "page" : undefined}
                 className={`px-4 py-2 rounded-xl text-xs font-semibold tracking-wider flex items-center gap-2 transition-all duration-200 cursor-pointer ${
                   isActive
                     ? "bg-[#FAF7F2] text-black shadow-[0_0_20px_rgba(255,255,255,0.25)]"

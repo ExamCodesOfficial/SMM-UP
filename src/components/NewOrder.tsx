@@ -23,6 +23,7 @@ import {
   FileText,
 } from "lucide-react";
 import confetti from "canvas-confetti";
+import { SkeletonOrderForm } from "./Skeleton";
 import { formatINR, formatNumber, cleanServiceDescription, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
 import {
   ExecutiveOrderIcon,
@@ -120,7 +121,7 @@ export default function NewOrder({
   const [errorMsg, setErrorMsg] = React.useState("");
   const [successMsg, setSuccessMsg] = React.useState("");
 
-  // Close dropdowns on outside click
+  // Close dropdowns on outside click or Escape key (keyboard accessibility)
   React.useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (catPickerRef.current && !catPickerRef.current.contains(e.target as Node)) {
@@ -130,8 +131,18 @@ export default function NewOrder({
         setServicePickerOpen(false);
       }
     };
+    const handleEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setCatPickerOpen(false);
+        setServicePickerOpen(false);
+      }
+    };
     document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscapeKey);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscapeKey);
+    };
   }, []);
 
   // Filter services by platform
@@ -357,6 +368,10 @@ export default function NewOrder({
         })}
       </div>
 
+      {services.length === 0 ? (
+        /* Shimmer layout that mirrors the desk while the wholesale catalog streams in */
+        <SkeletonOrderForm />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Clean Order Form */}
         <div className="lg:col-span-7">
@@ -817,6 +832,7 @@ export default function NewOrder({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

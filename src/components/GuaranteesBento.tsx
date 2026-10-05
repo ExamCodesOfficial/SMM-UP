@@ -27,7 +27,7 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: Guarantee
       {/* Bento Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6">
         {/* Card 1: 0% UPI Clearing (Span 7) */}
-        <div className="md:col-span-7 p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 relative overflow-hidden group">
+        <div className="md:col-span-7 card-lift p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#F5E8D0]/[0.02] rounded-full blur-3xl pointer-events-none" />
           
           <div className="flex items-center justify-between mb-6">
@@ -59,7 +59,7 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: Guarantee
         </div>
 
         {/* Card 2: Wholesale Speed (Span 5) */}
-        <div className="md:col-span-5 p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 relative overflow-hidden group">
+        <div className="md:col-span-5 card-lift p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 relative overflow-hidden group">
           <div className="w-12 h-12 rounded-xl border border-white/[0.1] bg-white/[0.03] flex items-center justify-center text-[#FAF7F2] mb-6">
             <ExecutiveOrderIcon size={24} />
           </div>
@@ -81,7 +81,7 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: Guarantee
         </div>
 
         {/* Card 3: Dynamic Multi-Tier Refill Guarantee (Span 5) */}
-        <div className="md:col-span-5 p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 relative overflow-hidden group">
+        <div className="md:col-span-5 card-lift p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 relative overflow-hidden group">
           <div className="w-12 h-12 rounded-xl border border-white/[0.1] bg-white/[0.03] flex items-center justify-center text-[#F5E8D0] mb-6">
             <RotateCcw className="w-6 h-6" />
           </div>
@@ -108,7 +108,7 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: Guarantee
         </div>
 
         {/* Card 4: Zero Password Architecture (Span 7) */}
-        <div className="md:col-span-7 p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 relative overflow-hidden group">
+        <div className="md:col-span-7 card-lift p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 relative overflow-hidden group">
           <div className="flex items-center justify-between mb-6">
             <div className="w-12 h-12 rounded-xl border border-white/[0.1] bg-white/[0.03] flex items-center justify-center text-[#FAF7F2]">
               <Lock className="w-6 h-6" />
