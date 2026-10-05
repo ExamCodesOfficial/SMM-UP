@@ -254,6 +254,22 @@ export default function LandingHero({
             </a>
           </div>
 
+          <p className="animate-hero-5 mt-7 text-[10px] sm:text-[11px] font-mono tracking-[0.12em] uppercase text-zinc-500">
+            Founded, owned &amp; operated by{" "}
+            <a href={pathFor("about")} className="text-zinc-300 hover:text-white underline underline-offset-4">
+              Aryan
+            </a>{" "}
+            &bull; Official Telegram:{" "}
+            <a
+              href="https://t.me/thatonearyan"
+              target="_blank"
+              rel="me noopener noreferrer"
+              className="text-zinc-300 hover:text-white underline underline-offset-4"
+            >
+              @thatonearyan
+            </a>
+          </p>
+
         </div>
       </section>
 

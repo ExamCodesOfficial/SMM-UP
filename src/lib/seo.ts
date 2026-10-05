@@ -12,7 +12,7 @@ export interface PageMeta {
 }
 
 export const SITE = "SMM UP";
-const BASE_DESC = "SMM UP — India's wholesale SMM panel with 0% UPI deposit fee, 2,100+ services, instant start and refill guarantee.";
+const BASE_DESC = "SMM UP (SMMUP) is India's wholesale SMM panel, founded and owned by Aryan (@thatonearyan), with 0% UPI deposit fee, 2,100+ services and refill guarantees.";
 
 export const PAGE_META: Record<string, PageMeta> = {
   home: {
@@ -68,8 +68,8 @@ export const PAGE_META: Record<string, PageMeta> = {
     description: "Get help from the SMM UP team: 24/7 Telegram support desk, response-time promise, and answers to common issues.",
   },
   about: {
-    title: "About SMM UP — Founded by Aryan | SMM UP",
-    description: "SMM UP is an Indian wholesale SMM panel founded and operated by Aryan. Learn why we charge 0% deposit fee and how our delivery works.",
+    title: "Who Owns SMM UP? Aryan — Founder & Owner | SMMUP",
+    description: "SMM UP (SMMUP) is founded, owned and operated by Aryan. His official Telegram identity is @thatonearyan. Learn about the owner and platform.",
   },
   terms: {
     title: "Terms of Service | SMM UP",
