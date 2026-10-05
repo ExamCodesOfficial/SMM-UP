@@ -52,8 +52,8 @@ export const PAGE_META: Record<string, PageMeta> = {
     description: "Purchased from SMM UP? Sign in and share one verified, editable review. Only accounts with a valid past order can publish feedback.",
   },
   account: {
-    title: "My Account | SMM UP",
-    description: "Manage your SMM UP account: profile details, API key generation and rotation, wallet balance, session security and sign-out.",
+    title: "My Account — Wallet, Activity & API Key | SMM UP",
+    description: "Manage your SMM UP account, wallet activity, order and deposit history, API-key generation and revocation, account security and sign-out.",
   },
   transactions: {
     title: "Deposit & Transaction History | SMM UP",

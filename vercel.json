@@ -5,6 +5,9 @@
       "schedule": "0 4 * * *"
     }
   ],
+  "redirects": [
+    { "source": "/profile", "destination": "/account", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/api", "destination": "/index.html" },
     { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }

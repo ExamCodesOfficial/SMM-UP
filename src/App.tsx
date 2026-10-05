@@ -6,7 +6,6 @@ import OrderHistory from "./components/OrderHistory";
 import ServicesCatalog from "./components/ServicesCatalog";
 import AuthPage from "./components/AuthPage";
 import AddFundsPage from "./components/AddFundsPage";
-import ProfileModal from "./components/ProfileModal";
 import MobileBottomNav from "./components/MobileBottomNav";
 import FaqSection from "./components/FaqSection";
 import LandingHero from "./components/LandingHero";
@@ -65,9 +64,6 @@ export default function App() {
 
   // Auth page mode
   const [authPageMode, setAuthPageMode] = React.useState<"login" | "register">("login");
-  // Modals
-  const [profileModalOpen, setProfileModalOpen] = React.useState(false);
-
   const navigate = React.useCallback((tab: string) => {
     setCurrentTab(tab);
     const url = TAB_PATHS[tab] || "/";
@@ -243,7 +239,6 @@ export default function App() {
         setCurrentTab={navigate}
         user={user}
         onOpenAuth={(mode) => openAuth(mode || "login")}
-        onOpenProfile={() => setProfileModalOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -301,13 +296,7 @@ export default function App() {
         )}
 
         {currentTab === "api" && (
-          <ApiDocs
-            user={user}
-            onOpenAuth={() => openAuth("login")}
-            onOpenProfile={() => setProfileModalOpen(true)}
-            onBack={() => navigate("home")}
-            onOpenPlayground={() => navigate("playground")}
-          />
+          <ApiDocs user={user} />
         )}
 
         {currentTab === "playground" && (
@@ -325,7 +314,12 @@ export default function App() {
         )}
 
         {!guardedBlocked && currentTab === "account" && (
-          <AccountPage user={user} onNavigate={navigate} />
+          <AccountPage
+            user={user}
+            onNavigate={navigate}
+            onLogout={handleLogout}
+            onUserUpdate={(patch) => setUser((prev: any) => ({ ...prev, ...patch }))}
+          />
         )}
 
         {!guardedBlocked && currentTab === "transactions" && (
@@ -389,18 +383,7 @@ export default function App() {
       <MobileBottomNav
         currentTab={currentTab}
         setCurrentTab={navigate}
-        onOpenProfile={() => setProfileModalOpen(true)}
-        onOpenAuth={() => openAuth("login")}
         user={user}
-      />
-
-      {/* Modals */}
-      <ProfileModal
-        isOpen={profileModalOpen}
-        onClose={() => setProfileModalOpen(false)}
-        user={user}
-        onLogout={handleLogout}
-        onUserUpdate={(patch) => setUser((prev: any) => ({ ...prev, ...patch }))}
       />
 
     </div>

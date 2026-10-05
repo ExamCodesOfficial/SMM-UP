@@ -1,74 +1,219 @@
 import React from "react";
-import { Key, Copy, Check, RefreshCw, ShieldCheck, User, ArrowLeft, IndianRupee } from "lucide-react";
-import ContentPage, { P, H2 } from "../ContentPage";
-import { formatINR } from "../../lib/utils";
+import {
+  Key,
+  Copy,
+  Check,
+  RefreshCw,
+  ShieldCheck,
+  User,
+  ArrowLeft,
+  IndianRupee,
+  LogOut,
+  EyeOff,
+  Trash2,
+  ExternalLink,
+  AlertTriangle,
+  Loader2,
+} from "lucide-react";
+import ContentPage from "../ContentPage";
+import { formatINR, formatNumber } from "../../lib/utils";
 
 interface PageProps {
   onNavigate: (tab: string) => void;
 }
 
 /* ══════════════════════ ACCOUNT ══════════════════════ */
-export function AccountPage({ onNavigate, user }: PageProps & { user: any }) {
+interface AccountPageProps extends PageProps {
+  user: any;
+  onLogout: () => void;
+  onUserUpdate?: (patch: any) => void;
+}
+
+export function AccountPage({
+  onNavigate,
+  user,
+  onLogout,
+  onUserUpdate,
+}: AccountPageProps) {
+  const [busy, setBusy] = React.useState<"generate" | "regen" | "delete" | null>(null);
+  const [revealed, setRevealed] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
-  const apiKey = user?.api_key || user?.apiKey || "";
+  const [error, setError] = React.useState("");
+  const [success, setSuccess] = React.useState("");
+  const [confirmRegen, setConfirmRegen] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [keyMeta, setKeyMeta] = React.useState<{ createdAt?: string; lastUsedAt?: string } | null>(null);
+
+  React.useEffect(() => {
+    if (!user?.hasApiKey) {
+      setKeyMeta(null);
+      return;
+    }
+    let alive = true;
+    fetch("/api/auth/reveal-key", { cache: "no-store" })
+      .then(async (res) => ({ ok: res.ok, data: await res.json().catch(() => ({})) }))
+      .then(({ ok, data }) => {
+        if (alive && ok) {
+          setKeyMeta({ createdAt: data.createdAt, lastUsedAt: data.lastUsedAt });
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [user?.hasApiKey]);
+
+  const post = async (action: string, body?: Record<string, unknown>) => {
+    const res = await fetch(`/api/auth/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+  };
+
+  const resetMessages = () => {
+    setError("");
+    setSuccess("");
+  };
+
+  const handleGenerate = async () => {
+    setBusy("generate");
+    resetMessages();
+    try {
+      const { ok, data } = await post("generate-key");
+      if (!ok) {
+        setError(data.error || "Failed to generate API key.");
+        return;
+      }
+      setRevealed(data.apiKey);
+      setSuccess("API key generated. Copy it now; the full value is shown only once.");
+      setKeyMeta({ createdAt: new Date().toISOString(), lastUsedAt: undefined });
+      onUserUpdate?.({ hasApiKey: true, apiKeyMasked: data.apiKeyMasked, apiKeyCreatedAt: new Date().toISOString() });
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (!confirmRegen) {
+      setConfirmRegen(true);
+      setConfirmDelete(false);
+      resetMessages();
+      return;
+    }
+    setBusy("regen");
+    resetMessages();
+    try {
+      const { ok, data } = await post("regenerate-key", { confirm: true });
+      if (!ok) {
+        setError(data.error || "Failed to regenerate API key.");
+        setConfirmRegen(false);
+        return;
+      }
+      setRevealed(data.apiKey);
+      setConfirmRegen(false);
+      setSuccess("Old API key revoked. Copy the new key now; it is shown only once.");
+      setKeyMeta({ createdAt: new Date().toISOString(), lastUsedAt: undefined });
+      onUserUpdate?.({ hasApiKey: true, apiKeyMasked: data.apiKeyMasked, apiKeyCreatedAt: new Date().toISOString() });
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setConfirmRegen(false);
+      resetMessages();
+      return;
+    }
+    setBusy("delete");
+    resetMessages();
+    try {
+      const { ok, data } = await post("delete-key", { confirm: true });
+      if (!ok) {
+        setError(data.error || "Failed to delete API key.");
+        setConfirmDelete(false);
+        return;
+      }
+      setRevealed(null);
+      setKeyMeta(null);
+      setConfirmDelete(false);
+      setSuccess("API key deleted and access revoked.");
+      onUserUpdate?.({ hasApiKey: false, apiKeyMasked: null, apiKeyCreatedAt: null });
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!revealed) return;
+    await navigator.clipboard.writeText(revealed);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return "Never";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString("en-IN");
+  };
+
+  const createdAt = keyMeta?.createdAt || user?.apiKeyCreatedAt;
 
   return (
     <ContentPage
       kicker="Account"
       title="My Account"
-      subtitle="Your profile, balance and reseller API key — all in one place."
+      subtitle="Identity, wallet activity, developer access and account security in one permanent workspace."
       crumbs={[{ label: "Home", tab: "home" }, { label: "Account" }]}
       onNavigate={onNavigate}
+      wide
     >
-      <div className="space-y-4">
-        <div className="p-5 rounded-none border border-white/12 bg-white/[0.03] flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-none bg-white/[0.05] border border-white/10 flex items-center justify-center text-zinc-200">
-              <User className="w-5 h-5" />
+      <div className="space-y-6">
+        <section className="grid lg:grid-cols-[1fr_auto] gap-5 items-center p-5 sm:p-6 border border-white/12 bg-white/[0.025]">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 border border-white/10 bg-white/[0.04] flex items-center justify-center shrink-0">
+              <User className="w-5 h-5 text-zinc-200" />
             </div>
-            <div>
-              <div className="text-sm font-bold text-white">{user?.username}</div>
-              <div className="text-xs text-zinc-500">{user?.email}</div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 block mb-1">Signed-in account</span>
+              <h2 className="text-lg font-semibold text-white truncate">@{user?.username}</h2>
+              <p className="text-xs text-zinc-500 truncate">{user?.email}</p>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Balance</div>
-            <div className="text-lg font-bold text-white">{formatINR(user?.balance || 0)}</div>
+          <div className="flex items-center gap-3 lg:justify-end">
+            <span className="px-2.5 py-1 border border-white/10 bg-black/40 text-[10px] uppercase tracking-wider text-zinc-300">
+              {user?.role || "user"}
+            </span>
+            <span className="inline-flex items-center gap-1.5 text-[10px] text-zinc-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" /> Active session
+            </span>
           </div>
-        </div>
+        </section>
 
-        <div className="p-5 rounded-none border border-white/12 bg-white/[0.03]">
-          <div className="flex items-center gap-2 mb-2">
-            <Key className="w-4 h-4 text-zinc-400" />
-            <span className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Reseller API Key</span>
+        <section className="grid sm:grid-cols-3 gap-3">
+          <div className="p-4 border border-white/[0.08] bg-black/35">
+            <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Wallet balance</span>
+            <span className="text-xl font-semibold text-white">{formatINR(user?.balance || 0)}</span>
           </div>
-          {apiKey ? (
-            <div className="flex items-center gap-2">
-              <code className="flex-1 px-3 py-2.5 bg-black/60 border border-white/10 text-xs font-mono text-zinc-300 truncate">
-                {apiKey}
-              </code>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(apiKey);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1600);
-                }}
-                className="btn-up btn-up-ghost btn-up-sm shrink-0"
-              >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copied ? "Copied" : "Copy"}</span>
-              </button>
-            </div>
-          ) : (
-            <P>Your API key is available from the profile panel — open Profile from the top bar.</P>
-          )}
-          <p className="text-[11px] text-zinc-500 mt-2.5 flex items-center gap-1.5">
-            <ShieldCheck className="w-3 h-3" />
-            Leaked key? Regenerate it from the profile panel — the old key dies instantly.
-          </p>
-        </div>
+          <div className="p-4 border border-white/[0.08] bg-black/35">
+            <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Total spent</span>
+            <span className="text-xl font-semibold text-white">{formatINR(user?.total_spent || 0)}</span>
+          </div>
+          <div className="p-4 border border-white/[0.08] bg-black/35">
+            <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Orders placed</span>
+            <span className="text-xl font-semibold text-white">{formatNumber(user?.total_orders || 0)}</span>
+          </div>
+        </section>
 
-        <div className="grid sm:grid-cols-3 gap-3">
+        <section className="grid sm:grid-cols-3 gap-3">
           <a href="/add-funds" className="btn-up btn-up-solid w-full justify-between">
             <span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds</span>
             <span>→</span>
@@ -81,6 +226,133 @@ export function AccountPage({ onNavigate, user }: PageProps & { user: any }) {
             <span className="flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Order history</span>
             <span>→</span>
           </a>
+        </section>
+
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+          <section className="p-5 sm:p-6 border border-white/12 bg-white/[0.02] space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-white/[0.08]">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Key className="w-4 h-4" /> Reseller API key
+                </div>
+                <p className="text-xs text-zinc-500 mt-1">Standard SMM v2 access for your own panel or automation.</p>
+              </div>
+              <span className={`text-[10px] px-2.5 py-1 border ${user?.hasApiKey ? "border-white/15 text-zinc-200" : "border-white/[0.08] text-zinc-500"}`}>
+                {user?.hasApiKey ? "ACTIVE" : "NOT GENERATED"}
+              </span>
+            </div>
+
+            {!user?.hasApiKey ? (
+              <div className="space-y-4">
+                <p className="text-xs leading-relaxed text-zinc-400">
+                  Generate a key only when needed. Its full value is displayed once; afterward SMM UP stores and displays only a masked reference.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={busy !== null}
+                  className="btn-up btn-up-solid w-full sm:w-auto disabled:opacity-50"
+                >
+                  {busy === "generate" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+                  <span>{busy === "generate" ? "Generating…" : "Generate API key"}</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {revealed ? (
+                  <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>Copy this key now. The full value cannot be retrieved after you leave or hide it.</span>
+                  </div>
+                ) : (
+                  <p className="text-xs leading-relaxed text-zinc-400">
+                    The existing key is masked. If the original was lost, regenerate it; the previous key will stop working immediately.
+                  </p>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <code className="flex-1 px-3.5 py-3 bg-black/60 border border-white/10 text-xs font-mono text-zinc-300 break-all">
+                    {revealed || user?.apiKeyMasked || "••••••••••••••••"}
+                  </code>
+                  {revealed && (
+                    <>
+                      <button type="button" onClick={handleCopy} className="btn-up btn-up-solid btn-up-sm shrink-0">
+                        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copied ? "Copied" : "Copy key"}</span>
+                      </button>
+                      <button type="button" onClick={() => setRevealed(null)} className="btn-up btn-up-ghost btn-up-sm shrink-0">
+                        <EyeOff className="w-3.5 h-3.5" /> Hide
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3 text-[11px]">
+                  <div className="p-3 border border-white/[0.07] bg-black/30">
+                    <span className="text-zinc-500 block mb-1">Created</span>
+                    <span className="text-zinc-300">{formatDate(createdAt)}</span>
+                  </div>
+                  <div className="p-3 border border-white/[0.07] bg-black/30">
+                    <span className="text-zinc-500 block mb-1">Last used</span>
+                    <span className="text-zinc-300">{formatDate(keyMeta?.lastUsedAt)}</span>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRegenerate}
+                    disabled={busy !== null}
+                    className={`btn-up btn-up-ghost w-full disabled:opacity-50 ${confirmRegen ? "border-white/30 bg-white/[0.07]" : ""}`}
+                  >
+                    {busy === "regen" ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    <span>{confirmRegen ? "Confirm: revoke old key" : "Regenerate key"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={busy !== null}
+                    className={`btn-up btn-up-ghost w-full disabled:opacity-50 ${confirmDelete ? "border-white/30 bg-white/[0.07]" : ""}`}
+                  >
+                    {busy === "delete" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    <span>{confirmDelete ? "Confirm: delete key" : "Delete key"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {error}
+              </div>
+            )}
+            {success && (
+              <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2">
+                <Check className="w-4 h-4 shrink-0 mt-0.5" /> {success}
+              </div>
+            )}
+
+            <a href="/api" className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white underline underline-offset-4">
+              Open API documentation <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          </section>
+
+          <aside className="p-5 border border-white/12 bg-white/[0.02] space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <ShieldCheck className="w-4 h-4" /> Account security
+            </div>
+            <ul className="space-y-3 text-xs leading-relaxed text-zinc-400">
+              <li className="flex gap-2"><Check className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> Password is never displayed or returned by the API.</li>
+              <li className="flex gap-2"><Check className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> API keys can be revoked instantly from this page.</li>
+              <li className="flex gap-2"><Check className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> SMM UP never asks for a social-media password, OTP or UPI PIN.</li>
+            </ul>
+            <p className="text-[10px] text-zinc-600 border-t border-white/[0.07] pt-3">
+              Device/session management is not shown until server-side revocable sessions are implemented.
+            </p>
+            <button type="button" onClick={onLogout} className="btn-up btn-up-ghost w-full">
+              <LogOut className="w-4 h-4" /> Sign out
+            </button>
+          </aside>
         </div>
       </div>
     </ContentPage>

@@ -29,7 +29,6 @@ interface NavbarProps {
   setCurrentTab: (tab: string) => void;
   user: any;
   onOpenAuth: (mode?: "login" | "register") => void;
-  onOpenProfile: () => void;
   onLogout: () => void;
 }
 
@@ -38,7 +37,6 @@ export default function Navbar({
   setCurrentTab,
   user,
   onOpenAuth,
-  onOpenProfile,
   onLogout,
 }: NavbarProps) {
   const [navVisible, setNavVisible] = React.useState(true);
@@ -176,15 +174,16 @@ export default function Navbar({
                 </span>
               </a>
 
-              {/* Profile Button */}
-              <button
-                onClick={onOpenProfile}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-none border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-200 hover:text-white text-xs font-medium transition-all cursor-pointer"
-                title="Account Settings & API Key"
+              {/* Account Page */}
+              <a
+                href={pathFor("account")}
+                aria-current={currentTab === "account" ? "page" : undefined}
+                className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-none border bg-white/[0.02] hover:bg-white/[0.06] text-zinc-200 hover:text-white text-xs font-medium transition-all cursor-pointer ${currentTab === "account" ? "border-white/35" : "border-white/10"}`}
+                title="Account settings and API key"
               >
                 <User className="w-3.5 h-3.5 text-zinc-400" />
                 <span className="max-w-[100px] truncate">{user.username}</span>
-              </button>
+              </a>
 
               {/* Support — plain text link (examcodes style) */}
               <a
@@ -301,16 +300,14 @@ export default function Navbar({
                       <span>Add funds</span>
                     </a>
 
-                    <button
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        onOpenProfile();
-                      }}
+                    <a
+                      href={pathFor("account")}
+                      onClick={() => setMobileMenuOpen(false)}
                       className="py-2.5 px-3 rounded-none border border-white/10 bg-white/[0.03] text-zinc-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Key className="w-3.5 h-3.5 text-zinc-400" />
-                      <span>API Key</span>
-                    </button>
+                      <span>Account</span>
+                    </a>
                   </div>
                 </div>
               ) : (
