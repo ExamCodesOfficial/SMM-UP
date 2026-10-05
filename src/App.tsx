@@ -253,9 +253,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-white relative flex flex-col font-sans selection:bg-white selection:text-black">
-      {/* 40px grid pattern */}
-      <div className="absolute inset-0 bg-grid-pattern opacity-100 pointer-events-none z-0" />
-
       {/* Top Ambient Light Orb */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[70vw] h-[350px] bg-white/[0.02] rounded-full blur-[140px] pointer-events-none z-0" />
 
