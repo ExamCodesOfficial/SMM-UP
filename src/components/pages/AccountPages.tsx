@@ -1,25 +1,91 @@
 import React from "react";
 import {
-  Key,
-  Copy,
-  Check,
-  RefreshCw,
-  ShieldCheck,
-  User,
-  ArrowLeft,
-  IndianRupee,
-  LogOut,
-  EyeOff,
-  Trash2,
-  ExternalLink,
+  Activity,
   AlertTriangle,
+  ArrowLeft,
+  CalendarClock,
+  Check,
+  Copy,
+  ExternalLink,
+  EyeOff,
+  IndianRupee,
+  Key,
   Loader2,
+  LogOut,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  Trash2,
+  User,
+  X,
 } from "lucide-react";
 import ContentPage from "../ContentPage";
 import { formatINR, formatNumber } from "../../lib/utils";
 
 interface PageProps {
   onNavigate: (tab: string) => void;
+}
+
+interface ApiKeyRecord {
+  id: string;
+  name: string;
+  publicId: string;
+  prefix: string;
+  hint: string;
+  status: "active" | "paused" | "archived";
+  scopes: string[];
+  fullAccess: boolean;
+  dailyLimitInr: number | null;
+  monthlyLimitInr: number | null;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
+  lastRotatedAt: string | null;
+  currentVersion: number;
+  legacyMigrated: boolean;
+}
+
+interface ApiKeyForm {
+  name: string;
+  scopes: string[];
+  dailyLimitInr: string;
+  monthlyLimitInr: string;
+  expiresAt: string;
+}
+
+const FALLBACK_SCOPES = [
+  "services:read",
+  "balance:read",
+  "orders:create",
+  "orders:read",
+  "orders:cancel",
+  "orders:refill",
+];
+
+const SCOPE_LABELS: Record<string, string> = {
+  "services:read": "View services",
+  "balance:read": "View balance",
+  "orders:create": "Create orders",
+  "orders:read": "View orders",
+  "orders:cancel": "Cancel orders",
+  "orders:refill": "Request refills",
+};
+
+function freshIdempotencyKey() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `key_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function dateTimeLocal(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
 /* ══════════════════════ ACCOUNT ══════════════════════ */
@@ -29,135 +95,30 @@ interface AccountPageProps extends PageProps {
   onUserUpdate?: (patch: any) => void;
 }
 
-export function AccountPage({
-  onNavigate,
-  user,
-  onLogout,
-  onUserUpdate,
-}: AccountPageProps) {
-  const [busy, setBusy] = React.useState<"generate" | "regen" | "delete" | null>(null);
-  const [revealed, setRevealed] = React.useState<string | null>(null);
+export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: AccountPageProps) {
+  const [keys, setKeys] = React.useState<ApiKeyRecord[] | null>(null);
+  const [scopes, setScopes] = React.useState<string[]>(FALLBACK_SCOPES);
+  const [creationFee, setCreationFee] = React.useState(29);
+  const [maxKeys, setMaxKeys] = React.useState(10);
+  const [formMode, setFormMode] = React.useState<"create" | "edit" | null>(null);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [form, setForm] = React.useState<ApiKeyForm>({
+    name: "",
+    scopes: [...FALLBACK_SCOPES],
+    dailyLimitInr: "",
+    monthlyLimitInr: "",
+    expiresAt: "",
+  });
+  const [idempotencyKey, setIdempotencyKey] = React.useState(freshIdempotencyKey);
+  const [revealed, setRevealed] = React.useState<{ name: string; secret: string } | null>(null);
   const [copied, setCopied] = React.useState(false);
+  const [confirmRotateId, setConfirmRotateId] = React.useState<string | null>(null);
+  const [archive, setArchive] = React.useState<{ id: string; name: string; value: string } | null>(null);
+  const [activityKeyId, setActivityKeyId] = React.useState<string | null>(null);
+  const [activity, setActivity] = React.useState<any[] | null>(null);
+  const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
-  const [confirmRegen, setConfirmRegen] = React.useState(false);
-  const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const [keyMeta, setKeyMeta] = React.useState<{ createdAt?: string; lastUsedAt?: string } | null>(null);
-
-  React.useEffect(() => {
-    if (!user?.hasApiKey) {
-      setKeyMeta(null);
-      return;
-    }
-    let alive = true;
-    fetch("/api/auth/reveal-key", { cache: "no-store" })
-      .then(async (res) => ({ ok: res.ok, data: await res.json().catch(() => ({})) }))
-      .then(({ ok, data }) => {
-        if (alive && ok) {
-          setKeyMeta({ createdAt: data.createdAt, lastUsedAt: data.lastUsedAt });
-        }
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [user?.hasApiKey]);
-
-  const post = async (action: string, body?: Record<string, unknown>) => {
-    const res = await fetch(`/api/auth/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
-    });
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, data };
-  };
-
-  const resetMessages = () => {
-    setError("");
-    setSuccess("");
-  };
-
-  const handleGenerate = async () => {
-    setBusy("generate");
-    resetMessages();
-    try {
-      const { ok, data } = await post("generate-key");
-      if (!ok) {
-        setError(data.error || "Failed to generate API key.");
-        return;
-      }
-      setRevealed(data.apiKey);
-      setSuccess("API key generated. Copy it now; the full value is shown only once.");
-      setKeyMeta({ createdAt: new Date().toISOString(), lastUsedAt: undefined });
-      onUserUpdate?.({ hasApiKey: true, apiKeyMasked: data.apiKeyMasked, apiKeyCreatedAt: new Date().toISOString() });
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const handleRegenerate = async () => {
-    if (!confirmRegen) {
-      setConfirmRegen(true);
-      setConfirmDelete(false);
-      resetMessages();
-      return;
-    }
-    setBusy("regen");
-    resetMessages();
-    try {
-      const { ok, data } = await post("regenerate-key", { confirm: true });
-      if (!ok) {
-        setError(data.error || "Failed to regenerate API key.");
-        setConfirmRegen(false);
-        return;
-      }
-      setRevealed(data.apiKey);
-      setConfirmRegen(false);
-      setSuccess("Old API key revoked. Copy the new key now; it is shown only once.");
-      setKeyMeta({ createdAt: new Date().toISOString(), lastUsedAt: undefined });
-      onUserUpdate?.({ hasApiKey: true, apiKeyMasked: data.apiKeyMasked, apiKeyCreatedAt: new Date().toISOString() });
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      setConfirmRegen(false);
-      resetMessages();
-      return;
-    }
-    setBusy("delete");
-    resetMessages();
-    try {
-      const { ok, data } = await post("delete-key", { confirm: true });
-      if (!ok) {
-        setError(data.error || "Failed to delete API key.");
-        setConfirmDelete(false);
-        return;
-      }
-      setRevealed(null);
-      setKeyMeta(null);
-      setConfirmDelete(false);
-      setSuccess("API key deleted and access revoked.");
-      onUserUpdate?.({ hasApiKey: false, apiKeyMasked: null, apiKeyCreatedAt: null });
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const handleCopy = async () => {
-    if (!revealed) return;
-    await navigator.clipboard.writeText(revealed);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
 
   const formatDate = (value?: string | null) => {
     if (!value) return "Never";
@@ -165,13 +126,219 @@ export function AccountPage({
     return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString("en-IN");
   };
 
-  const createdAt = keyMeta?.createdAt || user?.apiKeyCreatedAt;
+  const loadKeys = React.useCallback(async () => {
+    try {
+      const response = await fetch("/api/auth/list-api-keys", { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Failed to load API keys.");
+      const nextKeys = Array.isArray(data.keys) ? data.keys : [];
+      setKeys(nextKeys);
+      setScopes(Array.isArray(data.scopes) && data.scopes.length ? data.scopes : FALLBACK_SCOPES);
+      setCreationFee(Number(data.creationFeeInr ?? 29));
+      setMaxKeys(Number(data.maxKeys ?? 10));
+      onUserUpdate?.({
+        balance: Number(data.balance ?? 0),
+        hasApiKey: nextKeys.some((key: ApiKeyRecord) => key.status !== "archived"),
+        apiKeyCount: nextKeys.filter((key: ApiKeyRecord) => key.status !== "archived").length,
+      });
+    } catch (loadError: any) {
+      setKeys([]);
+      setError(loadError?.message || "Failed to load API keys.");
+    }
+  }, [onUserUpdate]);
+
+  React.useEffect(() => {
+    loadKeys();
+  }, [loadKeys]);
+
+  const request = async (action: string, body?: Record<string, unknown>) => {
+    const response = await fetch(`/api/auth/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Request failed.");
+    return data;
+  };
+
+  const resetMessages = () => {
+    setError("");
+    setSuccess("");
+  };
+
+  const beginCreate = () => {
+    resetMessages();
+    setEditingId(null);
+    setFormMode("create");
+    setIdempotencyKey(freshIdempotencyKey());
+    setForm({ name: "", scopes: [...scopes], dailyLimitInr: "", monthlyLimitInr: "", expiresAt: "" });
+    setArchive(null);
+    setConfirmRotateId(null);
+  };
+
+  const beginEdit = (key: ApiKeyRecord) => {
+    resetMessages();
+    setFormMode("edit");
+    setEditingId(key.id);
+    setForm({
+      name: key.name,
+      scopes: [...key.scopes],
+      dailyLimitInr: key.dailyLimitInr === null ? "" : String(key.dailyLimitInr),
+      monthlyLimitInr: key.monthlyLimitInr === null ? "" : String(key.monthlyLimitInr),
+      expiresAt: dateTimeLocal(key.expiresAt),
+    });
+    setArchive(null);
+    setConfirmRotateId(null);
+  };
+
+  const cancelForm = () => {
+    setFormMode(null);
+    setEditingId(null);
+  };
+
+  const toggleFullAccess = (checked: boolean) => {
+    setForm((current) => ({ ...current, scopes: checked ? [...scopes] : [] }));
+  };
+
+  const toggleScope = (scope: string) => {
+    setForm((current) => ({
+      ...current,
+      scopes: current.scopes.includes(scope)
+        ? current.scopes.filter((item) => item !== scope)
+        : [...current.scopes, scope],
+    }));
+  };
+
+  const submitForm = async (event: React.FormEvent) => {
+    event.preventDefault();
+    resetMessages();
+    if (form.scopes.length === 0) {
+      setError("Select at least one API scope.");
+      return;
+    }
+    const operation = formMode === "create" ? "create" : `edit:${editingId}`;
+    setBusy(operation);
+    try {
+      const payload = {
+        name: form.name,
+        scopes: form.scopes,
+        dailyLimitInr: form.dailyLimitInr || null,
+        monthlyLimitInr: form.monthlyLimitInr || null,
+        expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
+      };
+      if (formMode === "create") {
+        const data = await request("create-api-key", { ...payload, idempotencyKey });
+        if (data.apiKey) {
+          setRevealed({ name: data.key.name, secret: data.apiKey });
+          setSuccess("Key created. Copy its secret now; SMM UP will never display it again.");
+        } else {
+          setSuccess(data.message || "The idempotent creation request was already completed.");
+        }
+        if (typeof data.balance === "number") onUserUpdate?.({ balance: data.balance });
+      } else {
+        await request("update-api-key", { ...payload, keyId: editingId });
+        setSuccess("API key settings saved. No fee was charged.");
+      }
+      cancelForm();
+      await loadKeys();
+    } catch (submitError: any) {
+      setError(submitError?.message || "API key operation failed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const pauseOrResume = async (key: ApiKeyRecord) => {
+    resetMessages();
+    setBusy(`status:${key.id}`);
+    try {
+      const pausing = key.status === "active";
+      await request(pausing ? "pause-api-key" : "resume-api-key", { keyId: key.id });
+      setSuccess(`${key.name} ${pausing ? "paused" : "resumed"}. No fee was charged.`);
+      await loadKeys();
+    } catch (statusError: any) {
+      setError(statusError?.message || "Status change failed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const rotate = async (key: ApiKeyRecord) => {
+    if (confirmRotateId !== key.id) {
+      resetMessages();
+      setConfirmRotateId(key.id);
+      setArchive(null);
+      return;
+    }
+    setBusy(`rotate:${key.id}`);
+    resetMessages();
+    try {
+      const data = await request("rotate-api-key", { keyId: key.id, confirm: true });
+      setRevealed({ name: key.name, secret: data.apiKey });
+      setConfirmRotateId(null);
+      setSuccess("Secret rotated for free. The old secret is permanently revoked; copy the new one now.");
+      await loadKeys();
+    } catch (rotateError: any) {
+      setError(rotateError?.message || "Secret rotation failed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const archiveKey = async () => {
+    if (!archive) return;
+    setBusy(`archive:${archive.id}`);
+    resetMessages();
+    try {
+      await request("archive-api-key", {
+        keyId: archive.id,
+        confirmationName: archive.value,
+      });
+      setArchive(null);
+      setSuccess("Key permanently archived. Access is revoked, attribution is retained and no fee is refunded.");
+      await loadKeys();
+    } catch (archiveError: any) {
+      setError(archiveError?.message || "Archive failed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const showActivity = async (key: ApiKeyRecord) => {
+    if (activityKeyId === key.id) {
+      setActivityKeyId(null);
+      setActivity(null);
+      return;
+    }
+    setActivityKeyId(key.id);
+    setActivity(null);
+    try {
+      const response = await fetch(`/api/auth/api-key-activity?keyId=${encodeURIComponent(key.id)}&limit=20`, { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Failed to load activity.");
+      setActivity(Array.isArray(data.activity) ? data.activity : []);
+    } catch (activityError: any) {
+      setActivity([]);
+      setError(activityError?.message || "Failed to load activity.");
+    }
+  };
+
+  const copySecret = async () => {
+    if (!revealed) return;
+    await navigator.clipboard.writeText(revealed.secret);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  const activeKeyCount = keys?.filter((key) => key.status !== "archived").length || 0;
+  const fullAccess = scopes.length > 0 && scopes.every((scope) => form.scopes.includes(scope));
 
   return (
     <ContentPage
       kicker="Account"
       title="My Account"
-      subtitle="Identity, wallet activity, developer access and account security in one permanent workspace."
+      subtitle="Identity, wallet activity, named developer credentials and account security in one permanent workspace."
       crumbs={[{ label: "Home", tab: "home" }, { label: "Account" }]}
       onNavigate={onNavigate}
       wide
@@ -189,169 +356,125 @@ export function AccountPage({
             </div>
           </div>
           <div className="flex items-center gap-3 lg:justify-end">
-            <span className="px-2.5 py-1 border border-white/10 bg-black/40 text-[10px] uppercase tracking-wider text-zinc-300">
-              {user?.role || "user"}
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[10px] text-zinc-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-white" /> Active session
-            </span>
+            <span className="px-2.5 py-1 border border-white/10 bg-black/40 text-[10px] uppercase tracking-wider text-zinc-300">{user?.role || "user"}</span>
+            <span className="inline-flex items-center gap-1.5 text-[10px] text-zinc-400"><span className="w-1.5 h-1.5 rounded-full bg-white" /> Active session</span>
           </div>
         </section>
 
         <section className="grid sm:grid-cols-3 gap-3">
-          <div className="p-4 border border-white/[0.08] bg-black/35">
-            <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Wallet balance</span>
-            <span className="text-xl font-semibold text-white">{formatINR(user?.balance || 0)}</span>
-          </div>
-          <div className="p-4 border border-white/[0.08] bg-black/35">
-            <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Total spent</span>
-            <span className="text-xl font-semibold text-white">{formatINR(user?.total_spent || 0)}</span>
-          </div>
-          <div className="p-4 border border-white/[0.08] bg-black/35">
-            <span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Orders placed</span>
-            <span className="text-xl font-semibold text-white">{formatNumber(user?.total_orders || 0)}</span>
-          </div>
+          <div className="p-4 border border-white/[0.08] bg-black/35"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Wallet balance</span><span className="text-xl font-semibold text-white">{formatINR(user?.balance || 0)}</span></div>
+          <div className="p-4 border border-white/[0.08] bg-black/35"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Total spent</span><span className="text-xl font-semibold text-white">{formatINR(user?.total_spent || 0)}</span></div>
+          <div className="p-4 border border-white/[0.08] bg-black/35"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Orders placed</span><span className="text-xl font-semibold text-white">{formatNumber(user?.total_orders || 0)}</span></div>
         </section>
 
         <section className="grid sm:grid-cols-3 gap-3">
-          <a href="/add-funds" className="btn-up btn-up-solid w-full justify-between">
-            <span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds</span>
-            <span>→</span>
-          </a>
-          <a href="/transactions" className="btn-up btn-up-ghost w-full justify-between">
-            <span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Deposit history</span>
-            <span>→</span>
-          </a>
-          <a href="/logs" className="btn-up btn-up-ghost w-full justify-between">
-            <span className="flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Order history</span>
-            <span>→</span>
-          </a>
+          <a href="/add-funds" className="btn-up btn-up-solid w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds</span><span>→</span></a>
+          <a href="/transactions" className="btn-up btn-up-ghost w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Deposit history</span><span>→</span></a>
+          <a href="/logs" className="btn-up btn-up-ghost w-full justify-between"><span className="flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Order history</span><span>→</span></a>
         </section>
 
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
-          <section className="p-5 sm:p-6 border border-white/12 bg-white/[0.02] space-y-5">
-            <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-white/[0.08]">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <Key className="w-4 h-4" /> Reseller API key
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
+          <div className="space-y-5">
+            <section className="p-5 sm:p-6 border border-white/12 bg-white/[0.02] space-y-5">
+              <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-white/[0.08]">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-semibold text-white"><Key className="w-4 h-4" /> Named API keys</div>
+                  <p className="text-xs text-zinc-500 mt-1">{activeKeyCount}/{maxKeys} non-archived identities · new identity fee {formatINR(creationFee)}</p>
                 </div>
-                <p className="text-xs text-zinc-500 mt-1">Standard SMM v2 access for your own panel or automation.</p>
-              </div>
-              <span className={`text-[10px] px-2.5 py-1 border ${user?.hasApiKey ? "border-white/15 text-zinc-200" : "border-white/[0.08] text-zinc-500"}`}>
-                {user?.hasApiKey ? "ACTIVE" : "NOT GENERATED"}
-              </span>
-            </div>
-
-            {!user?.hasApiKey ? (
-              <div className="space-y-4">
-                <p className="text-xs leading-relaxed text-zinc-400">
-                  Generate a key only when needed. Its full value is displayed once; afterward SMM UP stores and displays only a masked reference.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleGenerate}
-                  disabled={busy !== null}
-                  className="btn-up btn-up-solid w-full sm:w-auto disabled:opacity-50"
-                >
-                  {busy === "generate" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
-                  <span>{busy === "generate" ? "Generating…" : "Generate API key"}</span>
+                <button type="button" onClick={beginCreate} disabled={activeKeyCount >= maxKeys || formMode === "create"} className="btn-up btn-up-solid btn-up-sm disabled:opacity-40">
+                  <Plus className="w-3.5 h-3.5" /> Create key
                 </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {revealed ? (
-                  <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span>Copy this key now. The full value cannot be retrieved after you leave or hide it.</span>
+
+              {revealed && (
+                <div className="p-4 border border-white/25 bg-white/[0.06] space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="text-xs font-semibold text-white">Copy {revealed.name} now</p><p className="text-[11px] text-zinc-400 mt-1">This full secret is shown once. It cannot be recovered later.</p></div>
+                    <button type="button" onClick={() => setRevealed(null)} aria-label="Hide secret" className="text-zinc-500 hover:text-white"><EyeOff className="w-4 h-4" /></button>
                   </div>
-                ) : (
-                  <p className="text-xs leading-relaxed text-zinc-400">
-                    The existing key is masked. If the original was lost, regenerate it; the previous key will stop working immediately.
-                  </p>
-                )}
-
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <code className="flex-1 px-3.5 py-3 bg-black/60 border border-white/10 text-xs font-mono text-zinc-300 break-all">
-                    {revealed || user?.apiKeyMasked || "••••••••••••••••"}
-                  </code>
-                  {revealed && (
-                    <>
-                      <button type="button" onClick={handleCopy} className="btn-up btn-up-solid btn-up-sm shrink-0">
-                        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copied ? "Copied" : "Copy key"}</span>
-                      </button>
-                      <button type="button" onClick={() => setRevealed(null)} className="btn-up btn-up-ghost btn-up-sm shrink-0">
-                        <EyeOff className="w-3.5 h-3.5" /> Hide
-                      </button>
-                    </>
-                  )}
+                  <code className="block p-3 bg-black/70 border border-white/10 text-xs text-zinc-200 break-all">{revealed.secret}</code>
+                  <button type="button" onClick={copySecret} className="btn-up btn-up-solid btn-up-sm">{copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} {copied ? "Copied" : "Copy secret"}</button>
                 </div>
+              )}
 
-                <div className="grid sm:grid-cols-2 gap-3 text-[11px]">
-                  <div className="p-3 border border-white/[0.07] bg-black/30">
-                    <span className="text-zinc-500 block mb-1">Created</span>
-                    <span className="text-zinc-300">{formatDate(createdAt)}</span>
+              {error && <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {error}</div>}
+              {success && <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2"><Check className="w-4 h-4 shrink-0 mt-0.5" /> {success}</div>}
+
+              {formMode && (
+                <form onSubmit={submitForm} className="p-4 border border-white/12 bg-black/35 space-y-4">
+                  <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">{formMode === "create" ? "Create named key" : "Edit key settings"}</p><p className="text-[11px] text-zinc-500 mt-1">{formMode === "create" ? `${formatINR(creationFee)} is charged once after confirmation.` : "Renaming and configuration changes are free."}</p></div><button type="button" onClick={cancelForm} className="text-zinc-500 hover:text-white"><X className="w-4 h-4" /></button></div>
+                  <label className="block"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Unique key name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} minLength={3} maxLength={40} required className="w-full bg-black/70 border border-white/10 px-3 py-2.5 text-xs text-white outline-none focus:border-white/30" placeholder="Production panel" /></label>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between"><span className="text-[10px] uppercase tracking-wider text-zinc-500">Permissions</span><label className="flex items-center gap-2 text-xs text-zinc-300"><input type="checkbox" checked={fullAccess} onChange={(event) => toggleFullAccess(event.target.checked)} /> Full Access</label></div>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {scopes.map((scope) => <label key={scope} className="flex items-center gap-2 p-2.5 border border-white/[0.08] bg-black/30 text-xs text-zinc-300"><input type="checkbox" checked={form.scopes.includes(scope)} onChange={() => toggleScope(scope)} /><span>{SCOPE_LABELS[scope] || scope}</span></label>)}
+                    </div>
+                    {form.scopes.length === 0 && <p className="text-[11px] text-zinc-500">A key cannot be saved with zero permissions.</p>}
                   </div>
-                  <div className="p-3 border border-white/[0.07] bg-black/30">
-                    <span className="text-zinc-500 block mb-1">Last used</span>
-                    <span className="text-zinc-300">{formatDate(keyMeta?.lastUsedAt)}</span>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Daily spend limit (INR)</span><input type="number" min="0.01" step="0.01" value={form.dailyLimitInr} onChange={(event) => setForm({ ...form, dailyLimitInr: event.target.value })} className="w-full bg-black/70 border border-white/10 px-3 py-2.5 text-xs text-white outline-none focus:border-white/30" placeholder="No limit" /></label>
+                    <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Monthly spend limit (INR)</span><input type="number" min="0.01" step="0.01" value={form.monthlyLimitInr} onChange={(event) => setForm({ ...form, monthlyLimitInr: event.target.value })} className="w-full bg-black/70 border border-white/10 px-3 py-2.5 text-xs text-white outline-none focus:border-white/30" placeholder="No limit" /></label>
                   </div>
+                  <label className="block"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Expiration (optional)</span><input type="datetime-local" value={form.expiresAt} onChange={(event) => setForm({ ...form, expiresAt: event.target.value })} className="w-full bg-black/70 border border-white/10 px-3 py-2.5 text-xs text-white outline-none focus:border-white/30" /><span className="text-[10px] text-zinc-600 mt-1 block">Leave empty for Never.</span></label>
+                  <button type="submit" disabled={busy !== null || form.scopes.length === 0} className="btn-up btn-up-solid w-full sm:w-auto disabled:opacity-40">{busy === (formMode === "create" ? "create" : `edit:${editingId}`) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {formMode === "create" ? `Create for ${formatINR(creationFee)}` : "Save settings"}</button>
+                </form>
+              )}
+
+              {keys === null ? (
+                <div className="space-y-3">{[0, 1].map((item) => <div key={item} className="skeleton h-36" />)}</div>
+              ) : keys.length === 0 ? (
+                <div className="p-8 text-center border border-white/[0.08]"><Key className="w-5 h-5 text-zinc-500 mx-auto mb-3" /><p className="text-sm text-zinc-300">No API keys yet</p><p className="text-xs text-zinc-600 mt-1">Create a named identity with only the permissions it needs.</p></div>
+              ) : (
+                <div className="space-y-3">
+                  {keys.map((key) => (
+                    <article key={key.id} className={`p-4 border ${key.status === "archived" ? "border-white/[0.05] opacity-60" : "border-white/10"} bg-black/30 space-y-3`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-white">{key.name}</h3>{key.legacyMigrated && <span className="text-[9px] px-1.5 py-0.5 border border-white/10 text-zinc-500">MIGRATED FREE</span>}<span className="text-[9px] px-1.5 py-0.5 border border-white/10 text-zinc-400 uppercase">{key.status}</span></div><code className="text-[11px] text-zinc-500 mt-1 block">{key.prefix}…{key.hint}</code></div>
+                        <div className="text-right text-[10px] text-zinc-600"><span className="block">Version {key.currentVersion}</span><span>{key.fullAccess ? "Full Access" : `${key.scopes.length} scopes`}</span></div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">{key.scopes.map((scope) => <span key={scope} className="px-2 py-1 bg-white/[0.03] border border-white/[0.07] text-[9px] text-zinc-500">{SCOPE_LABELS[scope] || scope}</span>)}</div>
+                      <div className="grid sm:grid-cols-4 gap-2 text-[10px]"><div><span className="text-zinc-600 block">Created</span><span className="text-zinc-400">{formatDate(key.createdAt)}</span></div><div><span className="text-zinc-600 block">Last used</span><span className="text-zinc-400">{formatDate(key.lastUsedAt)}</span></div><div><span className="text-zinc-600 block">Daily limit</span><span className="text-zinc-400">{key.dailyLimitInr === null ? "None" : formatINR(key.dailyLimitInr)}</span></div><div><span className="text-zinc-600 block">Expires</span><span className="text-zinc-400">{formatDate(key.expiresAt)}</span></div></div>
+
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {key.status !== "archived" && (
+                          <>
+                            <button type="button" onClick={() => beginEdit(key)} className="btn-up btn-up-ghost btn-up-sm"><Settings className="w-3.5 h-3.5" /> Settings</button>
+                            <button type="button" onClick={() => pauseOrResume(key)} disabled={busy !== null} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40">{key.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />} {key.status === "active" ? "Pause" : "Resume"}</button>
+                            <button type="button" onClick={() => rotate(key)} disabled={busy !== null} className={`btn-up btn-up-ghost btn-up-sm disabled:opacity-40 ${confirmRotateId === key.id ? "border-white/30 bg-white/[0.06]" : ""}`}>{busy === `rotate:${key.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} {confirmRotateId === key.id ? "Confirm permanent rotation" : "Rotate secret"}</button>
+                            <button type="button" onClick={() => { setArchive({ id: key.id, name: key.name, value: "" }); setConfirmRotateId(null); }} className="btn-up btn-up-ghost btn-up-sm"><Trash2 className="w-3.5 h-3.5" /> Archive</button>
+                          </>
+                        )}
+                        <button type="button" onClick={() => showActivity(key)} className="btn-up btn-up-ghost btn-up-sm"><Activity className="w-3.5 h-3.5" /> Activity</button>
+                      </div>
+
+                      {archive?.id === key.id && (
+                        <div className="p-3 border border-white/15 bg-white/[0.04] space-y-2"><p className="text-[11px] text-zinc-300">Permanent action. Type <strong className="text-white">{key.name}</strong> exactly. There is no refund.</p><div className="flex flex-col sm:flex-row gap-2"><input value={archive.value} onChange={(event) => setArchive({ ...archive, value: event.target.value })} className="flex-1 bg-black/70 border border-white/10 px-3 py-2 text-xs text-white outline-none" /><button type="button" onClick={archiveKey} disabled={archive.value !== key.name || busy !== null} className="btn-up btn-up-solid btn-up-sm disabled:opacity-40">Archive permanently</button><button type="button" onClick={() => setArchive(null)} className="btn-up btn-up-ghost btn-up-sm">Cancel</button></div></div>
+                      )}
+
+                      {activityKeyId === key.id && (
+                        <div className="border-t border-white/[0.07] pt-3"><p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Recent key activity</p>{activity === null ? <Loader2 className="w-4 h-4 animate-spin text-zinc-500" /> : activity.length === 0 ? <p className="text-[11px] text-zinc-600">No activity recorded yet.</p> : <div className="space-y-1.5">{activity.map((item) => <div key={item.id} className="grid sm:grid-cols-[1fr_auto_auto] gap-2 p-2 bg-black/40 text-[10px]"><span className="text-zinc-300">{item.action} · v{item.keyVersion}</span><span className={item.httpStatus < 400 ? "text-zinc-400" : "text-zinc-200"}>{item.httpStatus} {item.result}</span><span className="text-zinc-600">{formatDate(item.completedAt)}</span></div>)}</div>}</div>
+                      )}
+                    </article>
+                  ))}
                 </div>
+              )}
 
-                <div className="grid sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={handleRegenerate}
-                    disabled={busy !== null}
-                    className={`btn-up btn-up-ghost w-full disabled:opacity-50 ${confirmRegen ? "border-white/30 bg-white/[0.07]" : ""}`}
-                  >
-                    {busy === "regen" ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                    <span>{confirmRegen ? "Confirm: revoke old key" : "Regenerate key"}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    disabled={busy !== null}
-                    className={`btn-up btn-up-ghost w-full disabled:opacity-50 ${confirmDelete ? "border-white/30 bg-white/[0.07]" : ""}`}
-                  >
-                    {busy === "delete" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                    <span>{confirmDelete ? "Confirm: delete key" : "Delete key"}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {error}
-              </div>
-            )}
-            {success && (
-              <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2">
-                <Check className="w-4 h-4 shrink-0 mt-0.5" /> {success}
-              </div>
-            )}
-
-            <a href="/api" className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white underline underline-offset-4">
-              Open API documentation <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          </section>
+              <a href="/api" className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white underline underline-offset-4">Open API documentation <ExternalLink className="w-3.5 h-3.5" /></a>
+            </section>
+          </div>
 
           <aside className="p-5 border border-white/12 bg-white/[0.02] space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <ShieldCheck className="w-4 h-4" /> Account security
-            </div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck className="w-4 h-4" /> Account security</div>
             <ul className="space-y-3 text-xs leading-relaxed text-zinc-400">
-              <li className="flex gap-2"><Check className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> Password is never displayed or returned by the API.</li>
-              <li className="flex gap-2"><Check className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> API keys can be revoked instantly from this page.</li>
+              <li className="flex gap-2"><Check className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> Raw API secrets are stored only as hashes and shown once.</li>
+              <li className="flex gap-2"><Check className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> Pause is reversible; rotation and archive are permanent.</li>
+              <li className="flex gap-2"><CalendarClock className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> Limits use IST calendar periods; expiration is optional.</li>
               <li className="flex gap-2"><Check className="w-3.5 h-3.5 text-zinc-300 shrink-0 mt-0.5" /> SMM UP never asks for a social-media password, OTP or UPI PIN.</li>
             </ul>
-            <p className="text-[10px] text-zinc-600 border-t border-white/[0.07] pt-3">
-              Device/session management is not shown until server-side revocable sessions are implemented.
-            </p>
-            <button type="button" onClick={onLogout} className="btn-up btn-up-ghost w-full">
-              <LogOut className="w-4 h-4" /> Sign out
-            </button>
+            <div className="text-[10px] text-zinc-600 border-t border-white/[0.07] pt-3 space-y-1"><p>Creation: {formatINR(creationFee)} per new identity.</p><p>Rotation, pause, resume and settings: free.</p><p>Legacy migration: free.</p></div>
+            <button type="button" onClick={onLogout} className="btn-up btn-up-ghost w-full"><LogOut className="w-4 h-4" /> Sign out</button>
           </aside>
         </div>
       </div>

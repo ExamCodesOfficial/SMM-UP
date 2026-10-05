@@ -151,6 +151,10 @@ export default function App() {
     });
   }, [currentTab, navigate]);
 
+  const handleUserUpdate = React.useCallback((patch: any) => {
+    setUser((previous: any) => ({ ...previous, ...patch }));
+  }, []);
+
   const loadServices = async () => {
     try {
       const res = await fetch("/api/services/list");
@@ -318,7 +322,7 @@ export default function App() {
             user={user}
             onNavigate={navigate}
             onLogout={handleLogout}
-            onUserUpdate={(patch) => setUser((prev: any) => ({ ...prev, ...patch }))}
+            onUserUpdate={handleUserUpdate}
           />
         )}
 

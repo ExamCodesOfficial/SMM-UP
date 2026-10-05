@@ -1,8 +1,8 @@
 # SMM UP Admin Bot — Complete Development Specification
 
-> **Status:** Planning document only. Bot implementation is intentionally deferred until the website is complete and its security-hardening work has been finished.
+> **Status:** Final architecture approved on 2026-10-06. Implementation remains dependency-gated: website key/session/security foundations are built first, then the Railway owner bot is upgraded in the phases below.
 >
-> **Last updated:** 2026-10-05
+> **Last updated:** 2026-10-06
 >
 > **Hosting decision:** Railway always-on private worker. The website and normal HTTP APIs remain on Vercel.
 >
@@ -51,7 +51,7 @@ Bot development starts only after all of the following are true:
 7. MongoDB backup and restore procedures are verified.
 8. Production and staging environment variables are documented.
 9. There are no known critical or high-severity production dependency vulnerabilities.
-10. The owner explicitly gives a new green light for bot implementation.
+10. The approved website dependency phases have passed their release gates. Final owner green light was recorded on 2026-10-06; no duplicate approval prompt is required.
 
 ### 2.3 What may happen before the green light
 
@@ -371,10 +371,10 @@ Search will accept:
 
 ### 10.2 User detail screen
 
-Show only operationally necessary data:
+Show owner-authorized operational data:
 
 - username;
-- partially masked email where possible;
+- full registered email (owner-only support view);
 - user ID;
 - current balance;
 - total spent;
@@ -401,9 +401,10 @@ Never show:
 ```text
 [ 📦 Orders ] [ 💳 Transactions ]
 [ ➕ Credit ] [ ➖ Debit ]
-[ 🔑 Revoke API Key ]
+[ 🔑 API Keys ] [ 🔐 Reset Password ]
+[ 👁 Support Access ]
 [ 🔒 Lock Account / 🔓 Unlock Account ]
-[ 🚪 Revoke Sessions ]
+[ 🚪 Sessions ] [ 📝 Admin Notes ]
 [ ◀ Back ] [ 🏠 Main Menu ]
 ```
 
@@ -442,6 +443,98 @@ A locked account should be unable to:
 - initiate deposits.
 
 Locking must not delete historical data.
+
+### 10.7 Owner-triggered temporary-password reset
+
+The owner can recover an account without knowing or retrieving the existing password.
+
+Workflow:
+
+1. Search and open the user.
+2. Review full email, account history and private recovery evidence.
+3. Tap **Reset Password**.
+4. Enter a mandatory reason.
+5. Choose **Generate Automatically** (recommended) or **Set Custom Temporary Password**.
+6. Show a five-minute Confirm/Cancel action token.
+7. On confirmation, revoke existing sessions and store only a bcrypt hash of the temporary credential.
+8. Store expiry and bounded maximum-use count.
+9. Display the temporary value once in the owner chat.
+10. The user signs in through the restricted password-change flow.
+
+Configuration:
+
+```text
+TEMP_PASSWORD_TTL_MINUTES=180
+TEMP_PASSWORD_MAX_USES=2
+```
+
+Rules:
+
+- TTL is bounded by the server even when the environment variable is invalid.
+- Maximum uses is bounded to 1 or 2; default is 2.
+- Each successful temporary login atomically increments `uses_count`.
+- The bot edits the original reset message after each use.
+- Example first-use status: `✅ Used 1/2 · 1 use remaining · 2026-10-06 21:42 IST`.
+- Example terminal status: `✅ Used 2/2 · Temporary password exhausted`.
+- Expiry status: `⌛ Expired unused` or `⌛ Expired after 1/2 uses`.
+- Completing the permanent-password change invalidates the temporary credential immediately, even if one use remains.
+- Temporary login can access only password change and logout.
+- Permanent passwords and temporary-password hashes are never shown in Telegram.
+- The original Telegram message does not need automatic deletion because the value becomes unusable after consumption, completion or expiry.
+
+Suggested reset message:
+
+```text
+🔐 Temporary Password Created
+
+User: @username
+Email: full@example.com
+Temporary password: XXXX-XXXX-XXXX
+Expires: 3 hours (server-configured)
+Uses: 0/2
+Status: Waiting for user
+Reason: Owner-entered reason
+```
+
+### 10.8 Manual recovery evidence
+
+Until verified-email self-service recovery exists, the owner checks at least two private account facts where available:
+
+- registered email;
+- recent internal order ID and target;
+- recent service/quantity;
+- recent deposit amount and UTR/provider reference;
+- approximate balance or registration date.
+
+The audit event stores which evidence categories were checked, not copies of secrets.
+
+### 10.9 Support Access and website impersonation
+
+Support Access is for reproducing what a user sees without resetting the user password.
+
+1. Owner taps **Support Access** and enters a reason.
+2. Bot creates a one-time code stored only as a hash.
+3. Code exchange window is five minutes.
+4. Owner enters it at `/support-access` while authenticated as owner.
+5. Server creates a 15-minute `admin_impersonation` session.
+6. Session records `actor_admin_id` separately from `subject_user_id`.
+7. Website displays a permanent support banner and countdown.
+8. Session is read-only by default and can be exited early.
+9. Every sensitive view is audited.
+
+Read-only support access can view the account, full email, orders, targets, deposits, wallet records, API-key metadata, sessions and security state. It cannot place orders, spend balance, create deposits, mutate keys, change passwords or reveal raw secrets.
+
+The bot edits the Support Access message when the code is exchanged, the session exits, or it expires. Raw user passwords, API secrets and active cookies are never used as impersonation credentials.
+
+### 10.10 API-key owner controls
+
+The owner bot can inspect named keys, status, scopes, limits, expiry, spend and activity. Mutations use inline confirmations:
+
+- pause/resume;
+- rotate/reissue secret (the bot never receives the new raw secret);
+- archive after exact-name confirmation;
+- view creation-fee ledger entry;
+- view key-attributed orders and usage.
 
 ---
 

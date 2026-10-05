@@ -1,7 +1,19 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import crypto from "crypto";
 import { ObjectId } from "mongodb";
-import { getDb } from "../../server/lib/db.js";
+import { ensureApiKeyIndexes, getDb } from "../../server/lib/db.js";
+import {
+  API_KEY_SCOPES,
+  ApiKeyError,
+  apiKeyCreationFeeInr,
+  archiveApiKey,
+  createApiKey,
+  maxApiKeysPerUser,
+  migrateLegacyApiKey,
+  rotateApiKey,
+  serializeApiKey,
+  setApiKeyPaused,
+  updateApiKey,
+} from "../../server/lib/apiKeys.js";
 import {
   hashPassword,
   verifyPassword,
@@ -13,26 +25,30 @@ import {
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
 import { sanitizeBrandText } from "../../server/lib/smm.js";
 
-function hashApiKey(raw: string): string {
-  return crypto.createHash("sha256").update(raw).digest("hex");
+function apiKeyError(res: VercelResponse, error: any) {
+  if (error instanceof ApiKeyError) {
+    return res.status(error.statusCode).json({ error: error.message, code: error.code });
+  }
+  if (error?.code === 11000) {
+    return res.status(409).json({ error: "That API-key request conflicts with an existing record." });
+  }
+  console.error("API key management error:", error);
+  return res.status(500).json({ error: "API key operation failed." });
 }
 
-function generateApiKey(): { raw: string; hash: string } {
-  const raw = "sup_" + crypto.randomBytes(24).toString("hex");
-  return { raw, hash: hashApiKey(raw) };
-}
-
-function maskApiKey(raw: string | null | undefined): string | null {
-  if (!raw || raw.length < 12) return null;
-  return raw.slice(0, 10) + "•".repeat(12) + raw.slice(-4);
+function clientIp(req: VercelRequest): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  return String(Array.isArray(forwarded) ? forwarded[0] : forwarded || req.socket.remoteAddress || "global")
+    .split(",")[0]
+    .trim();
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const { action } = req.query;
+  const action = String(req.query.action || "");
   const db = await getDb();
   const users = db.collection("users");
 
-  // ── 1. REGISTER (NO auto API key) ────────────────────────────
+  // ── 1. REGISTER (API keys are created separately and charged) ──
   if (action === "register") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const { username, email, password } = req.body || {};
@@ -54,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (existingUsername) return res.status(400).json({ error: "Username already taken. Please choose a different one." });
 
       const passwordHash = await hashPassword(password);
-
+      const now = new Date();
       const newUser: any = {
         username: cleanUsername,
         email: cleanEmail,
@@ -63,12 +79,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         total_spent: 0.0,
         total_orders: 0,
         role: "user",
-        api_key: null,
-        api_key_hash: null,
-        api_key_created_at: null,
-        api_key_last_used_at: null,
-        created_at: new Date(),
-        updated_at: new Date(),
+        api_key_count: 0,
+        created_at: now,
+        updated_at: now,
       };
 
       const insertResult = await users.insertOne(newUser);
@@ -78,7 +91,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         username: cleanUsername,
         role: newUser.role,
       });
-
       setAuthCookie(res, token);
       return res.status(201).json({
         success: true,
@@ -89,14 +101,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           balance: 0.0,
           role: newUser.role,
           hasApiKey: false,
+          apiKeyCount: 0,
           apiKey: null,
           apiKeyMasked: null,
         },
       });
     } catch (err: any) {
-      // Race-safe: unique indexes still fire if two requests slip past the pre-check
       if (err?.code === 11000) {
-        const field = err?.keyPattern?.username ? "Username already taken. Please choose a different one." : "Email already registered";
+        const field = err?.keyPattern?.username
+          ? "Username already taken. Please choose a different one."
+          : "Email already registered";
         return res.status(400).json({ error: field });
       }
       return res.status(500).json({ error: "Registration failed" });
@@ -106,38 +120,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 2. LOGIN ─────────────────────────────────────────────────
   if (action === "login") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "global";
+    const ip = clientIp(req);
     const { allowed, remainingSec } = checkRateLimit(`login_${ip}`, 10, 300);
-    if (!allowed) {
-      return res.status(429).json({ error: `Too many login attempts. Try again in ${remainingSec}s.` });
-    }
+    if (!allowed) return res.status(429).json({ error: `Too many login attempts. Try again in ${remainingSec}s.` });
 
     const { email, identifier, username, password } = req.body || {};
     const rawIdentity = String(identifier || email || username || "").trim();
     if (!rawIdentity || !password) return res.status(400).json({ error: "Username/email and password are required" });
 
     try {
-      // Accept email OR username login (landing quick-access desk + modal)
       const identityQuery = rawIdentity.includes("@")
         ? { email: rawIdentity.toLowerCase() }
-        : {
-            $or: [
-              { email: rawIdentity.toLowerCase() },
-              { username: rawIdentity },
-            ],
-          };
+        : { $or: [{ email: rawIdentity.toLowerCase() }, { username: rawIdentity }] };
       const user: any = await users.findOne(identityQuery, {
-        // Case-insensitive username matching: "Aryan" signs in as "aryan"
         collation: { locale: "en", strength: 2 },
       });
-      if (!user || !user.password_hash) {
+      if (!user?.password_hash || !(await verifyPassword(password, user.password_hash))) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
-      const isValid = await verifyPassword(password, user.password_hash);
-      if (!isValid) {
-        return res.status(401).json({ error: "Invalid email or password" });
-      }
+      await ensureApiKeyIndexes();
+      await migrateLegacyApiKey(db, user);
+      const apiKeyCount = await db.collection("api_keys").countDocuments({
+        user_id: user._id,
+        status: { $ne: "archived" },
+      });
 
       const token = signUserToken({
         _id: user._id,
@@ -146,17 +153,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         role: user.role,
       });
       setAuthCookie(res, token);
-
-      // Migrate legacy plaintext api_key -> hashed if needed (one-time)
-      if (user.api_key && !user.api_key_hash) {
-        try {
-          await users.updateOne({ _id: user._id }, { $set: { api_key_hash: hashApiKey(user.api_key), api_key_created_at: user.created_at || new Date() } });
-          user.api_key_hash = hashApiKey(user.api_key);
-        } catch {}
-      }
-      const hasApiKey = Boolean(user.api_key_hash || user.api_key);
-      const rawKey: string | null = user.api_key || null;
-
       return res.status(200).json({
         success: true,
         user: {
@@ -165,12 +161,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           email: user.email,
           balance: user.balance || 0.0,
           role: user.role || "user",
-          hasApiKey,
+          hasApiKey: apiKeyCount > 0,
+          apiKeyCount,
           apiKey: null,
-          apiKeyMasked: hasApiKey && rawKey ? maskApiKey(rawKey) : null,
+          apiKeyMasked: null,
         },
       });
     } catch (err) {
+      console.error("Login error:", err);
       return res.status(500).json({ error: "Login failed" });
     }
   }
@@ -185,18 +183,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === "me") {
     const authUser = getUserFromRequest(req);
     if (!authUser) return res.status(401).json({ authenticated: false });
-
     try {
       const user: any = await users.findOne({ _id: new ObjectId(authUser.userId) });
       if (!user) return res.status(401).json({ authenticated: false });
-      if (user.api_key && !user.api_key_hash) {
-        try {
-          await users.updateOne({ _id: user._id }, { $set: { api_key_hash: hashApiKey(user.api_key), api_key_created_at: user.created_at || new Date() } });
-          user.api_key_hash = hashApiKey(user.api_key);
-        } catch {}
-      }
-      const hasApiKey = Boolean(user.api_key_hash || user.api_key);
-      const rawKey: string | null = user.api_key || null;
+      await ensureApiKeyIndexes();
+      await migrateLegacyApiKey(db, user);
+      const apiKeyCount = await db.collection("api_keys").countDocuments({
+        user_id: user._id,
+        status: { $ne: "archived" },
+      });
       return res.status(200).json({
         authenticated: true,
         user: {
@@ -207,91 +202,148 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           total_spent: user.total_spent || 0.0,
           total_orders: user.total_orders || 0,
           role: user.role || "user",
-          hasApiKey,
+          hasApiKey: apiKeyCount > 0,
+          apiKeyCount,
           apiKey: null,
-          apiKeyMasked: hasApiKey && rawKey ? maskApiKey(rawKey) : null,
-          apiKeyCreatedAt: user.api_key_created_at || null,
+          apiKeyMasked: null,
         },
       });
-    } catch {
+    } catch (error) {
+      console.error("Account fetch error:", error);
       return res.status(500).json({ error: "Server error" });
     }
   }
 
-  // ── 5. GENERATE API KEY (on-demand, one-time reveal) ───────
-  if (action === "generate-key") {
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const authUser = getUserFromRequest(req);
-    if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
-    const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "global");
-    const rl = checkRateLimit(`genkey_${authUser.userId}_${ip}`, 3, 600);
-    if (!rl.allowed) return res.status(429).json({ error: `Too many requests. Try again in ${rl.remainingSec}s.` });
-    try {
-      const user: any = await users.findOne({ _id: new ObjectId(authUser.userId) });
-      if (!user) return res.status(404).json({ error: "User not found" });
-      if (user.api_key_hash || user.api_key) {
-        return res.status(409).json({ error: "API key already exists. Use regenerate to create a new one.", hasApiKey: true });
+  // ── Authenticated multi-key management ──────────────────────
+  const authUser = getUserFromRequest(req);
+  if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
+  const userId = new ObjectId(authUser.userId);
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  const rate = checkRateLimit(`keymgmt_${authUser.userId}_${clientIp(req)}`, 60, 600);
+  if (!rate.allowed) return res.status(429).json({ error: `Too many requests. Try again in ${rate.remainingSec}s.` });
+
+  try {
+    await ensureApiKeyIndexes();
+    await migrateLegacyApiKey(db, userId);
+
+    if (action === "list-api-keys") {
+      if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+      const [currentKeys, archivedKeys, user] = await Promise.all([
+        db.collection("api_keys")
+          .find({ user_id: userId, status: { $ne: "archived" } })
+          .sort({ created_at: -1 })
+          .limit(maxApiKeysPerUser())
+          .toArray(),
+        db.collection("api_keys")
+          .find({ user_id: userId, status: "archived" })
+          .sort({ archived_at: -1 })
+          .limit(90)
+          .toArray(),
+        users.findOne({ _id: userId }, { projection: { balance: 1 } }),
+      ]);
+      return res.status(200).json({
+        keys: [...currentKeys, ...archivedKeys].map(serializeApiKey),
+        scopes: [...API_KEY_SCOPES],
+        creationFeeInr: apiKeyCreationFeeInr(),
+        maxKeys: maxApiKeysPerUser(),
+        balance: Number(user?.balance || 0),
+      });
+    }
+
+    if (action === "create-api-key") {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+      const created = await createApiKey(db, userId, req.body || {});
+      return res.status(created.created ? 201 : 200).json({
+        success: true,
+        created: created.created,
+        key: serializeApiKey(created.key),
+        apiKey: created.raw,
+        balance: created.balance,
+        message: created.created
+          ? "API key created. Copy the secret now; it will never be shown again."
+          : "This request was already completed. The secret cannot be shown again.",
+      });
+    }
+
+    if (action === "update-api-key") {
+      if (req.method !== "POST" && req.method !== "PATCH") return res.status(405).json({ error: "Method not allowed" });
+      const key = await updateApiKey(db, userId, req.body?.keyId, req.body || {});
+      return res.status(200).json({ success: true, key: serializeApiKey(key) });
+    }
+
+    if (action === "pause-api-key" || action === "resume-api-key") {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+      const key = await setApiKeyPaused(db, userId, req.body?.keyId, action === "pause-api-key");
+      return res.status(200).json({ success: true, key: serializeApiKey(key) });
+    }
+
+    if (action === "rotate-api-key") {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+      if (req.body?.confirm !== true) {
+        return res.status(400).json({ error: "Confirmation is required. The old secret will stop working permanently." });
       }
-      const { raw, hash } = generateApiKey();
-      await users.updateOne({ _id: user._id }, { $set: { api_key: raw, api_key_hash: hash, api_key_created_at: new Date(), updated_at: new Date() } });
-      return res.status(201).json({ success: true, apiKey: raw, apiKeyMasked: maskApiKey(raw), message: "API key generated. Copy it now — it will be masked after this." });
-    } catch (e: any) {
-      if (e?.code === 11000) return res.status(409).json({ error: "API key collision, please retry." });
-      return res.status(500).json({ error: "Failed to generate API key" });
+      const rotated = await rotateApiKey(db, userId, req.body?.keyId);
+      return res.status(200).json({
+        success: true,
+        key: serializeApiKey(rotated.key),
+        apiKey: rotated.raw,
+        message: "Secret rotated. Copy the new secret now; the old secret cannot be restored.",
+      });
     }
-  }
 
-  // ── 6. REGENERATE API KEY ───────────────────────────────────
-  if (action === "regenerate-key") {
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const authUser = getUserFromRequest(req);
-    if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
-    const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "global");
-    const rl = checkRateLimit(`regen_${authUser.userId}_${ip}`, 3, 600);
-    if (!rl.allowed) return res.status(429).json({ error: `Too many requests. Try again in ${rl.remainingSec}s.` });
-    const { confirm } = (req.body as any) || {};
-    if (confirm !== true && confirm !== "true") return res.status(400).json({ error: "Confirmation required. Send { confirm: true } to regenerate. Old key will be revoked." });
-    try {
-      const { raw, hash } = generateApiKey();
-      const result: any = await users.findOneAndUpdate(
-        { _id: new ObjectId(authUser.userId) },
-        { $set: { api_key: raw, api_key_hash: hash, api_key_created_at: new Date(), api_key_last_used_at: null, updated_at: new Date() } },
-        { returnDocument: "after" }
-      );
-      if (!result) return res.status(404).json({ error: "User not found" });
-      return res.status(200).json({ success: true, apiKey: raw, apiKeyMasked: maskApiKey(raw), message: "API key regenerated. Old key is now revoked. Copy the new key now." });
-    } catch {
-      return res.status(500).json({ error: "Failed to regenerate API key" });
+    if (action === "archive-api-key") {
+      if (req.method !== "POST" && req.method !== "DELETE") return res.status(405).json({ error: "Method not allowed" });
+      const key = await archiveApiKey(db, userId, req.body?.keyId, req.body?.confirmationName);
+      return res.status(200).json({
+        success: true,
+        key: serializeApiKey(key),
+        message: "API key permanently archived. Historical attribution is retained and no fee is refunded.",
+      });
     }
-  }
 
-  // ── 7. REVEAL (masked hint only; full key only right after generate/regen) ──
-  if (action === "reveal-key") {
-    const authUser = getUserFromRequest(req);
-    if (!authUser) return res.status(401).json({ error: "Unauthorized" });
-    try {
-      const user: any = await users.findOne({ _id: new ObjectId(authUser.userId) });
-      if (!user || (!user.api_key_hash && !user.api_key)) return res.status(404).json({ error: "No API key found. Generate one first." });
-      const rawKey: string | null = user.api_key || null;
-      return res.status(200).json({ hasApiKey: true, apiKeyMasked: rawKey ? maskApiKey(rawKey) : null, createdAt: user.api_key_created_at || null, lastUsedAt: user.api_key_last_used_at || null, hint: "Full key is only shown once right after generation/regeneration. Use regenerate to get a new key." });
-    } catch {
-      return res.status(500).json({ error: "Failed to fetch key info" });
+    if (action === "api-key-activity") {
+      if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+      const keyId = String(req.query.keyId || "");
+      const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || "30"), 10) || 30));
+      const query: any = { user_id: userId };
+      if (keyId) {
+        if (!ObjectId.isValid(keyId)) return res.status(400).json({ error: "Invalid API key ID." });
+        query.api_key_id = new ObjectId(keyId);
+      }
+      const activity = await db.collection("api_key_activity")
+        .find(query, { projection: { ip_hash: 0 } })
+        .sort({ completed_at: -1 })
+        .limit(limit)
+        .toArray();
+      return res.status(200).json({
+        activity: activity.map((item: any) => ({
+          id: item._id.toString(),
+          keyId: item.api_key_id.toString(),
+          keyVersion: item.api_key_version,
+          action: item.action,
+          scope: item.scope,
+          httpStatus: item.http_status,
+          result: item.result,
+          requestId: item.request_id,
+          orderId: item.order_id?.toString?.() || item.order_id || null,
+          chargeInr: item.charge_inr ?? null,
+          startedAt: item.started_at,
+          completedAt: item.completed_at,
+          durationMs: item.duration_ms,
+        })),
+      });
     }
-  }
 
-  // ── 8. DELETE API KEY ───────────────────────────────────────
-  if (action === "delete-key") {
-    if (req.method !== "POST" && req.method !== "DELETE") return res.status(405).json({ error: "Method not allowed" });
-    const authUser = getUserFromRequest(req);
-    if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
-    const { confirm } = (req.body as any) || {};
-    if (confirm !== true && confirm !== "true") return res.status(400).json({ error: "Confirmation required. Send { confirm: true } to delete." });
-    try {
-      await users.updateOne({ _id: new ObjectId(authUser.userId) }, { $set: { api_key: null, api_key_hash: null, api_key_last_used_at: null, updated_at: new Date() } });
-      return res.status(200).json({ success: true, message: "API key deleted." });
-    } catch {
-      return res.status(500).json({ error: "Failed to delete API key" });
+    // Old single-key endpoints are intentionally retired rather than silently
+    // reintroducing insecure plaintext storage or destructive semantics.
+    if (["generate-key", "regenerate-key", "reveal-key", "delete-key"].includes(action)) {
+      return res.status(410).json({
+        error: "The single-key endpoint has been replaced. Refresh Account to manage named API keys.",
+        code: "MULTI_KEY_UPGRADE_REQUIRED",
+      });
     }
+  } catch (error) {
+    return apiKeyError(res, error);
   }
 
   return res.status(404).json({ error: "Auth action not found" });

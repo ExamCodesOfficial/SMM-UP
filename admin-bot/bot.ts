@@ -225,6 +225,11 @@ bot.command("user", async (ctx) => {
     }
 
     const createdAt = user.created_at ? new Date(user.created_at).toLocaleString("en-IN") : "Unknown";
+    const dedicatedApiKeyCount = await database.collection("api_keys").countDocuments({
+      user_id: user._id,
+      status: { $ne: "archived" },
+    });
+    const apiKeyCount = dedicatedApiKeyCount || (user.api_key || user.api_key_hash ? 1 : 0);
 
     const userDetails = `
 👤 <b>User Profile:</b> <code>${user.email}</code>
@@ -232,7 +237,7 @@ bot.command("user", async (ctx) => {
 💰 <b>Current Balance:</b> <code>₹${(user.balance || 0).toFixed(2)}</code>
 💸 <b>Total Spent:</b> <code>₹${(user.total_spent || 0).toFixed(2)}</code>
 📦 <b>Orders Placed:</b> <code>${user.total_orders || 0}</code>
-🔑 <b>API Key:</b> <code>${user.api_key || user.api_key_hash ? "Active (masked for safety)" : "Not generated"}</code>
+🔑 <b>API Keys:</b> <code>${apiKeyCount > 0 ? `${apiKeyCount} active/paused identities` : "None"}</code>
 📅 <b>Registered At:</b> <code>${createdAt}</code>
 `;
     await ctx.reply(userDetails, { parse_mode: "HTML" });
@@ -532,6 +537,8 @@ bot.command("refund", async (ctx) => {
       type: "manual_refund",
       status: "completed",
       order_id: order._id,
+      api_key_id: order.api_key_id || null,
+      api_key_version: order.api_key_version || null,
       source: "telegram_bot",
       reason: reason,
       refunded_by: ctx.from?.id,

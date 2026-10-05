@@ -98,7 +98,7 @@ export function ResponsibleGrowthPage({ onNavigate }: PageProps) {
       kicker="Trust & Quality"
       title="Responsible Growth & Service Quality"
       subtitle="The practical benefits, quality controls and clear expectations behind SMM UP."
-      updated="October 5, 2026"
+      updated="October 6, 2026"
       crumbs={[{ label: "Home", tab: "home" }, { label: "Trust" }, { label: "Responsible Growth" }]}
       onNavigate={onNavigate}
     >
@@ -397,27 +397,27 @@ export function SecurityPage({ onNavigate }: PageProps) {
       kicker="Trust"
       title="Security"
       subtitle="How your account, sessions and money are protected on SMM UP."
-      updated="October 5, 2026"
+      updated="October 6, 2026"
       crumbs={[{ label: "Home", tab: "home" }, { label: "Trust" }, { label: "Security" }]}
       onNavigate={onNavigate}
     >
       <H2>Your password</H2>
       <UL>
-        <li>Passwords are hashed with bcrypt at cost factor 12 before they touch the database. We never store, log, or see your actual password — a database leak would expose only hashes.</li>
-        <li>Minimum length and reset-by-support flows are enforced; we never email passwords.</li>
+        <li>Passwords are hashed with bcrypt at cost factor 12 before they touch the database. We never store or return your readable password.</li>
+        <li>Password-recovery credentials will not be offered until the restricted, hash-only recovery flow is available.</li>
       </UL>
 
       <H2>Your session</H2>
       <UL>
-        <li>Sign-in uses a signed, httpOnly cookie — JavaScript (and therefore most XSS attacks) cannot read it.</li>
-        <li>Logging out invalidates the server-side session, not just the browser copy.</li>
+        <li>Sign-in uses a signed, httpOnly cookie — browser JavaScript cannot read it.</li>
+        <li>Revocable device/session controls will appear only after server-side session records are implemented.</li>
       </UL>
 
-      <H2>Your API key</H2>
+      <H2>Your API keys</H2>
       <UL>
-        <li>API keys are stored hashed (SHA-256) and shown in full only once — at creation.</li>
-        <li>Every key is rate-limited, so a leaked key can't be hammered quietly.</li>
-        <li>You can regenerate the key instantly from your account page; the old one dies immediately.</li>
+        <li>Named API secrets are stored only as SHA-256 hashes and shown in full once, at creation or rotation.</li>
+        <li>Each key has explicit scopes and can have IST daily/monthly spending limits and an expiration date.</li>
+        <li>Pause is reversible. Rotation permanently revokes the old secret; archive permanently revokes the identity while retaining its history.</li>
       </UL>
 
       <H2>Your money</H2>

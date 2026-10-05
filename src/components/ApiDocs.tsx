@@ -121,7 +121,7 @@ export default function ApiDocs({ user }: ApiDocsProps) {
             {user ? (
               <a href="/account" className="btn-up btn-up-ghost btn-up-sm">
                 <Key className="w-4 h-4" />
-                <span>Manage API key</span>
+                <span>Manage API keys</span>
               </a>
             ) : (
               <a href="/auth" className="btn-up btn-up-solid btn-up-sm">
@@ -163,8 +163,8 @@ export default function ApiDocs({ user }: ApiDocsProps) {
             <div className="grid sm:grid-cols-3 gap-3 my-4">
               {[
                 { icon: BookOpen, t: "1. Create account", d: "Free, 10 seconds, no KYC." },
-                { icon: Key, t: "2. Copy API key", d: "Generate and copy it from the Account page." },
-                { icon: Terminal, t: "3. Call the API", d: "key + action = full automation." },
+                { icon: Key, t: "2. Create named key", d: "Choose only the scopes and limits this integration needs." },
+                { icon: Terminal, t: "3. Copy and call", d: "The secret is shown once, then stored only as a hash." },
               ].map((s, i) => (
                 <div key={i} className="p-4 rounded-none border border-white/10 bg-white/[0.02]">
                   <s.icon className="w-4 h-4 text-zinc-300 mb-2" />
@@ -192,13 +192,19 @@ export default function ApiDocs({ user }: ApiDocsProps) {
             <div className="p-4 rounded-none border border-white/12 bg-white/[0.03] text-xs flex items-start gap-2.5 my-3">
               <AlertTriangle className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
               <span>
-                Your key spends your wallet balance. Never expose it in public repositories or client-side code.
-                Leaked it? Regenerate instantly from your profile — the old key dies immediately.
+                A key with <code className="text-white">orders:create</code> can spend your wallet balance. Keep every secret server-side.
+                If one leaks, rotate it from Account; the old secret stops working permanently.
               </span>
             </div>
+            <p className="text-xs text-zinc-500 my-3">
+              Scopes map to actions: <code className="text-zinc-300">services:read</code>, <code className="text-zinc-300">balance:read</code>,{" "}
+              <code className="text-zinc-300">orders:create</code>, <code className="text-zinc-300">orders:read</code>,{" "}
+              <code className="text-zinc-300">orders:cancel</code> and <code className="text-zinc-300">orders:refill</code>.
+              Full Access selects all current scopes; it is not a future-expanding wildcard.
+            </p>
             {user?.hasApiKey && (
               <p className="text-xs text-zinc-500 font-mono">
-                Signed in — manage your key on the Account page. Keep it server-side.
+                Signed in — manage named keys, limits and expiration on the Account page.
               </p>
             )}
           </Section>
