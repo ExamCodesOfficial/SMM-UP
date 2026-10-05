@@ -205,9 +205,9 @@ export default function Navbar({
           {/* Telegram Customer Support Button */}
           {onOpenSupport && (
             <button
-              onClick={onOpenSupport}
+              onClick={() => onNavigateTab("support")}
               className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-none border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
-              title="24/7 Telegram Customer Support"
+              title="Get help — Support"
             >
               <MessageCircle className="w-3.5 h-3.5 text-[#E4E4E7]" />
               <span className="hidden md:inline">Support</span>
@@ -395,12 +395,12 @@ export default function Navbar({
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
-                      onOpenSupport();
+                      onNavigateTab("support");
                     }}
                     className="w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-[#E4E4E7] hover:text-white transition-all cursor-pointer min-h-[48px]"
                   >
                     <MessageCircle className="w-4 h-4 text-[#E4E4E7]" />
-                    <span>Customer Support (Telegram)</span>
+                    <span>Support</span>
                   </button>
                 )}
               </div>
