@@ -11,6 +11,7 @@ import {
   FileText,
   Home,
   MessageCircle,
+  Terminal,
 } from "lucide-react";
 import { formatINR } from "../lib/utils";
 import {
@@ -82,6 +83,7 @@ export default function Navbar({
     { id: "services", label: "CATALOG", icon: ExecutiveCatalogIcon },
     { id: "mass", label: "MASS", icon: ExecutiveMassIcon },
     { id: "orders", label: "LOGS", icon: ExecutiveHistoryIcon },
+    { id: "api", label: "API", icon: Terminal },
   ];
 
   return (

@@ -125,8 +125,9 @@ export async function searchFamPayPayment(options: {
   const cleanSearch = rawSearch.replace(/[^A-Za-z0-9]/g, "");
   if (!cleanSearch || cleanSearch.length < 5) return null;
 
-  const user = process.env.FAMPAY_EMAIL || "***REMOVED_SETTLEMENT_EMAIL***";
-  const pass = (process.env.FAMPAY_APP_PASSWORD || "***REMOVED_APP_PASSWORD***").replace(/\s+/g, "");
+  const user = process.env.FAMPAY_EMAIL;
+  const pass = process.env.FAMPAY_APP_PASSWORD?.replace(/\s+/g, "");
+  if (!user || !pass) throw new Error("FAMPAY_EMAIL / FAMPAY_APP_PASSWORD environment variables are required");
 
   const client = new ImapFlow({
     host: "imap.gmail.com",

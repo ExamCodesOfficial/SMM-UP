@@ -141,7 +141,7 @@ bot.command("user", async (ctx) => {
 💰 <b>Current Balance:</b> <code>₹${(user.balance || 0).toFixed(2)}</code>
 💸 <b>Total Spent:</b> <code>₹${(user.total_spent || 0).toFixed(2)}</code>
 📦 <b>Orders Placed:</b> <code>${user.total_orders || 0}</code>
-🔑 <b>API Key:</b> <code>${user.api_key ? user.api_key.substring(0, 10) + "..." : "None"}</code>
+🔑 <b>API Key:</b> <code>${user.api_key || user.api_key_hash ? "Active (masked for safety)" : "Not generated"}</code>
 📅 <b>Registered At:</b> <code>${createdAt}</code>
 `;
     await ctx.reply(userDetails, { parse_mode: "HTML" });

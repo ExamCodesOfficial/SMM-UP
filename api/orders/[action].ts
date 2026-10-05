@@ -8,7 +8,9 @@ import {
   addProviderOrder,
   checkOrderStatus,
   requestOrderRefill,
+  cancelProviderOrder,
   sanitizeBrandText,
+  sanitizeProviderError,
 } from "../lib/smm.js";
 import { sendFailedOrderAlert } from "../lib/telegram.js";
 
@@ -281,7 +283,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const refillRes = await requestOrderRefill(order.provider_order_id);
-      if (refillRes.error) return res.status(400).json({ error: refillRes.error });
+      if (refillRes.error) return res.status(400).json({ error: sanitizeProviderError(refillRes.error) });
 
       await db.collection("orders").updateOne(
         { _id: order._id },
@@ -296,6 +298,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ success: true, refillId: refillRes.refill });
     } catch {
       return res.status(500).json({ error: "Refill request failed" });
+    }
+  }
+
+  // ── 5. CANCEL ────────────────────────────────────────────────
+  if (action === "cancel") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const { id } = req.body || {};
+    if (!id) return res.status(400).json({ error: "Order ID required" });
+    try {
+      const order = await db.collection("orders").findOne({
+        _id: new ObjectId(String(id)),
+        user_id: userObjectId,
+      });
+      if (!order || !order.provider_order_id) return res.status(404).json({ error: "Order not found" });
+      if (!order.cancel_available) return res.status(400).json({ error: "Cancel not available for this service" });
+      const result = await cancelProviderOrder(order.provider_order_id);
+      if (result.error) return res.status(400).json({ error: sanitizeProviderError(result.error) });
+      await db.collection("orders").updateOne({ _id: order._id }, { $set: { status: "Cancelled", updated_at: new Date() } });
+      return res.status(200).json({ success: true, message: "Cancel requested", result });
+    } catch {
+      return res.status(500).json({ error: "Cancel request failed" });
     }
   }
 

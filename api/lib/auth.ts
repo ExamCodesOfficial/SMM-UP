@@ -4,7 +4,8 @@ import { parse, serialize } from "cookie";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ObjectId } from "mongodb";
 
-const JWT_SECRET = process.env.JWT_SECRET || "***REMOVED_JWT_SECRET***";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error("JWT_SECRET environment variable is required");
 const COOKIE_NAME = "smm_up_session";
 
 export interface UserTokenPayload {

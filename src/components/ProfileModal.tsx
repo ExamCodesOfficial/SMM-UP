@@ -1,5 +1,19 @@
 import React from "react";
-import { User, X, Key, Copy, Check, LogOut, Shield, Code, ExternalLink } from "lucide-react";
+import {
+  User,
+  X,
+  Key,
+  Copy,
+  Check,
+  LogOut,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  Trash2,
+  ExternalLink,
+  AlertTriangle,
+  Loader2,
+} from "lucide-react";
 import { formatINR, formatNumber } from "../lib/utils";
 
 interface ProfileModalProps {
@@ -7,28 +21,121 @@ interface ProfileModalProps {
   onClose: () => void;
   user: any;
   onLogout: () => void;
+  onUserUpdate?: (patch: any) => void;
 }
 
-export default function ProfileModal({ isOpen, onClose, user, onLogout }: ProfileModalProps) {
-  const [copiedKey, setCopiedKey] = React.useState(false);
-  const [copiedEndpoint, setCopiedEndpoint] = React.useState(false);
+export default function ProfileModal({
+  isOpen,
+  onClose,
+  user,
+  onLogout,
+  onUserUpdate,
+}: ProfileModalProps) {
+  const [busy, setBusy] = React.useState<"generate" | "regen" | "delete" | null>(null);
+  const [revealed, setRevealed] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [confirmRegen, setConfirmRegen] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setRevealed(null);
+      setError(null);
+      setConfirmRegen(false);
+      setConfirmDelete(false);
+      setCopied(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen || !user) return null;
 
-  const handleCopyKey = () => {
-    if (user.apiKey) {
-      navigator.clipboard.writeText(user.apiKey);
-      setCopiedKey(true);
-      setTimeout(() => setCopiedKey(false), 2000);
+  const post = async (action: string, body?: any) => {
+    const res = await fetch(`/api/auth/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, data };
+  };
+
+  const handleGenerate = async () => {
+    setBusy("generate");
+    setError(null);
+    try {
+      const { ok, data } = await post("generate-key");
+      if (!ok) {
+        setError(data.error || "Failed to generate API key");
+        return;
+      }
+      setRevealed(data.apiKey);
+      onUserUpdate?.({ hasApiKey: true, apiKeyMasked: data.apiKeyMasked });
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setBusy(null);
     }
   };
 
-  const handleCopyEndpoint = () => {
-    const ep = `${window.location.origin}/api/v2`;
-    navigator.clipboard.writeText(ep);
-    setCopiedEndpoint(true);
-    setTimeout(() => setCopiedEndpoint(false), 2000);
+  const handleRegenerate = async () => {
+    if (!confirmRegen) {
+      setConfirmRegen(true);
+      return;
+    }
+    setBusy("regen");
+    setError(null);
+    try {
+      const { ok, data } = await post("regenerate-key", { confirm: true });
+      if (!ok) {
+        setError(data.error || "Failed to regenerate API key");
+        setConfirmRegen(false);
+        return;
+      }
+      setRevealed(data.apiKey);
+      setConfirmRegen(false);
+      onUserUpdate?.({ hasApiKey: true, apiKeyMasked: data.apiKeyMasked });
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setBusy(null);
+    }
   };
+
+  const handleDelete = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setBusy("delete");
+    setError(null);
+    try {
+      const { ok, data } = await post("delete-key", { confirm: true });
+      if (!ok) {
+        setError(data.error || "Failed to delete API key");
+        setConfirmDelete(false);
+        return;
+      }
+      setRevealed(null);
+      setConfirmDelete(false);
+      onUserUpdate?.({ hasApiKey: false, apiKeyMasked: null });
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleCopy = () => {
+    const val = revealed || user.apiKeyMasked;
+    if (!val) return;
+    navigator.clipboard.writeText(val);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const displayValue = revealed || user.apiKeyMasked || "";
+  const isFullKey = Boolean(revealed);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
@@ -40,9 +147,7 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-semibold tracking-wide text-white">
-                {user.username}
-              </h2>
+              <h2 className="text-base sm:text-lg font-semibold tracking-wide text-white">{user.username}</h2>
               <p className="text-xs text-zinc-400">{user.email}</p>
             </div>
           </div>
@@ -82,52 +187,138 @@ export default function ProfileModal({ isOpen, onClose, user, onLogout }: Profil
             </span>
           </div>
 
-          <p className="text-xs text-zinc-400 leading-relaxed">
-            Use your personal API key to connect your Telegram bots, external panels, or automation scripts to SMM UP.
-          </p>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              readOnly
-              value={user.apiKey || "Generating..."}
-              className="flex-1 bg-black/70 border border-white/10 text-zinc-200 px-3.5 py-2.5 rounded-xl text-xs outline-none select-all font-mono"
-            />
-            <button
-              onClick={handleCopyKey}
-              className="px-4 py-2.5 rounded-xl bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              {copiedKey ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Copied</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy Key</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* API Endpoint Documentation Preview */}
-          <div className="pt-3 border-t border-white/[0.06] space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-400">API Endpoint:</span>
+          {!user.hasApiKey ? (
+            <>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                You have no API key yet. Generate one only when you actually need it &mdash; bots, panels, or automation
+                scripts. It is never created automatically.
+              </p>
               <button
-                onClick={handleCopyEndpoint}
-                className="text-zinc-300 hover:text-white flex items-center gap-1 cursor-pointer font-mono text-[11px]"
+                onClick={handleGenerate}
+                disabled={busy !== null}
+                className="w-full px-5 py-3 rounded-xl bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <span>/api/v2</span>
-                {copiedEndpoint ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                {busy === "generate" ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <Key className="w-3.5 h-3.5" />
+                    <span>Generate API Key</span>
+                  </>
+                )}
               </button>
+            </>
+          ) : (
+            <>
+              {isFullKey ? (
+                <div className="flex items-start gap-2 p-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] text-[11px] text-amber-200">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    Copy this key now. For your security it is shown only once and cannot be retrieved later. Use
+                    Regenerate if you lose it.
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Your key is masked for safety. Use it via the <code className="text-amber-300 font-mono">key</code>{" "}
+                  parameter or <code className="text-amber-300 font-mono">Authorization: Bearer</code> header.
+                </p>
+              )}
+
+              <div className="flex items-center gap-2">
+                <input
+                  type={isFullKey ? "text" : "password"}
+                  readOnly
+                  value={displayValue || "—"}
+                  className="flex-1 bg-black/70 border border-white/10 text-zinc-200 px-3.5 py-2.5 rounded-xl text-xs outline-none font-mono"
+                />
+                {isFullKey && (
+                  <button
+                    onClick={() => setRevealed(null)}
+                    title="Hide key"
+                    className="px-3 py-2.5 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/[0.05] transition-all cursor-pointer shrink-0"
+                  >
+                    <EyeOff className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button
+                  onClick={handleCopy}
+                  className="px-4 py-2.5 rounded-xl bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleRegenerate}
+                  disabled={busy !== null}
+                  className={`px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                    confirmRegen
+                      ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
+                      : "border-white/10 bg-white/[0.03] text-zinc-300 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {busy === "regen" ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  <span>{confirmRegen ? "Tap to confirm revoke" : "Regenerate"}</span>
+                </button>
+
+                <button
+                  onClick={handleDelete}
+                  disabled={busy !== null}
+                  className={`px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
+                    confirmDelete
+                      ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
+                      : "border-white/10 bg-white/[0.03] text-zinc-400 hover:bg-rose-500/10 hover:text-rose-300"
+                  }`}
+                >
+                  {busy === "delete" ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  <span>{confirmDelete ? "Tap to confirm delete" : "Delete"}</span>
+                </button>
+              </div>
+
+              <a
+                href="/api"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.history.pushState({}, "", "/api");
+                  window.dispatchEvent(new PopStateEvent("popstate"));
+                  onClose();
+                }}
+                className="flex items-center justify-between text-xs pt-3 border-t border-white/[0.06] text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <span>View API documentation</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </>
+          )}
+
+          {error && (
+            <div className="p-3 rounded-xl border border-rose-500/25 bg-rose-500/[0.06] text-[11px] text-rose-300">
+              {error}
             </div>
-            <div className="p-3 rounded-xl bg-black/50 border border-white/[0.05] text-[11px] text-zinc-400 font-mono space-y-1">
-              <div>POST /api/v2</div>
-              <div className="text-zinc-500">Parameters: key, action (services | add | status | balance)</div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Footer Actions */}

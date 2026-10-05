@@ -25,8 +25,10 @@ export interface SMMService {
   description: string;
 }
 
-const PANEL_URL = process.env.PANEL_URL || "https://upstream-provider.invalid/api/v2";
-const PANEL_KEY = process.env.PANEL_KEY || "***REMOVED_PANEL_KEY***";
+const PANEL_URL = process.env.PANEL_URL;
+if (!PANEL_URL) throw new Error("PANEL_URL environment variable is required");
+const PANEL_KEY = process.env.PANEL_KEY;
+if (!PANEL_KEY) throw new Error("PANEL_KEY environment variable is required");
 
 const DEFAULT_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
@@ -115,7 +117,7 @@ export function sanitizeBrandText(raw: string | undefined | null): string {
   let str = String(raw);
 
   // Replace upstream-brand.invalid domain
-  str = str.replace(/smm[\s_\-]*bin\.com/gi, "smmup.vercel.app");
+  str = str.replace(/smm[\s_\-]*bin\.com/gi, "smmup.co.in");
 
   // Replace mathematical bold/sans Unicode variants (e.g. 𝗦𝗠𝗠 𝗕𝗜N)
   str = str.replace(/[\u{1D5E6}\u{1D5B2}\u{1D412}s][\u{1D5E0}\u{1D5C6}\u{1D40C}m]{2}\s*[\u{1D5D5}\u{1D5BB}\u{1D401}b][\u{1D5DC}\u{1D5C2}\u{1D408}i][\u{1D5E1}\u{1D5C7}\u{1D40D}n]/giu, "SMM UP");
@@ -127,7 +129,7 @@ export function sanitizeBrandText(raw: string | undefined | null): string {
   const normalized = str.normalize("NFKD");
   if (/smm[\s_\-]*bin/i.test(normalized)) {
     str = normalized
-      .replace(/smm[\s_\-]*bin\.com/gi, "smmup.vercel.app")
+      .replace(/smm[\s_\-]*bin\.com/gi, "smmup.co.in")
       .replace(/smm[\s_\-]*bin/gi, "SMM UP");
   }
 
@@ -180,6 +182,22 @@ export function extractRefillPolicy(name: string, description: string, providerR
   }
 
   return { hasRefill: false, days: 0, label: "No Refill", shortLabel: "No Refill" };
+}
+
+/**
+ * Sanitize provider error messages so wholesale domain/brand never leaks to end users.
+ */
+export function sanitizeProviderError(raw: string): string {
+  if (!raw) return "Provider temporarily unavailable. Please try again or contact support.";
+  let msg = sanitizeBrandText(raw);
+  // Generic fallback for anything that still looks like a provider leak
+  msg = msg.replace(/https?:\/\/[^\s]+/gi, "[upstream]");
+  // Common wholesale error codes -> user-friendly
+  if (/insufficient funds|not enough funds/i.test(msg)) return "Insufficient provider capacity. Please try again shortly or contact support.";
+  if (/incorrect service/i.test(msg)) return "Service temporarily unavailable. Please try again or contact support.";
+  if (/link.*invalid|incorrect link/i.test(msg)) return "Invalid link format for this service. Please check the target URL/username.";
+  if (/quantity.*invalid|incorrect quantity/i.test(msg)) return "Quantity is outside allowed range for this service.";
+  return msg.slice(0, 300);
 }
 
 export async function fetchAllServices(forceRefresh = false): Promise<SMMService[]> {
