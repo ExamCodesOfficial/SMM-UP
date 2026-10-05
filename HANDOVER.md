@@ -25,7 +25,7 @@
    - **NEVER** mention internal backend mechanics in any customer-facing copy:
      - **DO NOT** mention FamPay.
      - **DO NOT** mention Gmail IMAP, email scraping, or inbox searching.
-     - **DO NOT** mention UpstreamProvider, upstream wholesale provider URLs, or API keys.
+     - **DO NOT** mention the upstream wholesale provider, wholesale provider URLs, or API keys.
    - All customer copy must be framed institutionally: *"Direct Bank-to-Bank 0% UPI Instant Clearing"*, *"Tier-1 Wholesale Delivery Nodes"*, *"Automated 12-Digit UTR Clearing"*.
 3. **STRICT Payment Crediting Rule**:
    - **NEVER** credit any user's balance automatically in the background without explicit user action.
@@ -43,7 +43,7 @@
 
 ### A. Full Backend Engine (`/api`)
 - **`api/lib/db.ts`**: MongoDB connection pool with lazy indexing and optimized server timeouts (`serverSelectionTimeoutMS: 15000`).
-- **`api/lib/smm.ts`**: Live wholesale integration with UpstreamProvider API (`https://upstream-provider.invalid/api/v2`). Successfully categorizes 2,177 services across all major platforms.
+- **`api/lib/smm.ts`**: Live wholesale integration with the upstream panel API (endpoint supplied via the `PANEL_URL` env var). Successfully categorizes 2,177 services across all major platforms.
 - **`api/lib/imap.ts`**: Gmail IMAP SSL connection with `X-GM-RAW` search across 6,400+ emails to verify FamPay payment notifications by 12-digit UTR and exact amount.
 - **`api/lib/auth.ts`**: Password hashing with bcrypt, JWT token signing, and HTTP-only secure cookie verification.
 - **`api/auth/`**:
@@ -215,7 +215,7 @@ Verify the live deployment at `https://smmup.vercel.app`.
   - `MONGODB_URI`: Live MongoDB connection string.
   - `JWT_SECRET`: Secret key for session tokens.
   - `SMM_API_KEY`: Wholesale SMM provider key.
-  - `SMM_API_URL`: Wholesale SMM API endpoint (`https://upstream-provider.invalid/api/v2`).
+  - `PANEL_URL`: Wholesale SMM API endpoint (supplied via environment variable, never hardcoded).
   - `IMAP_USER`: Gmail address for automated UTR payment verification.
   - `IMAP_PASSWORD`: Gmail App Password for IMAP SSL.
   - `UPI_ID`: `aryan888@fam`

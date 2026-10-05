@@ -3,7 +3,7 @@
 > **Project Name:** SMM UP  
 > **Brand Identity:** Clean, Modern, High-End Commercial SMM Platform  
 > **Aesthetic Reference:** Colors, Typography, and Clean Dark Surfaces from `ExamCodes Site`  
-> **Active Wholesale Provider:** UpstreamProvider (`https://upstream-provider.invalid/api/v2`)  
+> **Active Wholesale Provider:** Upstream SMM panel (endpoint held in `PANEL_URL` env var)  
 > **Live API Key Status:** Tested & Verified (Balance: ₹32.07 INR)  
 > **Total Live Services:** 2,174 Services across 331 Categories  
 > **Payment Engine:** 0% Fee Automated UPI Verification via Gmail IMAP `X-GM-RAW` Search  
@@ -13,11 +13,11 @@
 
 ### 1. Live SMM Provider API Audit & Inventory Report
 
-Direct testing was conducted against the upstream API `https://upstream-provider.invalid/api/v2` using the credentials from `kronos smm panel`.
+Direct testing was conducted against the upstream wholesale panel API using credentials stored in the `PANEL_KEY` environment variable.
 
 #### 1.1 Account & Upstream Status
-- **Endpoint:** `https://upstream-provider.invalid/api/v2`
-- **Authentication Key:** `***REMOVED_PANEL_KEY***`
+- **Endpoint:** Configured via `PANEL_URL` environment variable (never hardcoded)
+- **Authentication Key:** Managed via `PANEL_KEY` environment variable
 - **Account Balance:** `₹32.0675 INR`
 - **Default Currency:** `INR`
 - **Total Services Catalog:** **2,174 active services**
@@ -110,7 +110,7 @@ The design discards childish "hacker/terminal/operative" labels. It strictly ado
 ### 4. Zero-Trust Security Protocol
 
 1. **Zero Client Secrets:** The SMM provider API key, MongoDB connection string, and Gmail App Password exist solely in backend environment variables. The frontend bundle contains zero sensitive strings.
-2. **Backend Price Enforcement:** When a user places an order, the frontend only sends `{ service_id, link, quantity }`. The backend looks up the real wholesale rate from the cached catalog, calculates retail charge with the markup formula, checks user balance atomically, debits the user, and only then forwards the request to `upstream-brand.invalid`.
+2. **Backend Price Enforcement:** When a user places an order, the frontend only sends `{ service_id, link, quantity }`. The backend looks up the real wholesale rate from the cached catalog, calculates retail charge with the markup formula, checks user balance atomically, debits the user, and only then forwards the request to the upstream provider.
 3. **Password Security & Sessions:** Passwords hashed with `bcrypt` (cost factor 12). Sessions managed via `HttpOnly; Secure; SameSite=Strict` cookies.
 
 ---
@@ -123,7 +123,7 @@ The design discards childish "hacker/terminal/operative" labels. It strictly ado
 2. **Phase 2: Backend API & Service Engine**
    - MongoDB connection helper (clean fresh database).
    - `/api/auth` (Register, Login, Logout, Session check).
-   - `/api/services` (Direct cached sync with `upstream-brand.invalid`, dynamic markups).
+   - `/api/services` (Direct cached sync with the upstream provider, dynamic markups).
    - `/api/orders` (Atomic balance debit, forward to upstream API).
    - `/api/payments/verify-utr` (Gmail IMAP `X-GM-RAW` search, anti-replay UTR indexing).
 3. **Phase 3: Frontend Interface Development**
