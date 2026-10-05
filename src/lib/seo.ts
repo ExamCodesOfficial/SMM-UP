@@ -3,6 +3,9 @@
  * and meta description. Applied client-side on navigation.
  */
 
+import { FAQS } from "./faqs";
+import { PLATFORM_PAGES } from "../components/pages/PlatformPage";
+
 export interface PageMeta {
   title: string;
   description: string;
@@ -148,11 +151,111 @@ export function applySeo(tab: string) {
     document.head.appendChild(tag);
   }
   tag.setAttribute("content", meta.description);
+
+  const path = window.location.pathname === "/" ? "/" : window.location.pathname;
+  const absUrl = "https://smmup.co.in" + path;
+
+  // ── Canonical (self-referencing, one canonical per stripable URL) ──
   let canon = document.querySelector('link[rel="canonical"]');
   if (!canon) {
     canon = document.createElement("link");
     canon.setAttribute("rel", "canonical");
     document.head.appendChild(canon);
   }
-  canon.setAttribute("href", "https://smmup.co.in" + (window.location.pathname === "/" ? "/" : window.location.pathname));
+  canon.setAttribute("href", absUrl);
+
+  // ── og:url kept in sync per route for correct social previews ──
+  let ogUrl = document.querySelector('meta[property="og:url"]');
+  if (!ogUrl) {
+    ogUrl = document.createElement("meta");
+    ogUrl.setAttribute("property", "og:url");
+    document.head.appendChild(ogUrl);
+  }
+  ogUrl.setAttribute("content", absUrl);
+  let ogTitle = document.querySelector('meta[property="og:title"]');
+  if (ogTitle) ogTitle.setAttribute("content", meta.title);
+  let ogDesc = document.querySelector('meta[property="og:description"]');
+  if (ogDesc) ogDesc.setAttribute("content", meta.description);
+}
+
+/* ── Per-route JSON-LD structured data (injected/replaced on navigation) ── */
+
+const JSONLD_ID = "dynamic-jsonld";
+
+function injectJsonLd(payload: object | null) {
+  let el = document.getElementById(JSONLD_ID) as HTMLScriptElement | null;
+  if (!payload) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("script");
+    el.type = "application/ld+json";
+    el.id = JSONLD_ID;
+    document.head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(payload);
+}
+
+/** BreadcrumbList matching the real crawl structure (Home → page), plus
+ *  FAQPage schema on the FAQ page and every platform page. */
+export function applyStructuredData(tab: string) {
+  const pageName = (document.title || "SMM UP").split("|")[0].trim();
+
+  const crumbs: any = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://smmup.co.in/" },
+      ...(tab !== "home"
+        ? [{
+            "@type": "ListItem",
+            position: 2,
+            name: pageName,
+            item: "https://smmup.co.in" + window.location.pathname,
+          }]
+        : []),
+    ],
+  };
+
+  // FAQ rich results: shared FAQ page + all six platform pages
+  if (tab === "faq") {
+    const items = FAQS.map((f) => ({ q: f.q, a: f.a }));
+    injectJsonLd({
+      "@context": "https://schema.org",
+      "@graph": [
+        crumbs,
+        {
+          "@type": "FAQPage",
+          mainEntity: items.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        },
+      ],
+    });
+  } else if (tab.startsWith("p-")) {
+    const cfg = PLATFORM_PAGES.find((pp) => pp.tab === tab);
+    if (cfg && Array.isArray(cfg.faq) && cfg.faq.length) {
+      injectJsonLd({
+        "@context": "https://schema.org",
+        "@graph": [
+          crumbs,
+          {
+            "@type": "FAQPage",
+            mainEntity: cfg.faq.map((f: any) => ({
+              "@type": "Question",
+              name: f.q,
+              acceptedAnswer: { "@type": "Answer", text: f.a },
+            })),
+          },
+        ],
+      });
+    } else {
+      injectJsonLd(crumbs);
+    }
+  } else {
+    injectJsonLd(crumbs);
+  }
 }
