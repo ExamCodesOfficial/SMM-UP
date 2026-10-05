@@ -1,16 +1,5 @@
 import React from "react";
-import {
-  Copy,
-  Check,
-  Terminal,
-  Shield,
-  Zap,
-  AlertTriangle,
-  ChevronRight,
-  Key,
-  BookOpen,
-  Code2,
-} from "lucide-react";
+import { Copy, Check, Key, BookOpen, Terminal, AlertTriangle, FlaskConical, ArrowLeft } from "lucide-react";
 import { SmmUpLogo } from "./icons/ExecutiveIcons";
 
 interface ApiDocsProps {
@@ -18,6 +7,7 @@ interface ApiDocsProps {
   onOpenAuth: () => void;
   onOpenProfile: () => void;
   onBack: () => void;
+  onOpenPlayground?: () => void;
 }
 
 const BASE = "https://smmup.co.in/api/v2";
@@ -27,459 +17,457 @@ function useCopy() {
   const copy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(id);
-    setTimeout(() => setCopied(null), 2000);
+    setTimeout(() => setCopied(null), 1800);
   };
   return { copied, copy };
 }
 
-function CodeBlock({ id, code, copied, copy, lang = "bash" }: any) {
+function CodeBlock({ id, code, lang }: { id: string; code: string; lang: string }) {
+  const { copied, copy } = useCopy();
   return (
-    <div className="relative rounded-none border border-white/[0.08] bg-black/70 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
-        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">{lang}</span>
+    <div className="rounded-none border border-white/12 bg-black/70 overflow-hidden my-3">
+      <div className="px-3.5 py-2 border-b border-white/10 flex items-center justify-between">
+        <span className="text-[10px] font-mono tracking-[0.2em] text-zinc-500 uppercase">{lang}</span>
         <button
           onClick={() => copy(id, code)}
-          className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:text-white transition-colors cursor-pointer"
+          className="text-zinc-500 hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider"
         >
-          {copied === id ? (
-            <>
-              <Check className="w-3 h-3 text-zinc-100" />
-              <span>Copied</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3 h-3" />
-              <span>Copy</span>
-            </>
-          )}
+          {copied === id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+          {copied === id ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="p-4 text-[11px] leading-relaxed text-zinc-300 font-mono overflow-x-auto whitespace-pre-wrap break-all">
-        {code}
+      <pre className="p-4 text-[11px] sm:text-xs font-mono text-zinc-300 overflow-x-auto leading-relaxed">
+        <code>{code}</code>
       </pre>
     </div>
   );
 }
 
-function ParamTable({ rows }: { rows: [string, string, boolean][] }) {
+function ParamTable({ rows }: { rows: [string, string, string][] }) {
   return (
-    <div className="rounded-none border border-white/[0.08] overflow-hidden">
-      {rows.map(([name, desc, required], i) => (
-        <div
-          key={name}
-          className={`px-4 py-3 flex flex-col sm:flex-row gap-1 sm:gap-4 text-xs ${
-            i % 2 === 0 ? "bg-white/[0.015]" : "bg-transparent"
-          }`}
-        >
-          <div className="sm:w-44 shrink-0 flex items-center gap-2">
-            <code className="text-zinc-100 font-mono">{name}</code>
-            {required ? (
-              <span className="text-[9px] font-mono uppercase text-zinc-100">required</span>
-            ) : (
-              <span className="text-[9px] font-mono uppercase text-zinc-600">optional</span>
-            )}
-          </div>
-          <div className="text-zinc-400 leading-relaxed">{desc}</div>
-        </div>
-      ))}
+    <div className="overflow-x-auto border border-white/10 rounded-none my-3">
+      <table className="w-full text-left text-xs">
+        <thead className="bg-black/80 border-b border-white/10 text-zinc-400 uppercase tracking-wider">
+          <tr>
+            <th className="px-3.5 py-2.5 w-32">Parameter</th>
+            <th className="px-3.5 py-2.5 w-24">Required</th>
+            <th className="px-3.5 py-2.5">Description</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/[0.06]">
+          {rows.map(([p, r, d]) => (
+            <tr key={p} className="hover:bg-white/[0.02]">
+              <td className="px-3.5 py-2.5 font-mono text-white">{p}</td>
+              <td className="px-3.5 py-2.5 text-zinc-400">{r}</td>
+              <td className="px-3.5 py-2.5 text-zinc-300">{d}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
 
-const ENDPOINTS = [
-  { id: "services", action: "services", title: "Service Catalog", desc: "Returns the full catalog of live services with retail pricing, limits, refill and cancel flags." },
-  { id: "add", action: "add", title: "Create Order", desc: "Places a new order and debits your wallet atomically. Returns the provider order ID." },
-  { id: "status", action: "status", title: "Order Status", desc: "Returns live status, start count and remaining quantity for a single order." },
-  { id: "cancel", action: "cancel", title: "Cancel Order", desc: "Requests cancellation of a pending order. Only available on cancellable services." },
-  { id: "refill", action: "refill", title: "Refill Request", desc: "Requests a refill on drop-detected orders. Only available on refill-guaranteed services." },
-  { id: "balance", action: "balance", title: "Wallet Balance", desc: "Returns your current wallet balance in INR." },
+function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="scroll-mt-28 pb-12 mb-12 border-b border-white/[0.06] last:border-0">
+      <h2 className="text-lg sm:text-xl font-light tracking-[0.08em] text-white uppercase mb-4 flex items-center gap-3">
+        <span className="w-5 h-px bg-white/30 inline-block" />
+        {title}
+      </h2>
+      <div className="text-sm text-zinc-400 leading-relaxed font-light space-y-3">{children}</div>
+    </section>
+  );
+}
+
+const NAV = [
+  { id: "getting-started", label: "Getting started" },
+  { id: "authentication", label: "Authentication" },
+  { id: "add-order", label: "Add order" },
+  { id: "order-status", label: "Order status" },
+  { id: "multi-status", label: "Multiple statuses" },
+  { id: "services", label: "Service list" },
+  { id: "balance", label: "Balance" },
+  { id: "refill", label: "Refill order" },
+  { id: "refill-status", label: "Refill status" },
+  { id: "cancel", label: "Cancel orders" },
+  { id: "errors", label: "Errors & limits" },
+  { id: "examples", label: "Code examples" },
 ];
 
-export default function ApiDocs({ user, onOpenAuth, onOpenProfile, onBack }: ApiDocsProps) {
-  const { copied, copy } = useCopy();
-  const [active, setActive] = React.useState("services");
-
-  const keyPlaceholder = user?.hasApiKey ? user.apiKeyMasked || "sup_••••••••••••••••" : "YOUR_API_KEY";
-
-  const cURL = `curl -X POST "${BASE}" \\
-  -d "key=${keyPlaceholder}" \\
-  -d "action=balance"`;
-
-  const python = `import requests
-
-API_URL = "https://smmup.co.in/api/v2"
-API_KEY = "${keyPlaceholder}"
-
-def call(action, **params):
-    payload = {"key": API_KEY, "action": action, **params}
-    r = requests.post(API_URL, data=payload, timeout=30)
-    return r.json()
-
-print(call("balance"))`;
-
-  const php = `<?php
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, "https://smmup.co.in/api/v2");
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-    "key"    => "${keyPlaceholder}",
-    "action" => "balance",
-]));
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-echo curl_exec($ch);`;
-
-  const js = `const res = await fetch("https://smmup.co.in/api/v2", {
-  method: "POST",
-  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-  body: new URLSearchParams({
-    key: "${keyPlaceholder}",
-    action: "balance",
-  }),
-});
-console.log(await res.json());`;
+export default function ApiDocs({ user, onOpenAuth, onOpenProfile, onBack, onOpenPlayground }: ApiDocsProps) {
+  const apiKey = user?.api_key || user?.apiKey || "";
 
   return (
-    <div className="pt-6 pb-16 max-w-5xl mx-auto px-4 sm:px-6">
-      {/* ── HERO ── */}
-      <div className="flex items-start justify-between gap-4 mb-8">
-        <div className="flex items-center gap-3">
-          <SmmUpLogo size={36} />
-          <div>
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-wide text-white flex items-center gap-2">
-              <Terminal className="w-5 h-5 text-[#E4E4E7]" />
-              Developer API
-            </h1>
-            <p className="text-xs text-zinc-400 font-mono mt-0.5">Standard SMM v2 &bull; smmup.co.in</p>
-          </div>
-        </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20">
+      {/* Header */}
+      <div className="mb-10">
         <button
           onClick={onBack}
-          className="px-3.5 py-2 rounded-none border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-zinc-300 hover:text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+          className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-500 hover:text-white transition-colors cursor-pointer mb-6"
         >
-          <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-          Back
+          <ArrowLeft className="w-3 h-3" />
+          <span>Home</span>
         </button>
-      </div>
-
-      <div className="p-5 rounded-none border border-[#E4E4E7]/20 bg-[#E4E4E7]/[0.04] mb-8">
-        <div className="flex items-start gap-3">
-          <Zap className="w-4 h-4 text-[#E4E4E7] shrink-0 mt-0.5" />
-          <div className="space-y-2">
-            <p className="text-sm text-white font-medium">One endpoint. Six actions. Full compatibility.</p>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Every request goes to a single URL with an <code className="text-zinc-100 font-mono">action</code> parameter.
-              Works with any SMM panel, bot framework, or custom script that speaks the v2 spec.
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+          <div>
+            <span className="text-[10px] font-bold tracking-[0.25em] text-zinc-500 uppercase block mb-2 font-mono">
+              Developers
+            </span>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.06em] text-white uppercase">
+              API Documentation
+            </h1>
+            <div className="w-16 h-px bg-white/20 mt-4" />
+            <p className="mt-4 text-sm text-zinc-400 font-light max-w-2xl leading-relaxed">
+              Connect your own panel, bot or script to SMM UP. Standard SMM v2 protocol — if your software
+              supports SMM panels, it already speaks this API.
             </p>
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <code className="px-2.5 py-1 rounded-sm bg-black/60 border border-white/10 text-[11px] font-mono text-zinc-100">
-                {BASE}
-              </code>
-              <button
-                onClick={() => copy("base", BASE)}
-                className="px-2 py-1 rounded-sm border border-white/10 text-[10px] font-mono uppercase text-zinc-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1"
-              >
-                {copied === "base" ? <Check className="w-3 h-3 text-zinc-100" /> : <Copy className="w-3 h-3" />}
+          </div>
+          <div className="flex gap-3 shrink-0">
+            {user ? (
+              <button onClick={onOpenProfile} className="btn-up btn-up-ghost btn-up-sm">
+                <Key className="w-4 h-4" />
+                <span>My API key</span>
               </button>
-            </div>
+            ) : (
+              <button onClick={onOpenAuth} className="btn-up btn-up-solid btn-up-sm">
+                <Key className="w-4 h-4" />
+                <span>Sign in to get key</span>
+              </button>
+            )}
+            {onOpenPlayground && (
+              <button onClick={onOpenPlayground} className="btn-up btn-up-ghost btn-up-sm">
+                <FlaskConical className="w-4 h-4" />
+                <span>Playground</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── API KEY PANEL ── */}
-      <div className="p-5 rounded-none border border-white/[0.08] bg-white/[0.015] mb-10">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300 flex items-center gap-2">
-            <Key className="w-4 h-4 text-zinc-100" />
-            <span>Your API Key</span>
-          </span>
-          <span className="text-[10px] text-zinc-100 font-semibold bg-white/[0.06] px-2 py-0.5 rounded-full">
-            Standard v2
-          </span>
-        </div>
-
-        {!user ? (
-          <>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              API keys are created on demand &mdash; never automatically at signup. Sign in to generate yours.
-            </p>
-            <button
-              onClick={onOpenAuth}
-              className="px-5 py-2.5 rounded-none bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer"
-            >
-              Sign in to generate key
-            </button>
-          </>
-        ) : !user.hasApiKey ? (
-          <>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
-              You have not generated an API key yet. Generate it from your profile &mdash; the full key is shown only once.
-            </p>
-            <button
-              onClick={onOpenProfile}
-              className="px-5 py-2.5 rounded-none bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer"
-            >
-              Generate API key
-            </button>
-          </>
-        ) : (
-          <>
-            <p className="text-xs text-zinc-400 leading-relaxed mb-3">
-              Your key is masked for safety. Copy it from your profile, or regenerate to issue a new one.
-            </p>
-            <div className="flex items-center gap-2 mb-3">
-              <input
-                type="text"
-                readOnly
-                value={user.apiKeyMasked || "sup_••••••••••••••••"}
-                className="flex-1 bg-black/70 border border-white/10 text-zinc-300 px-3.5 py-2.5 rounded-none text-xs outline-none font-mono"
-              />
-              <button
-                onClick={onOpenProfile}
-                className="px-4 py-2.5 rounded-none bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer shrink-0"
+      <div className="lg:grid lg:grid-cols-[220px_1fr] lg:gap-10">
+        {/* Sticky sidebar */}
+        <aside className="hidden lg:block">
+          <nav className="sticky top-24 space-y-0.5 border-l border-white/10">
+            {NAV.map((n) => (
+              <a
+                key={n.id}
+                href={`#${n.id}`}
+                className="block pl-4 py-1.5 text-xs text-zinc-500 hover:text-white transition-colors -ml-px border-l border-transparent hover:border-white"
               >
-                Manage
-              </button>
+                {n.label}
+              </a>
+            ))}
+          </nav>
+        </aside>
+
+        {/* Doc body */}
+        <div className="min-w-0">
+          <Section id="getting-started" title="Getting started">
+            <p>
+              Every request is a single HTTPS call to one endpoint, <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">POST {BASE}</code> (GET also works).
+              Responses are always JSON.
+            </p>
+            <div className="grid sm:grid-cols-3 gap-3 my-4">
+              {[
+                { icon: BookOpen, t: "1. Create account", d: "Free, 10 seconds, no KYC." },
+                { icon: Key, t: "2. Copy API key", d: "From your account / profile panel." },
+                { icon: Terminal, t: "3. Call the API", d: "key + action = full automation." },
+              ].map((s, i) => (
+                <div key={i} className="p-4 rounded-none border border-white/10 bg-white/[0.02]">
+                  <s.icon className="w-4 h-4 text-zinc-300 mb-2" />
+                  <div className="text-sm font-semibold text-white">{s.t}</div>
+                  <div className="text-xs text-zinc-500 mt-0.5">{s.d}</div>
+                </div>
+              ))}
             </div>
-            <div className="flex items-start gap-2 text-[11px] text-zinc-500">
-              <Shield className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <CodeBlock
+              id="gs"
+              lang="cURL — check everything works"
+              code={`curl -X POST ${BASE} \\
+  -d "key=YOUR_API_KEY" \\
+  -d "action=balance"
+# → {"balance":"150.00","currency":"INR"}`}
+            />
+          </Section>
+
+          <Section id="authentication" title="Authentication">
+            <p>
+              Send your API key with every request — as <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">key</code> in
+              the body/query, <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">x-api-key</code> header, or{" "}
+              <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">Authorization: Bearer</code>.
+            </p>
+            <div className="p-4 rounded-none border border-white/12 bg-white/[0.03] text-xs flex items-start gap-2.5 my-3">
+              <AlertTriangle className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
               <span>
-                For your safety the full key is never sent to the browser after creation. Store it in an environment
-                variable on your server &mdash; never in client-side code or public repos.
+                Your key spends your wallet balance. Never expose it in public repositories or client-side code.
+                Leaked it? Regenerate instantly from your profile — the old key dies immediately.
               </span>
             </div>
-          </>
-        )}
-      </div>
+            {apiKey && (
+              <p className="text-xs text-zinc-500 font-mono">
+                Signed in — your key is in your profile panel. Keep it server-side.
+              </p>
+            )}
+          </Section>
 
-      {/* ── AUTHENTICATION ── */}
-      <SectionTitle icon={<Shield className="w-4 h-4" />} title="Authentication" />
-      <div className="space-y-4 mb-10">
-        <p className="text-sm text-zinc-400 leading-relaxed">
-          Pass your key as the <code className="text-zinc-100 font-mono">key</code> parameter in the POST body. For
-          server-to-server integrations you may also send it as an{" "}
-          <code className="text-zinc-100 font-mono">Authorization: Bearer</code> header or{" "}
-          <code className="text-zinc-100 font-mono">X-API-Key</code> header instead, which keeps the key out of
-          server logs and URL history.
-        </p>
-        <ParamTable
-          rows={[
-            ["key", "Your personal API key. Generated manually from your profile.", true],
-            ["action", "The operation to perform: services, add, status, cancel, refill, balance.", true],
-          ]}
-        />
-        <div className="flex items-start gap-2 p-4 rounded-none border border-white/15 bg-white/[0.05] text-[11px] text-zinc-100/90">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          <span>
-            Treat your API key like a password. Anyone holding it can spend your wallet balance. Regenerate it
-            immediately if it is ever exposed.
-          </span>
-        </div>
-      </div>
+          <Section id="add-order" title="Add order">
+            <ParamTable
+              rows={[
+                ["key", "yes", "Your API key"],
+                ["action", "yes", "add"],
+                ["service", "yes", "Service ID from the service list"],
+                ["link", "yes", "Public target URL or username"],
+                ["quantity", "yes*", "Amount to deliver (*not for Package or Custom Comments types)"],
+                ["comments", "yes*", "One per line — only for Custom Comments services"],
+                ["runs", "no", "Drip-feed: number of deliveries"],
+                ["interval", "no", "Drip-feed: minutes between deliveries"],
+                ["answer_number", "no", "Poll answer number — Poll vote services only"],
+              ]}
+            />
+            <CodeBlock
+              id="add"
+              lang="cURL — place an order"
+              code={`curl -X POST ${BASE} \\
+  -d "key=YOUR_API_KEY" \\
+  -d "action=add" \\
+  -d "service=5641" \\
+  -d "link=https://t.me/yourchannel" \\
+  -d "quantity=1000"
 
-      {/* ── ENDPOINTS ── */}
-      <SectionTitle icon={<BookOpen className="w-4 h-4" />} title="Endpoints" />
+# → {"order":22001}`}
+            />
+            <p>
+              The response <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">order</code> ID is what you use for
+              status, refill and cancel calls. Charge = (service rate × quantity) ÷ 1000, debited from balance instantly.
+            </p>
+          </Section>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
-        {ENDPOINTS.map((ep) => (
-          <button
-            key={ep.id}
-            onClick={() => {
-              setActive(ep.id);
-              document.getElementById(`ep-${ep.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-            }}
-            className={`p-4 rounded-none border text-left transition-all cursor-pointer ${
-              active === ep.id
-                ? "border-[#E4E4E7]/40 bg-[#E4E4E7]/[0.06]"
-                : "border-white/[0.08] bg-white/[0.015] hover:bg-white/[0.04]"
-            }`}
-          >
-            <div className="text-[10px] font-mono text-[#E4E4E7] mb-1.5">action={ep.action}</div>
-            <div className="text-sm font-semibold text-white mb-1">{ep.title}</div>
-            <div className="text-[11px] text-zinc-400 leading-relaxed">{ep.desc}</div>
-          </button>
-        ))}
-      </div>
+          <Section id="order-status" title="Order status">
+            <ParamTable
+              rows={[
+                ["key", "yes", "Your API key"],
+                ["action", "yes", "status"],
+                ["order", "yes", "Order ID returned by add"],
+              ]}
+            />
+            <CodeBlock
+              id="status"
+              lang="Request → response"
+              code={`curl -X POST ${BASE} -d "key=KEY" -d "action=status" -d "order=22001"
 
-      <div className="space-y-4">
-        <EndpointBlock
-          id="ep-services"
-          active={active === "services"}
-          onHover={() => setActive("services")}
-          action="services"
-          title="Service Catalog"
-          description="Returns every live service with your retail rate, quantity limits, and refill/cancel availability."
-          code={`curl -X POST "${BASE}" \\\n  -d "key=${keyPlaceholder}" \\\n  -d "action=services"`}
-          params={[["key", "Your API key.", true]]}
-          response={`[\n  {\n    "service": 1,\n    "name": "Telegram Members [Premium]",\n    "type": "Default",\n    "category": "Telegram",\n    "platform": "Telegram",\n    "rate": "0.30",\n    "min": 10,\n    "max": 1000000,\n    "dripfeed": true,\n    "refill": true,\n    "refill_days": 30,\n    "refill_type": "30 Days Guaranteed",\n    "cancel": true\n  }\n]`}
-          copied={copied}
-          copy={copy}
-        />
+{
+  "charge": "50.59",
+  "start_count": "1204",
+  "status": "In progress",
+  "remains": "612",
+  "currency": "INR"
+}`}
+            />
+            <p>Possible statuses: Pending, In progress, Processing, Completed, Partial, Canceled, Failed.</p>
+          </Section>
 
-        <EndpointBlock
-          id="ep-add"
-          active={active === "add"}
-          onHover={() => setActive("add")}
-          action="add"
-          title="Create Order"
-          description="Debits your wallet atomically, then dispatches to the delivery network. Balance is checked before any upstream call."
-          code={`curl -X POST "${BASE}" \\\n  -d "key=${keyPlaceholder}" \\\n  -d "action=add" \\\n  -d "service=1" \\\n  -d "link=https://t.me/yourchannel" \\\n  -d "quantity=1000"`}
-          params={[
-            ["service", "Service ID from the catalog.", true],
-            ["link", "Target link, username, or post ID depending on service type.", true],
-            ["quantity", "Amount to deliver. Ignored for Package type (always 1).", false],
-            ["comments", "Newline-separated comments for Custom Comments services.", false],
-            ["usernames", "Comma or newline separated usernames for Mentions services.", false],
-            ["hashtags", "Hashtags for Hashtag-type services.", false],
-            ["username", "Single username for username-type services.", false],
-            ["runs", "Drip-feed number of delivery runs.", false],
-            ["interval", "Minutes between drip-feed runs.", false],
-          ]}
-          response={`{\n  "order": 482913\n}`}
-          copied={copied}
-          copy={copy}
-        />
+          <Section id="multi-status" title="Multiple statuses">
+            <p>
+              Pass comma-separated order IDs to <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">order</code> (up
+              to 100) and the response becomes an object keyed by order ID:
+            </p>
+            <CodeBlock
+              id="mstatus"
+              lang="Request → response"
+              code={`curl -X POST ${BASE} -d "key=KEY" -d "action=status" -d "order=22001,22002"
 
-        <EndpointBlock
-          id="ep-status"
-          active={active === "status"}
-          onHover={() => setActive("status")}
-          action="status"
-          title="Order Status"
-          description="Returns live delivery progress for an order. Accepts either the provider order ID returned by add, or your internal order ID."
-          code={`curl -X POST "${BASE}" \\\n  -d "key=${keyPlaceholder}" \\\n  -d "action=status" \\\n  -d "order=482913"`}
-          params={[
-            ["order", "Order ID returned from the add action.", true],
-          ]}
-          response={`{\n  "charge": "0.30",\n  "start_count": 1000,\n  "status": "In progress",\n  "remains": 0,\n  "currency": "INR"\n}`}
-          copied={copied}
-          copy={copy}
-        />
+{
+  "22001": { "charge": "50.59", "start_count": "1204", "status": "Completed", "remains": "0", "currency": "INR" },
+  "22002": { "charge": "4.80",  "start_count": "0",    "status": "Pending",   "remains": "1000", "currency": "INR" }
+}`}
+            />
+          </Section>
 
-        <EndpointBlock
-          id="ep-cancel"
-          active={active === "cancel"}
-          onHover={() => setActive("cancel")}
-          action="cancel"
-          title="Cancel Order"
-          description="Requests cancellation while an order is still pending. Only services flagged cancel: true are eligible."
-          code={`curl -X POST "${BASE}" \\\n  -d "key=${keyPlaceholder}" \\\n  -d "action=cancel" \\\n  -d "order=482913"`}
-          params={[["order", "Order ID to cancel.", true]]}
-          response={`{\n  "success": true,\n  "message": "Cancel requested"\n}`}
-          copied={copied}
-          copy={copy}
-        />
+          <Section id="services" title="Service list">
+            <ParamTable
+              rows={[
+                ["key", "yes", "Your API key"],
+                ["action", "yes", "services"],
+              ]}
+            />
+            <CodeBlock
+              id="services"
+              lang="cURL — fetch the live catalog"
+              code={`curl -X POST ${BASE} -d "key=KEY" -d "action=services"
 
-        <EndpointBlock
-          id="ep-refill"
-          active={active === "refill"}
-          onHover={() => setActive("refill")}
-          action="refill"
-          title="Refill Request"
-          description="Submits a refill claim on orders that have dropped. Available on refill-guaranteed services only."
-          code={`curl -X POST "${BASE}" \\\n  -d "key=${keyPlaceholder}" \\\n  -d "action=refill" \\\n  -d "order=482913"`}
-          params={[["order", "Order ID to refill.", true]]}
-          response={`{\n  "success": true,\n  "refill": 771204\n}`}
-          copied={copied}
-          copy={copy}
-        />
+[
+  {
+    "service": 5641,
+    "name": "Telegram Post Views [ Max 1M ] | Last 1 Post FAST",
+    "type": "Default",
+    "category": "Telegram Post Views | Future post",
+    "rate": "50.59",
+    "min": "1",
+    "max": "1000000",
+    "refill": true,
+    "cancel": true,
+    "average_time": "0-15 minutes"
+  }
+]`}
+            />
+            <p>Rates are INR per 1,000 units, live — cache for a few minutes, not days.</p>
+          </Section>
 
-        <EndpointBlock
-          id="ep-balance"
-          active={active === "balance"}
-          onHover={() => setActive("balance")}
-          action="balance"
-          title="Wallet Balance"
-          description="Returns your current spendable wallet balance."
-          code={`curl -X POST "${BASE}" \\\n  -d "key=${keyPlaceholder}" \\\n  -d "action=balance"`}
-          params={[["key", "Your API key.", true]]}
-          response={`{\n  "balance": "250.00",\n  "currency": "INR"\n}`}
-          copied={copied}
-          copy={copy}
-        />
-      </div>
+          <Section id="balance" title="Balance">
+            <ParamTable
+              rows={[
+                ["key", "yes", "Your API key"],
+                ["action", "yes", "balance"],
+              ]}
+            />
+            <CodeBlock id="bal" lang="Request → response" code={`curl -X POST ${BASE} -d "key=KEY" -d "action=balance"
 
-      {/* ── CODE EXAMPLES ── */}
-      <div className="mt-12">
-        <SectionTitle icon={<Code2 className="w-4 h-4" />} title="Code Examples" />
-        <div className="space-y-4">
-          <CodeBlock id="curl" code={cURL} copied={copied} copy={copy} lang="cURL" />
-          <CodeBlock id="py" code={python} copied={copied} copy={copy} lang="Python" />
-          <CodeBlock id="php" code={php} copied={copied} copy={copy} lang="PHP" />
-          <CodeBlock id="js" code={js} copied={copied} copy={copy} lang="JavaScript" />
-        </div>
-      </div>
+{ "balance": "150.00", "currency": "INR" }`} />
+          </Section>
 
-      {/* ── ERRORS ── */}
-      <div className="mt-12">
-        <SectionTitle icon={<AlertTriangle className="w-4 h-4" />} title="Error Codes" />
-        <ParamTable
-          rows={[
-            ["400", "Missing or invalid parameters, or insufficient wallet balance.", false],
-            ["401", "API key is missing or invalid.", false],
-            ["404", "Service or order not found.", false],
-            ["429", "Rate limit exceeded. Slow down and retry.", false],
-            ["500", "Upstream delivery network error. Safe to retry.", false],
-          ]}
-        />
-      </div>
-    </div>
-  );
-}
+          <Section id="refill" title="Refill order">
+            <p>
+              Requests a free redelivery for an order inside its refill window (7D → Lifetime, per service).
+            </p>
+            <ParamTable
+              rows={[
+                ["key", "yes", "Your API key"],
+                ["action", "yes", "refill"],
+                ["order", "yes", "Order ID, or comma-separated IDs"],
+              ]}
+            />
+            <CodeBlock
+              id="refill"
+              lang="Request → response"
+              code={`curl -X POST ${BASE} -d "key=KEY" -d "action=refill" -d "order=22001"
 
-function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
-  return (
-    <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-white font-mono mb-5 flex items-center gap-2.5 pb-3 border-b border-white/[0.08]">
-      <span className="text-[#E4E4E7]">{icon}</span>
-      {title}
-    </h2>
-  );
-}
+{ "refill": "99120" }`}
+            />
+          </Section>
 
-function EndpointBlock({
-  id,
-  active,
-  onHover,
-  action,
-  title,
-  description,
-  code,
-  params,
-  response,
-  copied,
-  copy,
-}: any) {
-  return (
-    <div
-      id={id}
-      onMouseEnter={onHover}
-      className={`scroll-mt-24 p-5 rounded-none border transition-all ${
-        active ? "border-[#E4E4E7]/30 bg-[#E4E4E7]/[0.03]" : "border-white/[0.08] bg-white/[0.01]"
-      }`}
-    >
-      <div className="flex items-center gap-2.5 mb-2">
-        <code className="px-2.5 py-1 rounded-sm bg-black/60 border border-[#E4E4E7]/20 text-[11px] font-mono text-[#E4E4E7]">
-          action={action}
-        </code>
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
-      </div>
-      <p className="text-xs text-zinc-400 leading-relaxed mb-4">{description}</p>
+          <Section id="refill-status" title="Refill status">
+            <ParamTable
+              rows={[
+                ["key", "yes", "Your API key"],
+                ["action", "yes", "refill_status"],
+                ["refill", "yes", "Refill ID returned by the refill action"],
+              ]}
+            />
+            <CodeBlock
+              id="rstatus"
+              lang="Request → response"
+              code={`curl -X POST ${BASE} -d "key=KEY" -d "action=refill_status" -d "refill=99120"
 
-      <div className="grid lg:grid-cols-2 gap-4">
-        <div className="space-y-4">
-          <div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">Request</div>
-            <CodeBlock id={`${id}-req`} code={code} copied={copied} copy={copy} />
-          </div>
-          {params?.length > 1 && (
-            <div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">Parameters</div>
-              <ParamTable rows={params} />
+{ "status": "Completed" }`}
+            />
+          </Section>
+
+          <Section id="cancel" title="Cancel orders">
+            <ParamTable
+              rows={[
+                ["key", "yes", "Your API key"],
+                ["action", "yes", "cancel"],
+                ["order", "yes", "Order ID, or comma-separated IDs (up to 100)"],
+              ]}
+            />
+            <CodeBlock
+              id="cancel"
+              lang="Request → response"
+              code={`curl -X POST ${BASE} -d "key=KEY" -d "action=cancel" -d "order=22001,22002"
+
+[ { "order": 22001, "cancel": 1 }, { "order": 22002, "cancel": { "error": "Already completed" } } ]`}
+            />
+            <p>Only services marked cancelable can be cancelled; the undelivered remainder refunds to balance automatically.</p>
+          </Section>
+
+          <Section id="errors" title="Errors & rate limits">
+            <div className="overflow-x-auto border border-white/10 rounded-none my-3">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-black/80 border-b border-white/10 text-zinc-400 uppercase tracking-wider">
+                  <tr>
+                    <th className="px-3.5 py-2.5 w-24">HTTP</th>
+                    <th className="px-3.5 py-2.5">Meaning</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.06]">
+                  {[
+                    ["400", "Missing/invalid parameters, insufficient balance, or quantity outside min/max"],
+                    ["401", "Invalid or missing API key"],
+                    ["404", "Order/service not found, or not owned by your key"],
+                    ["429", "Rate limit hit — 120 requests per 60 seconds per key. Back off and retry"],
+                    ["500", "Something broke on our side — retry shortly; contact support if it persists"],
+                  ].map(([c, d]) => (
+                    <tr key={c} className="hover:bg-white/[0.02]">
+                      <td className="px-3.5 py-2.5 font-mono text-white">{c}</td>
+                      <td className="px-3.5 py-2.5 text-zinc-300">{d}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
-        <div>
-          <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 mb-2">Response</div>
-          <CodeBlock id={`${id}-res`} code={response} copied={copied} copy={copy} lang="json" />
+            <p>Errors always return <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">{'{"error":"…"}'}</code> with a human-readable message.</p>
+          </Section>
+
+          <Section id="examples" title="Code examples">
+            <CodeBlock
+              id="ex-php"
+              lang="PHP"
+              code={`<?php
+$key = 'YOUR_API_KEY';
+$data = http_build_query([
+  'key' => $key,
+  'action' => 'add',
+  'service' => 5641,
+  'link' => 'https://t.me/yourchannel',
+  'quantity' => 1000,
+]);
+$ctx = stream_context_create(['http' => [
+  'method' => 'POST',
+  'header' => "Content-Type: application/x-www-form-urlencoded\\r\\n",
+  'content' => $data,
+]]);
+$res = json_decode(file_get_contents('${BASE}', false, $ctx), true);
+echo 'Order ID: ' . ($res['order'] ?? $res['error']);`}
+            />
+            <CodeBlock
+              id="ex-py"
+              lang="Python"
+              code={`import requests
+
+KEY = "YOUR_API_KEY"
+
+def api(action, **params):
+    payload = {"key": KEY, "action": action, **params}
+    r = requests.post("${BASE}", json=payload, timeout=30)
+    return r.json()
+
+# Balance
+print(api("balance"))
+
+# Order + track
+order_id = api("add", service=5641,
+               link="https://t.me/yourchannel", quantity=1000)["order"]
+print(api("status", order=order_id))`}
+            />
+            <CodeBlock
+              id="ex-node"
+              lang="Node.js"
+              code={`const KEY = "YOUR_API_KEY";
+
+async function api(action, params = {}) {
+  const r = await fetch("${BASE}", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: KEY, action, ...params }),
+  });
+  return r.json();
+}
+
+const bal = await api("balance");
+console.log("Balance:", bal.balance, bal.currency);`}
+            />
+          </Section>
         </div>
       </div>
     </div>

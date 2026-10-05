@@ -339,6 +339,44 @@ export async function checkOrderStatus(orderId: number | string): Promise<any> {
   return await response.json();
 }
 
+/** Batch status check — upstream accepts comma-separated order IDs (max 100) in one call. */
+export async function checkOrderStatusMulti(orderIds: string): Promise<any> {
+  const formData = new URLSearchParams();
+  formData.append("key", PANEL_KEY);
+  formData.append("action", "status");
+  formData.append("order", orderIds);
+
+  const response = await fetch(PANEL_URL, {
+    method: "POST",
+    headers: {
+      ...DEFAULT_HEADERS,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: formData.toString(),
+  });
+
+  return await response.json();
+}
+
+/** Poll the status of a previously requested refill (standard v2 `refill_status` action). */
+export async function checkRefillStatus(refillId: number | string): Promise<any> {
+  const formData = new URLSearchParams();
+  formData.append("key", PANEL_KEY);
+  formData.append("action", "refill_status");
+  formData.append("refill", String(refillId));
+
+  const response = await fetch(PANEL_URL, {
+    method: "POST",
+    headers: {
+      ...DEFAULT_HEADERS,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: formData.toString(),
+  });
+
+  return await response.json();
+}
+
 export async function requestOrderRefill(orderId: number | string): Promise<any> {
   const formData = new URLSearchParams();
   formData.append("key", PANEL_KEY);

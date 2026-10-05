@@ -312,7 +312,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
       {services.length > 0 && viewMode === "cards" && filtered.length === 0 && (
         <div className="py-20 text-center border border-white/[0.06] rounded-none bg-white/[0.015]">
           <Sparkles className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-          <p className="text-sm text-zinc-400">No service nodes match your filters.</p>
+          <p className="text-sm text-zinc-400">No services match your filters.</p>
           <button
             onClick={() => { setSearch(""); setSelectedCat("All"); }}
             className="mt-3 text-xs text-[#E4E4E7] hover:text-white underline underline-offset-4 cursor-pointer"
@@ -395,7 +395,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Dispatch Speed</span>
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Delivery Speed</span>
                       <span className="text-zinc-300 font-medium flex items-center gap-1">
                         <Clock className="w-3 h-3 text-zinc-400" />
                         {s.average_time || "Instant"}
@@ -404,7 +404,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                   </div>
                 </div>
 
-                {/* Footer: Price + Dispatch Button */}
+                {/* Footer: Price + Order Button */}
                 <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
                   <div>
                     <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Price per 1,000</span>

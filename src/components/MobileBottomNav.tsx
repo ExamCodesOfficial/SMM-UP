@@ -44,18 +44,18 @@ export default function MobileBottomNav({
         {/* Order Desk */}
         <button
           onClick={() => {
-            setCurrentTab("store");
+            setCurrentTab("order");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
           className={`flex flex-col items-center justify-center py-1.5 rounded-none text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
-            currentTab === "store" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
+            currentTab === "order" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
           <ExecutiveOrderIcon size={16} className="mb-1" />
           <span>ORDER</span>
         </button>
 
-        {/* Luxury Champagne Platinum Wallet */}
+        {/* Wallet */}
         <button
           onClick={onOpenWallet}
           className="flex flex-col items-center justify-center py-1 rounded-none text-[10px] font-semibold tracking-wider text-[#E4E4E7] cursor-pointer group"
@@ -69,11 +69,11 @@ export default function MobileBottomNav({
         {/* Services Catalog */}
         <button
           onClick={() => {
-            setCurrentTab("services");
+            setCurrentTab("catalog");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
           className={`flex flex-col items-center justify-center py-1.5 rounded-none text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
-            currentTab === "services" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
+            currentTab === "catalog" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
           <ExecutiveCatalogIcon size={16} className="mb-1" />

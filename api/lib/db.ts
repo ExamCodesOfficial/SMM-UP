@@ -35,7 +35,11 @@ export async function getDb(): Promise<Db> {
     indexesCreated = true;
     Promise.allSettled([
       db.collection("users").createIndex({ email: 1 }, { unique: true }),
-      db.collection("users").createIndex({ username: 1 }),
+      // Case-insensitive uniqueness: "Aryan" and "aryan" are the same account
+      db.collection("users").createIndex(
+        { username: 1 },
+        { unique: true, collation: { locale: "en", strength: 2 } },
+      ),
       db.collection("users").createIndex({ api_key: 1 }, { unique: true, sparse: true }),
       db.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true, sparse: true }),
       db.collection("processed_transactions").createIndex({ transaction_id: 1 }, { unique: true, sparse: true }),

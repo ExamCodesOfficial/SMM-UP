@@ -43,8 +43,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
 
     try {
-      const existing = await users.findOne({ email: cleanEmail });
-      if (existing) return res.status(400).json({ error: "Email already registered" });
+      const [existingEmail, existingUsername] = await Promise.all([
+        users.findOne({ email: cleanEmail }),
+        users.findOne(
+          { username: cleanUsername },
+          { collation: { locale: "en", strength: 2 } },
+        ),
+      ]);
+      if (existingEmail) return res.status(400).json({ error: "Email already registered" });
+      if (existingUsername) return res.status(400).json({ error: "Username already taken. Please choose a different one." });
 
       const passwordHash = await hashPassword(password);
 
@@ -86,7 +93,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           apiKeyMasked: null,
         },
       });
-    } catch (err) {
+    } catch (err: any) {
+      // Race-safe: unique indexes still fire if two requests slip past the pre-check
+      if (err?.code === 11000) {
+        const field = err?.keyPattern?.username ? "Username already taken. Please choose a different one." : "Email already registered";
+        return res.status(400).json({ error: field });
+      }
       return res.status(500).json({ error: "Registration failed" });
     }
   }
@@ -114,7 +126,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               { username: rawIdentity },
             ],
           };
-      const user: any = await users.findOne(identityQuery);
+      const user: any = await users.findOne(identityQuery, {
+        // Case-insensitive username matching: "Aryan" signs in as "aryan"
+        collation: { locale: "en", strength: 2 },
+      });
       if (!user || !user.password_hash) {
         return res.status(401).json({ error: "Invalid email or password" });
       }

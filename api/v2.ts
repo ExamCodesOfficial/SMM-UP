@@ -6,6 +6,8 @@ import {
   calculateOrderTotal,
   addProviderOrder,
   checkOrderStatus,
+  checkOrderStatusMulti,
+  checkRefillStatus,
   requestOrderRefill,
   cancelProviderOrder,
 } from "./lib/smm.js";
@@ -176,7 +178,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
 
-        // Record order
+        // Record order (same flags the site order path sets, so refill/cancel work via API too)
         const newOrder = {
           user_id: user._id,
           user_email: user.email,
@@ -188,6 +190,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           quantity: effQuantity,
           charge: totalCharge,
           provider_order_id: providerRes.orderId,
+          refill_available: Boolean(matched.refill),
+          cancel_available: Boolean(matched.cancel),
           status: "Pending",
           created_at: new Date(),
         };
@@ -248,10 +252,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // ── 6. ACTION: STATUS ──────────────────────────────────────────
+    // ── 7. ACTION: REFILL STATUS ───────────────────────────────────
+    if (action === "refill_status") {
+      const refillId = body.refill;
+      if (!refillId) return res.status(400).json({ error: "refill parameter required" });
+      try {
+        const live = await checkRefillStatus(refillId);
+        if (live?.error) return res.status(400).json({ error: sanitizeProviderError(live.error) });
+        return res.status(200).json({ status: live?.status || "Pending" });
+      } catch (e: any) {
+        return res.status(500).json({ error: sanitizeProviderError(e.message) || "Refill status check failed" });
+      }
+    }
+
+    // ── 6. ACTION: STATUS (single + multi-order) ───────────────────
     if (action === "status") {
-      const orderId = body.order;
-      if (!orderId) return res.status(400).json({ error: "order parameter required" });
+      const orderParam = body.order;
+      if (!orderParam) return res.status(400).json({ error: "order parameter required" });
+      const orderId = orderParam;
+
+      // ── 6b. MULTI-ORDER STATUS: comma-separated list, max 100 ────
+      if (typeof orderId === "string" && orderId.includes(",")) {
+        const ids = orderId.split(",").map((s) => s.trim()).filter(Boolean);
+        if (ids.length === 0) return res.status(400).json({ error: "order parameter required" });
+        if (ids.length > 100) return res.status(400).json({ error: "Maximum 100 orders per request" });
+        try {
+          // Only this user's orders are resolvable — never leak someone else's
+          const objectIds = ids.filter((i) => ObjectId.isValid(i)).map((i) => new ObjectId(i));
+          const orders = await db.collection("orders")
+            .find({
+              user_id: user._id,
+              $or: [
+                { provider_order_id: { $in: ids.map((i) => Number(i) || i) } },
+                { _id: { $in: objectIds } },
+              ],
+            })
+            .toArray();
+          if (!orders || orders.length === 0) {
+            return res.status(404).json({ error: "No matching orders found" });
+          }
+          const providerIds = orders
+            .map((o: any) => o.provider_order_id)
+            .filter(Boolean)
+            .join(",");
+          if (!providerIds) return res.status(404).json({ error: "No orders with live tracking found" });
+
+          const live = await checkOrderStatusMulti(providerIds);
+          if (live?.error) return res.status(400).json({ error: sanitizeProviderError(live.error) });
+
+          // Normalise to the v2 multi-status format keyed by order id
+          const out: Record<string, any> = {};
+          orders.forEach((o: any) => {
+            const pid = String(o.provider_order_id);
+            const entry = live?.[pid] || live?.[Number(pid)];
+            out[pid] = {
+              charge: Number(o.charge || 0).toFixed(2),
+              start_count: entry?.start_count ?? "0",
+              status: entry?.status ?? o.status ?? "Pending",
+              remains: entry?.remains ?? "0",
+              currency: "INR",
+            };
+          });
+          return res.status(200).json(out);
+        } catch (e: any) {
+          return res.status(500).json({ error: sanitizeProviderError(e.message) || "Multi-order status check failed" });
+        }
+      }
 
       try {
         const order = await db.collection("orders").findOne({
