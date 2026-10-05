@@ -93,7 +93,7 @@ export default function MassOrder({
           localResults.push({
             line: `${item.serviceId} | ${item.link}`,
             success: true,
-            msg: `Dispatched #${data.providerOrderId || data.orderId}`,
+            msg: `Placed #${data.providerOrderId || data.orderId}`,
           });
           onOrderSuccess(data);
         } else {
@@ -128,7 +128,7 @@ export default function MassOrder({
         </h2>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
         <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-xl mx-auto">
-          Batch dispatch multiple campaigns across channels simultaneously.
+          Place many orders at once across multiple platforms.
         </p>
       </div>
 
@@ -215,8 +215,8 @@ export default function MassOrder({
             <Send className="w-4 h-4" />
             <span>
               {submitting
-                ? "Dispatching Batch Orders..."
-                : `Dispatch Batch (${formatINR(totalEstimated)})`}
+                ? "Placing your batch orders…"
+                : `Place Batch (${formatINR(totalEstimated)})`}
             </span>
           </button>
         </form>

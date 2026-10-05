@@ -13,20 +13,83 @@ import TermsModal from "./components/TermsModal";
 import SupportModal from "./components/SupportModal";
 import LandingHero from "./components/LandingHero";
 import GuaranteesBento from "./components/GuaranteesBento";
-import TestimonialsTicker from "./components/TestimonialsTicker";
 import ReviewsSection from "./components/ReviewsSection";
 import Footer from "./components/Footer";
 import ApiDocs from "./components/ApiDocs";
+import ApiPlayground from "./components/ApiPlayground";
+import FaqPage from "./components/FaqPage";
 import Reveal from "./components/Reveal";
 import BackToTop from "./components/BackToTop";
-import { SmmUpLogo } from "./components/icons/ExecutiveIcons";
+import {
+  TermsPage,
+  PrivacyPage,
+  RefundsPage,
+  AcceptableUsePage,
+  CookiePolicyPage,
+} from "./components/pages/LegalPages";
+import {
+  AboutPage,
+  SupportPage,
+  StatusPage,
+  ChangelogPage,
+  SecurityPage,
+  AbusePage,
+  PressPage,
+} from "./components/pages/CompanyPages";
+import {
+  AccountPage,
+  TransactionsPage,
+  NotFoundPage,
+  SitemapPage,
+} from "./components/pages/AccountPages";
+import PlatformPage, { PLATFORM_PAGES } from "./components/pages/PlatformPage";
 import { sanitizeBrandText, cleanServiceDescription } from "./lib/utils";
+import { applySeo } from "./lib/seo";
+
+/* ── Route table: tab ↔ URL path (one entry per real page) ── */
+const TAB_PATHS: Record<string, string> = {
+  home: "/",
+  order: "/order",
+  catalog: "/catalog",
+  mass: "/mass",
+  logs: "/logs",
+  auth: "/auth",
+  api: "/api",
+  playground: "/playground",
+  account: "/account",
+  transactions: "/transactions",
+  faq: "/faq",
+  support: "/support",
+  about: "/about",
+  terms: "/terms",
+  privacy: "/privacy",
+  refunds: "/refunds",
+  "acceptable-use": "/acceptable-use",
+  "cookie-policy": "/cookie-policy",
+  security: "/security",
+  abuse: "/abuse",
+  press: "/press",
+  status: "/status",
+  changelog: "/changelog",
+  sitemap: "/sitemap",
+  "p-telegram": "/telegram-smm-panel",
+  "p-instagram": "/instagram-smm-panel",
+  "p-youtube": "/youtube-smm-panel",
+  "p-twitter": "/twitter-smm-panel",
+  "p-tiktok": "/tiktok-smm-panel",
+  "p-spotify": "/spotify-smm-panel",
+};
+
+const PATH_TABS: Record<string, string> = Object.fromEntries(
+  Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab])
+);
+
+// Pages that require a signed-in user
+const GUARDED = new Set(["logs", "account", "transactions"]);
 
 function tabFromPath(): string {
-  const p = window.location.pathname.replace(/\/+$/, "");
-  if (p === "/api") return "api";
-  if (p === "/auth") return "auth";
-  return "home";
+  const p = window.location.pathname.replace(/\/+$/, "") || "/";
+  return PATH_TABS[p] || "notfound";
 }
 
 export default function App() {
@@ -45,31 +108,40 @@ export default function App() {
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
   const [supportModalOpen, setSupportModalOpen] = React.useState(false);
 
-  // Sync tab state <-> URL so /api is a real, shareable, indexable route
-  React.useEffect(() => {
-    const onPop = () => setCurrentTab(tabFromPath());
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
-  }, []);
-
   const navigate = React.useCallback((tab: string) => {
     setCurrentTab(tab);
-    const url = tab === "api" ? "/api" : tab === "auth" ? "/auth" : "/";
+    const url = TAB_PATHS[tab] || "/";
     if (window.location.pathname !== url) {
       window.history.pushState({}, "", url);
     }
+    applySeo(tab);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const openAuth = React.useCallback((mode: "login" | "register" = "login") => {
-    setAuthPageMode(mode);
-    navigate("auth");
-  }, [navigate]);
+  // Back/forward buttons + initial SEO
+  React.useEffect(() => {
+    const onPop = () => {
+      const tab = tabFromPath();
+      setCurrentTab(tab);
+      applySeo(tab);
+    };
+    window.addEventListener("popstate", onPop);
+    applySeo(tabFromPath());
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
-  const handleAuthSuccess = React.useCallback(() => {
-    checkAuth().then(() => loadOrders());
-    navigate("home");
-  }, [navigate]);
+  const openAuth = React.useCallback(
+    (mode: "login" | "register" = "login") => {
+      setAuthPageMode(mode);
+      navigate("auth");
+    },
+    [navigate]
+  );
+
+  const openWallet = React.useCallback(() => {
+    if (!user) openAuth("login");
+    else setWalletModalOpen(true);
+  }, [user, openAuth]);
 
   React.useEffect(() => {
     checkAuth();
@@ -95,6 +167,11 @@ export default function App() {
       setUser(null);
     }
   };
+
+  const handleAuthSuccess = React.useCallback(() => {
+    checkAuth().then(() => loadOrders());
+    navigate("home");
+  }, [navigate]);
 
   const loadServices = async () => {
     try {
@@ -142,6 +219,7 @@ export default function App() {
     } catch {}
     setUser(null);
     setOrders([]);
+    navigate("home");
   };
 
   const handleOrderSuccess = (newOrderData: any) => {
@@ -167,85 +245,76 @@ export default function App() {
 
   const handleSelectFromCatalog = (serviceId: number | string) => {
     setPreselectedServiceId(serviceId);
-    navigate("store");
+    navigate("order");
   };
+
+  const platformConfig = PLATFORM_PAGES.find((p) => p.tab === currentTab);
+  const guardedBlocked = GUARDED.has(currentTab) && !user;
 
   return (
     <div className="min-h-screen bg-[#050505] text-white relative flex flex-col font-sans selection:bg-white selection:text-black">
-      {/* 40px grid pattern from ExamCodes */}
+      {/* 40px grid pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-100 pointer-events-none z-0" />
 
       {/* Top Ambient Light Orb */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[70vw] h-[350px] bg-white/[0.02] rounded-full blur-[140px] pointer-events-none z-0" />
 
-      {/* Header */}
       <Navbar
         currentTab={currentTab}
         setCurrentTab={navigate}
         user={user}
         onOpenAuth={(mode) => openAuth(mode || "login")}
-        onOpenWallet={() => {
-          if (!user) openAuth("login");
-          else setWalletModalOpen(true);
-        }}
+        onOpenWallet={openWallet}
         onOpenProfile={() => setProfileModalOpen(true)}
         onOpenTerms={() => setTermsModalOpen(true)}
         onOpenSupport={() => setSupportModalOpen(true)}
         onLogout={handleLogout}
       />
 
-      {/* Main Content */}
       <main className="flex-1 pt-18 pb-20 md:pb-12 relative z-10">
-        {/* Home: Spacious ExamCodes-Style Landing Experience */}
+        {/* ── Home: landing experience ── */}
         {currentTab === "home" && (
           <>
             <LandingHero
               user={user}
+              services={services}
               onNavigateTab={navigate}
               onOpenAuth={() => openAuth("login")}
-              onOpenWallet={() => {
-                if (!user) openAuth("login");
-                else setWalletModalOpen(true);
-              }}
+              onOpenWallet={openWallet}
               onOpenTerms={() => setTermsModalOpen(true)}
-              totalServices={services.length || 2177}
+              totalServices={services.length || 2000}
             />
             <Reveal>
               <GuaranteesBento
                 onOpenTerms={() => setTermsModalOpen(true)}
-                onOpenWallet={() => {
-                  if (!user) openAuth("login");
-                  else setWalletModalOpen(true);
-                }}
+                onOpenWallet={openWallet}
+                onNavigate={navigate}
               />
-            </Reveal>
-            <Reveal>
-              <TestimonialsTicker />
             </Reveal>
             <ReviewsSection />
             <Reveal>
-              <FaqSection />
+              <FaqSection onSeeAll={() => navigate("faq")} />
             </Reveal>
           </>
         )}
 
-        {/* Tab Views */}
-        {currentTab === "store" && (
+        {/* ── App views ── */}
+        {currentTab === "order" && (
           <div className="pt-6">
             <NewOrder
               services={services}
               user={user}
               onOrderSuccess={handleOrderSuccess}
-              onOpenWallet={() => setWalletModalOpen(true)}
+              onOpenWallet={openWallet}
               onOpenAuth={() => openAuth("login")}
               onOpenTerms={() => setTermsModalOpen(true)}
               preselectedServiceId={preselectedServiceId}
             />
-            <FaqSection />
+            <FaqSection onSeeAll={() => navigate("faq")} />
           </div>
         )}
 
-        {currentTab === "services" && (
+        {currentTab === "catalog" && (
           <ServicesCatalog
             services={services}
             onSelectService={handleSelectFromCatalog}
@@ -258,7 +327,7 @@ export default function App() {
               services={services}
               user={user}
               onOpenAuth={() => openAuth("login")}
-              onOpenWallet={() => setWalletModalOpen(true)}
+              onOpenWallet={openWallet}
               onOrderSuccess={handleOrderSuccess}
             />
           </div>
@@ -270,23 +339,15 @@ export default function App() {
             onOpenAuth={() => openAuth("login")}
             onOpenProfile={() => setProfileModalOpen(true)}
             onBack={() => navigate("home")}
+            onOpenPlayground={() => navigate("playground")}
           />
         )}
 
-        {currentTab === "auth" && !user && (
-          <AuthPage
-            initialMode={authPageMode}
-            onAuthSuccess={handleAuthSuccess}
-            onOpenTerms={() => setTermsModalOpen(true)}
-          />
-        )}
-        {currentTab === "auth" && user && (
-          <div className="pt-32 pb-24 text-center text-zinc-400 text-sm tracking-wider font-mono uppercase">
-            Session Active — Redirecting…
-          </div>
+        {currentTab === "playground" && (
+          <ApiPlayground user={user} onNavigate={navigate} />
         )}
 
-        {currentTab === "orders" && (
+        {!guardedBlocked && currentTab === "logs" && (
           <div className="pt-6">
             <OrderHistory
               orders={orders}
@@ -295,30 +356,64 @@ export default function App() {
             />
           </div>
         )}
+
+        {!guardedBlocked && currentTab === "account" && (
+          <AccountPage user={user} onNavigate={navigate} />
+        )}
+
+        {!guardedBlocked && currentTab === "transactions" && (
+          <TransactionsPage user={user} onNavigate={navigate} />
+        )}
+
+        {/* ── Auth page (also the guard landing) ── */}
+        {(currentTab === "auth" || guardedBlocked) && (
+          <AuthPage
+            initialMode={authPageMode}
+            onAuthSuccess={handleAuthSuccess}
+            onOpenTerms={() => setTermsModalOpen(true)}
+          />
+        )}
+
+        {/* ── Platform pages ── */}
+        {platformConfig && (
+          <PlatformPage
+            config={platformConfig}
+            services={services}
+            onNavigate={navigate}
+          />
+        )}
+
+        {/* ── Content pages ── */}
+        {currentTab === "faq" && <FaqPage onNavigate={navigate} />}
+        {currentTab === "support" && <SupportPage onNavigate={navigate} />}
+        {currentTab === "about" && <AboutPage onNavigate={navigate} />}
+        {currentTab === "status" && <StatusPage onNavigate={navigate} />}
+        {currentTab === "changelog" && <ChangelogPage onNavigate={navigate} />}
+        {currentTab === "security" && <SecurityPage onNavigate={navigate} />}
+        {currentTab === "abuse" && <AbusePage onNavigate={navigate} />}
+        {currentTab === "press" && <PressPage onNavigate={navigate} />}
+        {currentTab === "terms" && <TermsPage onNavigate={navigate} />}
+        {currentTab === "privacy" && <PrivacyPage onNavigate={navigate} />}
+        {currentTab === "refunds" && <RefundsPage onNavigate={navigate} />}
+        {currentTab === "acceptable-use" && <AcceptableUsePage onNavigate={navigate} />}
+        {currentTab === "cookie-policy" && <CookiePolicyPage onNavigate={navigate} />}
+        {currentTab === "sitemap" && <SitemapPage onNavigate={navigate} />}
+        {currentTab === "notfound" && <NotFoundPage onNavigate={navigate} />}
       </main>
 
-      {/* Grand ExamCodes-Style Multi-Column Architectural Footer */}
       <Footer
         onNavigateTab={navigate}
         onOpenTerms={() => setTermsModalOpen(true)}
-        onOpenWallet={() => {
-          if (!user) openAuth("login");
-          else setWalletModalOpen(true);
-        }}
+        onOpenWallet={openWallet}
         onOpenSupport={() => setSupportModalOpen(true)}
       />
 
-      {/* Floating Back-To-Top with scroll progress ring */}
       <BackToTop />
 
-      {/* Mobile Bottom Thumb Navigation */}
       <MobileBottomNav
         currentTab={currentTab}
         setCurrentTab={navigate}
-        onOpenWallet={() => {
-          if (!user) openAuth("login");
-          else setWalletModalOpen(true);
-        }}
+        onOpenWallet={openWallet}
         onOpenProfile={() => setProfileModalOpen(true)}
         onOpenAuth={() => openAuth("login")}
         user={user}

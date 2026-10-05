@@ -104,10 +104,10 @@ export default function Navbar({
 
   const navLinks = [
     { id: "home", label: "HOME", icon: Home },
-    { id: "store", label: "ORDER", icon: ExecutiveOrderIcon },
-    { id: "services", label: "CATALOG", icon: ExecutiveCatalogIcon },
+    { id: "order", label: "ORDER", icon: ExecutiveOrderIcon },
+    { id: "catalog", label: "CATALOG", icon: ExecutiveCatalogIcon },
     { id: "mass", label: "MASS", icon: ExecutiveMassIcon },
-    { id: "orders", label: "LOGS", icon: ExecutiveHistoryIcon },
+    { id: "logs", label: "LOGS", icon: ExecutiveHistoryIcon },
     { id: "api", label: "API", icon: Terminal },
   ];
 
@@ -228,9 +228,12 @@ export default function Navbar({
     </header>
 
       {/* ── EXAMCODES-STYLE FULLSCREEN CINEMATIC MOBILE MENU ── */}
-      {mobileMenuOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/95 backdrop-blur-2xl z-[70] flex flex-col animate-fadeIn"
+      <div
+        className={`md:hidden fixed inset-0 z-[70] flex flex-col transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          mobileMenuOpen
+            ? "opacity-100 bg-black/95 backdrop-blur-md pointer-events-auto animate-fadeIn"
+            : "opacity-0 bg-black/95 backdrop-blur-md pointer-events-none"
+        }`}
           style={{
             paddingTop: "max(1rem, env(safe-area-inset-top))",
             paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
@@ -264,7 +267,7 @@ export default function Navbar({
           {/* Scrollable Menu Body */}
           <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col justify-between">
             <div className="space-y-6">
-              {/* User Operative Section OR Quick Friendly Auth Buttons */}
+              {/* Signed-in user area OR auth buttons */}
               {user ? (
                 <div className="p-4 rounded-none border border-white/10 bg-[#0A0A0A] space-y-3">
                   <div className="flex items-center justify-between">
@@ -274,7 +277,7 @@ export default function Navbar({
                       </div>
                       <div>
                         <span className="text-[10px] text-zinc-500 uppercase tracking-widest block font-mono">
-                          ACTIVE OPERATIVE
+                          SIGNED IN
                         </span>
                         <h4 className="text-sm font-bold text-white truncate max-w-[150px]">
                           {user.username}
@@ -319,7 +322,7 @@ export default function Navbar({
               ) : (
                 <div className="p-4 rounded-none border border-white/10 bg-[#0A0A0A] space-y-3">
                   <span className="text-[10px] text-zinc-400 font-mono tracking-widest uppercase block text-center">
-                    CLIENT ACCESS
+                    ACCOUNT
                   </span>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -368,7 +371,7 @@ export default function Navbar({
                         <Icon size={16} className={isActive ? "text-black" : "text-zinc-400"} />
                         <span>{link.label}</span>
                       </div>
-                      {isActive && <span className="text-[10px] font-mono">&bull; ACTIVE</span>}
+                      {isActive && <span className="text-[10px] font-mono">&bull; YOU ARE HERE</span>}
                     </button>
                   );
                 })}
@@ -383,7 +386,7 @@ export default function Navbar({
                     className="w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-zinc-400 hover:text-white transition-all cursor-pointer min-h-[48px]"
                   >
                     <FileText className="w-4 h-4 text-zinc-500" />
-                    <span>Terms &amp; SLA Policy</span>
+                    <span>Terms &amp; Policies</span>
                   </button>
                 )}
 
@@ -420,13 +423,13 @@ export default function Navbar({
 
               <div className="text-center py-2">
                 <span className="text-[9px] tracking-[0.25em] text-zinc-600 font-mono uppercase block">
-                  SMM UP WHOLESALE INFRASTRUCTURE &bull; 0% UPI
+                  SMM UP &bull; 0% DEPOSIT FEE
                 </span>
               </div>
             </div>
           </div>
         </div>
-      )}
+      
     </>
   );
 }

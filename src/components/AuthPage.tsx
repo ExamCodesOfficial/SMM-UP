@@ -52,7 +52,7 @@ export default function AuthPage({ initialMode, onAuthSuccess, onOpenTerms }: Au
         return;
       }
 
-      setSuccess(mode === "login" ? "Access granted. Establishing session..." : "Account created. Establishing session...");
+      setSuccess(mode === "login" ? "Signed in. Redirecting…" : "Account created. Redirecting…");
       setTimeout(() => onAuthSuccess(), 450);
     } catch {
       setError("Network error. Please try again.");
@@ -66,10 +66,10 @@ export default function AuthPage({ initialMode, onAuthSuccess, onOpenTerms }: Au
         {/* Terminal header */}
         <div className="text-center mb-8 animate-hero-1">
           <span className="text-[10px] font-bold tracking-[0.25em] text-zinc-500 uppercase block mb-2 font-mono">
-            Operator Terminal
+            Member Access
           </span>
           <h1 className="text-2xl sm:text-3xl font-light tracking-[0.10em] text-white uppercase">
-            {mode === "login" ? "Authentication" : "Enlistment"}
+            {mode === "login" ? "Welcome Back" : "Create Account"}
           </h1>
           <div className="w-12 h-px bg-white/20 mx-auto mt-4" />
         </div>
@@ -179,18 +179,18 @@ export default function AuthPage({ initialMode, onAuthSuccess, onOpenTerms }: Au
             <p className="text-xs text-zinc-500">
               {mode === "login" ? (
                 <>
-                  No account yet?{" "}
+                  New here?{" "}
                   <button
                     type="button"
                     onClick={() => { setMode("register"); setError(""); }}
                     className="text-white underline underline-offset-4 hover:text-zinc-300 transition-colors cursor-pointer"
                   >
-                    Create one free
+                    Create one — free
                   </button>
                 </>
               ) : (
                 <>
-                  Already enlisted?{" "}
+                  Already have an account?{" "}
                   <button
                     type="button"
                     onClick={() => { setMode("login"); setError(""); }}

@@ -3,11 +3,12 @@ import { ShieldCheck, Zap, RotateCcw, Lock, ArrowUpRight, CheckCircle2 } from "l
 import { ExecutiveWalletIcon, ExecutiveOrderIcon } from "./icons/ExecutiveIcons";
 
 interface GuaranteesBentoProps {
+  onNavigate?: (tab: string) => void;
   onOpenTerms?: () => void;
   onOpenWallet?: () => void;
 }
 
-export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: GuaranteesBentoProps) {
+export default function GuaranteesBento({ onOpenTerms, onOpenWallet, onNavigate }: GuaranteesBentoProps) {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
       {/* Section Header in ExamCodes Style */}
@@ -20,7 +21,7 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: Guarantee
           BUILT FOR UNCOMPROMISING SCALE
         </h2>
         <p className="text-xs sm:text-sm text-zinc-400 max-w-xl mx-auto mt-2.5 font-light">
-          Engineered as a direct wholesale pipeline with zero middleman gateway fees, sub-second dispatch, and institutional security standards.
+          Built as a direct wholesale pipeline: no gateway fees, orders start within minutes, and every rupee is protected.
         </p>
       </div>
 
@@ -68,7 +69,7 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet }: Guarantee
             Execution Velocity
           </span>
           <h3 className="text-lg sm:text-xl font-medium tracking-wide text-white mb-2">
-            Wholesale Node Dispatch
+            Wholesale Delivery Speed
           </h3>
           <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed font-light mb-6">
             Orders pass straight from your desk to automated global delivery queues without manual review queues or throttling delays.

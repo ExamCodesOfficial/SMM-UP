@@ -1,20 +1,42 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-  <url>
-    <loc>https://smmup.co.in/</loc>
-    <lastmod>2026-10-05</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-    <image:image>
-      <image:loc>https://smmup.co.in/og-image.png</image:loc>
-      <image:title>SMM UP — Institutional Wholesale SMM Growth Engine</image:title>
-    </image:image>
+  <!-- Core -->
+  <url><loc>https://smmup.co.in/</loc><lastmod>2026-10-05</lastmod><changefreq>daily</changefreq><priority>1.0</priority>
+    <image:image><image:loc>https://smmup.co.in/og-image.jpg</image:loc><image:title>SMM UP — India's Wholesale SMM Panel</image:title></image:image>
   </url>
-  <url>
-    <loc>https://smmup.co.in/api</loc>
-    <lastmod>2026-10-05</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
+  <url><loc>https://smmup.co.in/auth</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://smmup.co.in/order</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://smmup.co.in/catalog</loc><lastmod>2026-10-05</lastmod><changefreq>daily</changefreq><priority>0.95</priority></url>
+  <url><loc>https://smmup.co.in/mass</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+
+  <!-- Platform landing pages -->
+  <url><loc>https://smmup.co.in/telegram-smm-panel</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.95</priority></url>
+  <url><loc>https://smmup.co.in/instagram-smm-panel</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.95</priority></url>
+  <url><loc>https://smmup.co.in/youtube-smm-panel</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.95</priority></url>
+  <url><loc>https://smmup.co.in/twitter-smm-panel</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://smmup.co.in/tiktok-smm-panel</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://smmup.co.in/spotify-smm-panel</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.9</priority></url>
+
+  <!-- Developers -->
+  <url><loc>https://smmup.co.in/api</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://smmup.co.in/playground</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+
+  <!-- Help & company -->
+  <url><loc>https://smmup.co.in/faq</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://smmup.co.in/support</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://smmup.co.in/about</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://smmup.co.in/status</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://smmup.co.in/changelog</loc><lastmod>2026-10-05</lastmod><changefreq>weekly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://smmup.co.in/press</loc><lastmod>2026-10-05</lastmod><changefreq>yearly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://smmup.co.in/sitemap</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.3</priority></url>
+
+  <!-- Legal & trust -->
+  <url><loc>https://smmup.co.in/terms</loc><lastmod>2026-10-05</lastmod><changefreq>yearly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://smmup.co.in/privacy</loc><lastmod>2026-10-05</lastmod><changefreq>yearly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://smmup.co.in/refunds</loc><lastmod>2026-10-05</lastmod><changefreq>yearly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://smmup.co.in/acceptable-use</loc><lastmod>2026-10-05</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://smmup.co.in/cookie-policy</loc><lastmod>2026-10-05</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://smmup.co.in/security</loc><lastmod>2026-10-05</lastmod><changefreq>yearly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://smmup.co.in/abuse</loc><lastmod>2026-10-05</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
 </urlset>

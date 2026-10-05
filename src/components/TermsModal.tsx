@@ -35,7 +35,7 @@ const SECTIONS = [
   {
     title: "6. ORDER CANCELLATIONS & NON-WORKING LINKS",
     content:
-      "Orders cannot be manually modified or canceled once submitted to automated processing unless the delivery node reports a permanent dispatch error. If a link is invalid, private, or deleted prior to processing, the order is automatically marked as 'Cancelled' and 100% of the charged amount is refunded to your wallet.",
+      "Orders cannot be manually modified or canceled once submitted to automated processing unless our delivery network confirms it permanently failed. If a link is invalid, private, or deleted before processing, the order is automatically marked as 'Cancelled' and 100% of the charged amount is refunded to your wallet.",
   },
   {
     title: "7. PROHIBITED CONTENT & CONDUCT",

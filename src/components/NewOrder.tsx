@@ -111,6 +111,33 @@ export default function NewOrder({
 
   const catPickerRef = React.useRef<HTMLDivElement>(null);
   const servicePickerRef = React.useRef<HTMLDivElement>(null);
+  // Drawer scroll memory — reopen exactly where the previous selection sits
+  const catListRef = React.useRef<HTMLDivElement>(null);
+  const serviceListRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (catPickerOpen && catListRef.current) {
+      const list = catListRef.current;
+      const selected = list.querySelector('[data-selected="true"]') as HTMLElement | null;
+      requestAnimationFrame(() => {
+        if (selected) {
+          list.scrollTop = selected.offsetTop - list.offsetHeight / 2 + selected.offsetHeight / 2;
+        }
+      });
+    }
+  }, [catPickerOpen]);
+
+  React.useEffect(() => {
+    if (servicePickerOpen && serviceListRef.current) {
+      const list = serviceListRef.current;
+      const selected = list.querySelector('[data-selected="true"]') as HTMLElement | null;
+      requestAnimationFrame(() => {
+        if (selected) {
+          list.scrollTop = selected.offsetTop - list.offsetHeight / 2 + selected.offsetHeight / 2;
+        }
+      });
+    }
+  }, [servicePickerOpen]);
 
   const [link, setLink] = React.useState("");
   const [quantity, setQuantity] = React.useState<number | string>("");
@@ -314,7 +341,7 @@ export default function NewOrder({
       if (!res.ok || data.error) {
         setErrorMsg(data.error || "Order execution failed. Please verify target link.");
       } else {
-        setSuccessMsg(`Order #${data.providerOrderId || data.orderId} dispatched successfully!`);
+        setSuccessMsg(`Order #${data.providerOrderId || data.orderId} placed successfully!`);
         confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
         onOrderSuccess(data);
         setLink("");
@@ -334,11 +361,11 @@ export default function NewOrder({
       {/* Title Section */}
       <div className="text-center mb-10">
         <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
-          DISPATCH ORDER
+          PLACE AN ORDER
         </h2>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
         <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-xl mx-auto">
-          Deploy instant growth across any platform with wholesale delivery.
+          Pick a service, paste your link, and confirm — orders start within minutes.
         </p>
       </div>
 
@@ -430,7 +457,7 @@ export default function NewOrder({
                       />
                     </div>
 
-                    <div className="overflow-y-auto space-y-1 pr-1 flex-1">
+                    <div ref={catListRef} className="overflow-y-auto space-y-1 pr-1 flex-1">
                       {filteredCategoriesForPicker.length === 0 ? (
                         <div className="text-xs text-zinc-500 text-center py-4">No categories match your search.</div>
                       ) : (
@@ -442,6 +469,7 @@ export default function NewOrder({
                             <button
                               key={cat}
                               type="button"
+                              data-selected={isSelected || undefined}
                               onClick={() => {
                                 setSelectedCategory(cat);
                                 setCatPickerOpen(false);
@@ -529,7 +557,7 @@ export default function NewOrder({
                       />
                     </div>
 
-                    <div className="overflow-y-auto space-y-2 pr-1 flex-1">
+                    <div ref={serviceListRef} className="overflow-y-auto space-y-2 pr-1 flex-1">
                       {filteredServicesForPicker.length === 0 ? (
                         <div className="text-xs text-zinc-500 text-center py-4">No services match your search in this category.</div>
                       ) : (
@@ -539,6 +567,7 @@ export default function NewOrder({
                             <button
                               key={s.service}
                               type="button"
+                              data-selected={isSelected || undefined}
                               onClick={() => {
                                 setSelectedServiceId(s.service);
                                 setServicePickerOpen(false);
@@ -633,10 +662,27 @@ export default function NewOrder({
                     <input
                       type="number"
                       value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
+                      onChange={(e) => {
+                        // Live clamp: only allow values within this service's min/max
+                        const raw = e.target.value;
+                        if (raw === "") { setQuantity(""); return; }
+                        const n = parseInt(raw, 10);
+                        if (isNaN(n)) return;
+                        const hi = currentService?.max ?? 2147483647;
+                        // Live-clamp max only; min snaps on blur so multi-digit typing works
+                        setQuantity(Math.min(hi, n));
+                      }}
+                      onBlur={(e) => {
+                        // Snap to nearest bound on blur
+                        const n = parseInt(e.target.value, 10);
+                        if (isNaN(n)) { setQuantity(currentService?.min ?? 1); return; }
+                        const lo = currentService?.min ?? 1;
+                        const hi = currentService?.max ?? 2147483647;
+                        setQuantity(Math.min(hi, Math.max(lo, n)));
+                      }}
                       min={currentService?.min || 1}
-                      max={currentService?.max || 1000000}
-                      placeholder={currentService ? `e.g. ${currentService.min}` : "1000"}
+                      max={currentService?.max || 2147483647}
+                      placeholder={currentService ? `${formatNumber(currentService.min)} – ${formatNumber(currentService.max)}` : "1000"}
                       required
                       className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
                     />
@@ -712,7 +758,7 @@ export default function NewOrder({
                 </div>
               )}
 
-              {/* Dispatch Button */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={submitting}
@@ -726,7 +772,7 @@ export default function NewOrder({
                 ) : (
                   <>
                     <ExecutiveOrderIcon size={16} />
-                    <span>Confirm &amp; Dispatch Order</span>
+                    <span>Confirm &amp; Place Order</span>
                   </>
                 )}
               </button>
