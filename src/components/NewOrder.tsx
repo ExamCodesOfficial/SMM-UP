@@ -25,6 +25,7 @@ import {
 import confetti from "canvas-confetti";
 import { SkeletonOrderForm } from "./Skeleton";
 import { formatINR, formatNumber, cleanServiceDescription, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
+import { pathFor } from "../lib/routes";
 import {
   ExecutiveOrderIcon,
   ExecutiveWalletIcon,
@@ -71,7 +72,6 @@ interface NewOrderProps {
   onOrderSuccess: (order: any) => void;
   onOpenWallet: () => void;
   onOpenAuth: () => void;
-  onOpenTerms?: () => void;
   preselectedServiceId?: number | string | null;
 }
 
@@ -96,7 +96,6 @@ export default function NewOrder({
   onOrderSuccess,
   onOpenWallet,
   onOpenAuth,
-  onOpenTerms,
   preselectedServiceId,
 }: NewOrderProps) {
   const [selectedPlatform, setSelectedPlatform] = React.useState("All");
@@ -858,16 +857,13 @@ export default function NewOrder({
                   <ShieldCheck className="w-4 h-4 text-[#E4E4E7] shrink-0" />
                   <span>Account privacy strictly maintained. Never requires passwords.</span>
                 </div>
-                {onOpenTerms && (
-                  <button
-                    type="button"
-                    onClick={onOpenTerms}
-                    className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors cursor-pointer text-xs"
-                  >
-                    <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
-                    <span className="underline">Review Service Terms &amp; Policies</span>
-                  </button>
-                )}
+                <a
+                  href={pathFor("terms")}
+                  className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors cursor-pointer text-xs"
+                >
+                  <FileText className="w-4 h-4 text-zinc-400 shrink-0" />
+                  <span className="underline">Review Service Terms &amp; Policies</span>
+                </a>
               </div>
             </div>
           ) : (

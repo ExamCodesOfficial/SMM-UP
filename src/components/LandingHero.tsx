@@ -31,7 +31,6 @@ interface LandingHeroProps {
   onNavigateTab: (tab: string) => void;
   onOpenAuth: () => void;
   onOpenWallet: () => void;
-  onOpenTerms: () => void;
   totalServices: number;
 }
 
@@ -155,7 +154,6 @@ export default function LandingHero({
   onNavigateTab,
   onOpenAuth,
   onOpenWallet,
-  onOpenTerms,
 }: LandingHeroProps) {
   // Quick-Access auth state
   const [authMode, setAuthMode] = React.useState<"login" | "register">("login");
@@ -641,18 +639,16 @@ export default function LandingHero({
             })}
           </div>
 
-          {onOpenTerms && (
-            <Reveal delay={300}>
-              <div className="text-center mt-10">
-                <button
-                  onClick={() => onNavigateTab("terms")}
-                  className="text-xs text-zinc-500 hover:text-white transition-colors underline underline-offset-4 cursor-pointer"
-                >
-                  Read the Terms of Service &amp; refill rules
-                </button>
-              </div>
-            </Reveal>
-          )}
+          <Reveal delay={300}>
+            <div className="text-center mt-10">
+              <a
+                href={pathFor("terms")}
+                className="text-xs text-zinc-500 hover:text-white transition-colors underline underline-offset-4 cursor-pointer"
+              >
+                Read the Terms of Service &amp; refill rules
+              </a>
+            </div>
+          </Reveal>
         </div>
       </section>
     </div>

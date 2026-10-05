@@ -9,7 +9,6 @@ import AddFundsModal from "./components/AddFundsModal";
 import ProfileModal from "./components/ProfileModal";
 import MobileBottomNav from "./components/MobileBottomNav";
 import FaqSection from "./components/FaqSection";
-import TermsModal from "./components/TermsModal";
 import SupportModal from "./components/SupportModal";
 import LandingHero from "./components/LandingHero";
 import GuaranteesBento from "./components/GuaranteesBento";
@@ -69,7 +68,6 @@ export default function App() {
   // Modals
   const [walletModalOpen, setWalletModalOpen] = React.useState(false);
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
-  const [termsModalOpen, setTermsModalOpen] = React.useState(false);
   const [supportModalOpen, setSupportModalOpen] = React.useState(false);
 
   const navigate = React.useCallback((tab: string) => {
@@ -251,7 +249,6 @@ export default function App() {
         onOpenAuth={(mode) => openAuth(mode || "login")}
         onOpenWallet={openWallet}
         onOpenProfile={() => setProfileModalOpen(true)}
-        onOpenTerms={() => setTermsModalOpen(true)}
         onOpenSupport={() => setSupportModalOpen(true)}
         onLogout={handleLogout}
       />
@@ -266,13 +263,11 @@ export default function App() {
               onNavigateTab={navigate}
               onOpenAuth={() => openAuth("login")}
               onOpenWallet={openWallet}
-              onOpenTerms={() => setTermsModalOpen(true)}
-              totalServices={services.length || 2000}
+                    totalServices={services.length || 2000}
             />
             <Reveal>
               <GuaranteesBento
-                onOpenTerms={() => setTermsModalOpen(true)}
-                onOpenWallet={openWallet}
+                        onOpenWallet={openWallet}
                 onNavigate={navigate}
               />
             </Reveal>
@@ -292,8 +287,7 @@ export default function App() {
               onOrderSuccess={handleOrderSuccess}
               onOpenWallet={openWallet}
               onOpenAuth={() => openAuth("login")}
-              onOpenTerms={() => setTermsModalOpen(true)}
-              preselectedServiceId={preselectedServiceId}
+                    preselectedServiceId={preselectedServiceId}
             />
             <FaqSection onSeeAll={() => navigate("faq")} />
           </div>
@@ -355,8 +349,7 @@ export default function App() {
           <AuthPage
             initialMode={authPageMode}
             onAuthSuccess={handleAuthSuccess}
-            onOpenTerms={() => setTermsModalOpen(true)}
-          />
+              />
         )}
 
         {/* ── Platform pages ── */}
@@ -395,7 +388,6 @@ export default function App() {
 
       <Footer
         onNavigateTab={navigate}
-        onOpenTerms={() => setTermsModalOpen(true)}
         onOpenWallet={openWallet}
         onOpenSupport={() => setSupportModalOpen(true)}
       />
@@ -426,11 +418,6 @@ export default function App() {
         user={user}
         onLogout={handleLogout}
         onUserUpdate={(patch) => setUser((prev: any) => ({ ...prev, ...patch }))}
-      />
-
-      <TermsModal
-        isOpen={termsModalOpen}
-        onClose={() => setTermsModalOpen(false)}
       />
 
       <SupportModal

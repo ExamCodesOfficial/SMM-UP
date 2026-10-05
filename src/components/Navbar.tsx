@@ -31,7 +31,6 @@ interface NavbarProps {
   onOpenAuth: (mode?: "login" | "register") => void;
   onOpenWallet: () => void;
   onOpenProfile: () => void;
-  onOpenTerms?: () => void;
   onOpenSupport?: () => void;
   onLogout: () => void;
 }
@@ -43,7 +42,6 @@ export default function Navbar({
   onOpenAuth,
   onOpenWallet,
   onOpenProfile,
-  onOpenTerms,
   onOpenSupport,
   onLogout,
 }: NavbarProps) {
@@ -375,18 +373,14 @@ export default function Navbar({
                 })}
 
                 {/* Terms & SLA Link */}
-                {onOpenTerms && (
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenTerms();
-                    }}
-                    className="w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-zinc-400 hover:text-white transition-all cursor-pointer min-h-[48px]"
-                  >
-                    <FileText className="w-4 h-4 text-zinc-500" />
-                    <span>Terms &amp; Policies</span>
-                  </button>
-                )}
+                <a
+                  href={pathFor("terms")}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-zinc-400 hover:text-white transition-all cursor-pointer min-h-[48px]"
+                >
+                  <FileText className="w-4 h-4 text-zinc-500" />
+                  <span>Terms &amp; Policies</span>
+                </a>
 
                 {/* Customer Support Link */}
                 <a
