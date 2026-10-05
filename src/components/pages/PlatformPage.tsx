@@ -108,7 +108,7 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
       { title: "Completion honesty", desc: "If a service can't finish, you get a partial refund automatically — never silent losses." },
     ],
     faq: [
-      { q: "Will watch time count toward monetization?", a: "Watch hours from our monetization-oriented services register in YouTube Analytics. Final monetization approval always rests with YouTube's human review of the channel." },
+      { q: "Is buying YouTube watch time safe for monetization?", a: "Our monetization-oriented watch-time services are designed to register in YouTube Analytics, but no panel can guarantee approval. YouTube makes the final decision after reviewing the whole channel, its content and traffic patterns. Use gradual quantities and keep publishing original content alongside any campaign." },
       { q: "How long does 4,000 hours take?", a: "Depending on service tier, between a few days and a few weeks — the average time is printed on each watch-time service card." },
       { q: "Do subscribers drop?", a: "All platforms audit subscribers periodically. Choose refill-guaranteed tiers; drops inside the window are replaced free." },
       { q: "Can I boost a live stream?", a: "Yes — concurrent-viewer services run for the duration you order. Order shortly before going live." },
@@ -223,6 +223,14 @@ export default function PlatformPage({ config, services, onNavigate }: PlatformP
     platformServices.forEach((s) => set.add(s.category));
     return Array.from(set).sort().slice(0, 8);
   }, [platformServices]);
+  // Live price list: the 8 cheapest live SKUs on this platform — answers the
+  // "X price per 1,000" searches with real numbers instead of one floor stat.
+  const priceList = React.useMemo(() => {
+    return platformServices
+      .filter((s) => s.rate > 0)
+      .sort((a, b) => a.rate - b.rate)
+      .slice(0, 8);
+  }, [platformServices]);
 
   return (
     <ContentPage
@@ -267,6 +275,52 @@ export default function PlatformPage({ config, services, onNavigate }: PlatformP
           </div>
         </div>
       </Reveal>
+
+      {/* Live price list — straight from the catalog, per 1,000 units */}
+      {priceList.length > 0 && (
+        <Reveal>
+          <div className="mb-10">
+            <div className="flex items-end justify-between gap-3 mb-3">
+              <H2>{config.name} price list, live</H2>
+              <span className="hidden sm:block text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-600 shrink-0">
+                Per 1,000 • synced from catalog
+              </span>
+            </div>
+            <div className="rounded-none border border-white/12 bg-white/[0.02] overflow-hidden">
+              <div className="hidden sm:grid grid-cols-[1fr_120px_150px] gap-4 px-4 py-2.5 border-b border-white/[0.08] text-[9px] font-mono tracking-[0.22em] uppercase text-zinc-500">
+                <span>Service</span>
+                <span>Rate / 1K</span>
+                <span>Min – Max</span>
+              </div>
+              {priceList.map((s, i) => (
+                <div
+                  key={`${s.name}-${i}`}
+                  className={`grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_120px_150px] gap-2 sm:gap-4 px-4 py-3 items-center ${
+                    i !== priceList.length - 1 ? "border-b border-white/[0.05]" : ""
+                  }`}
+                >
+                  <span className="text-xs sm:text-sm text-zinc-300 leading-snug line-clamp-2">
+                    {s.name}
+                  </span>
+                  <span className="text-sm font-bold text-white text-right sm:text-left">
+                    {formatINR(s.rate)}
+                  </span>
+                  <span className="hidden sm:block text-[11px] font-mono text-zinc-500">
+                    {s.min.toLocaleString()} – {s.max.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2.5 text-[11px] text-zinc-600 font-light">
+              Cheapest {Math.min(8, priceList.length)} of {platformServices.length} live services.{" "}
+              <a href={pathFor("catalog")} className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-400 transition">
+                See the full {config.name} catalog
+              </a>
+              {" "}— every SKU, every tier.
+            </p>
+          </div>
+        </Reveal>
+      )}
 
       <H2>{config.name} services available</H2>
       <div className="grid sm:grid-cols-2 gap-2.5 mb-4">

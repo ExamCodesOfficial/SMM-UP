@@ -43,6 +43,7 @@ import {
   SitemapPage,
 } from "./components/pages/AccountPages";
 import PlatformPage, { PLATFORM_PAGES } from "./components/pages/PlatformPage";
+import ReviewsPage from "./components/pages/ReviewsPage";
 import { sanitizeBrandText, cleanServiceDescription } from "./lib/utils";
 import { applySeo, applyStructuredData } from "./lib/seo";
 import { TAB_PATHS, PATH_TABS } from "./lib/routes";
@@ -382,6 +383,13 @@ export default function App() {
         {currentTab === "acceptable-use" && <AcceptableUsePage onNavigate={navigate} />}
         {currentTab === "cookie-policy" && <CookiePolicyPage onNavigate={navigate} />}
         {currentTab === "sitemap" && <SitemapPage onNavigate={navigate} />}
+        {currentTab === "reviews" && (
+          <ReviewsPage
+            user={user}
+            onNavigate={navigate}
+            onOpenAuth={() => openAuth("login")}
+          />
+        )}
         {currentTab === "notfound" && <NotFoundPage onNavigate={navigate} />}
       </main>
 

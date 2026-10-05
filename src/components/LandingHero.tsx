@@ -214,7 +214,7 @@ export default function LandingHero({
           </div>
 
           {/* Two-line headline — SCALE SOCIAL nearly matches SMM UP, brand a notch bigger */}
-          <h1 className="relative z-10 leading-[1.04] mt-32 sm:mt-40">
+          <h1 className="relative z-10 leading-[1.04] mt-32 sm:mt-28">
             <span className="animate-hero-2 block text-[2.5rem] sm:text-7xl md:text-8xl font-light tracking-[0.11em] sm:tracking-[0.13em] uppercase text-zinc-400">
               Scale social
             </span>

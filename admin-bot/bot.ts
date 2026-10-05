@@ -9,7 +9,7 @@ dotenv.config();
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const OWNER_ID = process.env.TELEGRAM_OWNER_ID || "";
 const MONGODB_URI = process.env.MONGODB_URI || "";
-const DB_NAME = process.env.MONGODB_DB_NAME || "smm_up";
+const DB_NAME = process.env.MONGODB_DB_NAME || process.env.DATABASE_NAME || "smm_up_db";
 
 if (!BOT_TOKEN) {
   console.error("FATAL: TELEGRAM_BOT_TOKEN is not defined in environment variables.");
@@ -38,6 +38,35 @@ async function getDatabase(): Promise<Db> {
 
 // ── 2. INITIALIZE TELEGRAF BOT ──────────────────────────────────────
 const bot = new Telegraf(BOT_TOKEN);
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function reviewModerationText(review: any, status: "approved" | "hidden"): string {
+  const stars = "★".repeat(Math.max(1, Math.min(5, Number(review.rating) || 1)));
+  const body = String(review.text || "").slice(0, 900);
+  return (
+    `${status === "hidden" ? "🙈" : "✅"} <b>${escapeHtml(review.username)}</b> · ${stars}\n` +
+    `<code>${review._id.toString()}</code>\n` +
+    `${review.city ? `📍 ${escapeHtml(review.city)}\n` : ""}` +
+    `\n${escapeHtml(body)}\n\n` +
+    `<i>Status: ${status.toUpperCase()}</i>`
+  );
+}
+
+function reviewModerationKeyboard(id: ObjectId, status: "approved" | "hidden") {
+  return {
+    inline_keyboard: [[{
+      text: status === "hidden" ? "👁 Show review" : "🙈 Hide review",
+      callback_data: `review-toggle:${id.toString()}`,
+    }]],
+  };
+}
 
 // Strict owner-only authentication middleware
 bot.use(async (ctx, next) => {
@@ -71,6 +100,7 @@ Zero-Web-Surface Operations Engine
 📦 <code>/orders [limit]</code> — View latest provider orders
 📑 <code>/checkmemo &lt;memo&gt;</code> — Check status of a payment memo
 📡 <code>/scan</code> — Trigger an immediate IMAP Gmail settlement scan
+⭐ <code>/reviews [limit]</code> — Review submissions with one-tap hide/show controls
 
 <i>All changes execute atomically directly on MongoDB Atlas.</i>
 `;
@@ -113,6 +143,67 @@ bot.command("stats", async (ctx) => {
     await ctx.reply(statsMsg, { parse_mode: "HTML" });
   } catch (err: any) {
     await ctx.reply(`❌ Error fetching stats: ${err.message}`);
+  }
+});
+
+// /reviews [limit] — zero-web-surface review moderation
+bot.command("reviews", async (ctx) => {
+  try {
+    const requested = Number(ctx.message.text.trim().split(/\s+/)[1] || 8);
+    const limit = Math.max(1, Math.min(Number.isFinite(requested) ? requested : 8, 12));
+    const database = await getDatabase();
+    const reviews = await database
+      .collection("reviews")
+      .find({ seed: { $ne: true } })
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .toArray();
+
+    if (!reviews.length) {
+      return ctx.reply("⭐ No buyer-submitted reviews yet. The six permanent homepage reviews are unchanged.");
+    }
+
+    await ctx.reply(
+      `⭐ <b>Latest ${reviews.length} Buyer Review${reviews.length === 1 ? "" : "s"}</b>\n` +
+      `<i>Tap the button under any review to hide or restore it instantly.</i>`,
+      { parse_mode: "HTML" }
+    );
+
+    for (const r of reviews) {
+      const status: "approved" | "hidden" = r.status === "hidden" ? "hidden" : "approved";
+      await ctx.reply(reviewModerationText(r, status), {
+        parse_mode: "HTML",
+        reply_markup: reviewModerationKeyboard(r._id, status),
+      });
+    }
+  } catch (err: any) {
+    await ctx.reply(`❌ Review moderation failed: ${escapeHtml(err.message)}`, { parse_mode: "HTML" });
+  }
+});
+
+bot.action(/^review-toggle:([a-f0-9]{24})$/, async (ctx) => {
+  try {
+    const database = await getDatabase();
+    const id = new ObjectId(ctx.match[1]);
+    const review = await database.collection("reviews").findOne({ _id: id, seed: { $ne: true } });
+    if (!review) {
+      await ctx.answerCbQuery("Review no longer exists.", { show_alert: true });
+      return;
+    }
+
+    const nextStatus: "approved" | "hidden" = review.status === "hidden" ? "approved" : "hidden";
+    await database.collection("reviews").updateOne(
+      { _id: id },
+      { $set: { status: nextStatus, moderated_at: new Date(), moderated_via: "telegram_bot" } }
+    );
+
+    await ctx.editMessageText(reviewModerationText(review, nextStatus), {
+      parse_mode: "HTML",
+      reply_markup: reviewModerationKeyboard(id, nextStatus),
+    });
+    await ctx.answerCbQuery(nextStatus === "hidden" ? "Review hidden from the site." : "Review restored on the site.");
+  } catch (err: any) {
+    await ctx.answerCbQuery(`Failed: ${String(err.message).slice(0, 120)}`, { show_alert: true });
   }
 });
 

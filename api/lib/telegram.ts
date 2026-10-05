@@ -138,6 +138,33 @@ export async function sendFailedOrderAlert(data: FailedOrderAlertData): Promise<
   return sendTelegramMessage(message, "HTML");
 }
 
+export interface ReviewSubmittedAlertData {
+  reviewId: string;
+  username: string;
+  rating: number;
+  text: string;
+  city?: string | null;
+}
+
+/** Sends a buyer-review notification. Moderation itself stays exclusively in
+ * the owner-only Telegram bot via /reviews — there is no web admin route. */
+export async function sendReviewSubmittedAlert(data: ReviewSubmittedAlertData): Promise<boolean> {
+  const stars = "★".repeat(Math.max(1, Math.min(5, data.rating)));
+  const message = [
+    `⭐ <b>VERIFIED BUYER REVIEW SAVED</b>`,
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `👤 <b>User:</b> <code>${escapeHtml(data.username)}</code>`,
+    `⭐ <b>Rating:</b> ${stars}`,
+    data.city ? `📍 <b>City:</b> ${escapeHtml(data.city)}` : null,
+    `🆔 <b>Review ID:</b> <code>${escapeHtml(data.reviewId)}</code>`,
+    ``,
+    escapeHtml(data.text.slice(0, 700)),
+    `━━━━━━━━━━━━━━━━━━━━`,
+    `⚡ <i>Open <code>/reviews</code> for one-tap Hide / Show controls.</i>`,
+  ].filter((line) => line !== null).join("\n");
+  return sendTelegramMessage(message, "HTML");
+}
+
 function escapeHtml(str: string): string {
   if (!str) return "";
   return String(str)
