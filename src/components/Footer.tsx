@@ -65,12 +65,19 @@ export default function Footer({ onNavigateTab, onOpenSupport }: FooterProps) {
         {/* ── Desktop: airy 5-column grid ── */}
         <div className="hidden md:grid lg:grid-cols-12 gap-10 lg:gap-14 pb-14 border-b border-white/[0.08]">
           <div className="lg:col-span-4 space-y-5">
-            <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                onNavigateTab("home");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="flex items-center gap-3 cursor-pointer group text-left"
+              title="Back to home"
+            >
               <SmmUpLogo size={36} />
-              <span className="text-base sm:text-lg font-light tracking-[0.3em] text-[#FAF9F7] leading-none">
+              <span className="text-base sm:text-lg font-light tracking-[0.3em] text-[#FAF9F7] leading-none group-hover:text-white transition-colors">
                 SMM UP
               </span>
-            </div>
+            </button>
             <p className="text-xs sm:text-sm text-zinc-400 font-light leading-relaxed max-w-sm">
               India's wholesale SMM panel, founded by Aryan. 0% fee UPI deposits, 2,000+ services
               with refill guarantees from 7 days to lifetime, and a standard reseller API.
@@ -109,10 +116,17 @@ export default function Footer({ onNavigateTab, onOpenSupport }: FooterProps) {
 
         {/* ── Mobile: compact brand row + collapsible groups ── */}
         <div className="md:hidden pb-8 border-b border-white/[0.08]">
-          <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => {
+              onNavigateTab("home");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="flex items-center gap-3 mb-4 cursor-pointer"
+            title="Back to home"
+          >
             <SmmUpLogo size={30} />
-            <span className="text-sm font-light tracking-[0.3em] text-[#FAF9F7]">SMM UP</span>
-          </div>
+            <span className="text-sm font-light tracking-[0.3em] text-[#FAF9F7] hover:text-white transition-colors">SMM UP</span>
+          </button>
           <p className="text-[11px] text-zinc-500 leading-relaxed mb-5 max-w-xs">
             India's wholesale SMM panel — 0% fee UPI deposits, refill guarantees up to lifetime.
           </p>
@@ -169,15 +183,16 @@ export default function Footer({ onNavigateTab, onOpenSupport }: FooterProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            {onOpenSupport && (
-              <button
-                onClick={onOpenSupport}
-                className="btn-up btn-up-ghost btn-up-sm"
-              >
-                <MessageCircle className="w-3.5 h-3.5" />
-                <span>Support</span>
-              </button>
-            )}
+            <button
+              onClick={() => {
+                onNavigateTab("support");
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              className="btn-up btn-up-ghost btn-up-sm"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>Support</span>
+            </button>
             <button
               onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
               className="btn-up btn-up-ghost btn-up-sm"

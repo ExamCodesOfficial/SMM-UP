@@ -216,8 +216,8 @@ export default function LandingHero({
 
           {/* Two-line headline */}
           <h1 className="relative z-10 leading-[1.04] mt-8">
-            <span className="animate-hero-2 block text-4xl sm:text-6xl md:text-7xl font-light tracking-[0.10em] uppercase text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-300 to-zinc-500">
-              Scale social with
+            <span className="animate-hero-2 block text-4xl sm:text-6xl md:text-7xl font-light tracking-[0.10em] uppercase text-zinc-400">
+              Scale social
             </span>
             <span className="animate-hero-3 block mt-3 sm:mt-4 text-5xl sm:text-7xl md:text-8xl font-normal tracking-[0.22em] uppercase text-white drop-shadow-[0_0_32px_rgba(255,255,255,0.42)]">
               SMM UP
@@ -372,7 +372,7 @@ export default function LandingHero({
                       </div>
                     </div>
 
-                    <form onSubmit={handleEmbeddedAuth} className="space-y-4">
+                    <form key={authMode} onSubmit={handleEmbeddedAuth} className="space-y-4 form-swap">
                       <div>
                         <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                           {authMode === "login" ? "Username or Email" : "Username"}

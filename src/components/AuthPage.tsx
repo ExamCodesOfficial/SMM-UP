@@ -107,7 +107,7 @@ export default function AuthPage({ initialMode, onAuthSuccess, onOpenTerms }: Au
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form key={mode} onSubmit={handleSubmit} className="space-y-4 form-swap">
             <div>
               <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                 {mode === "login" ? "Username or Email" : "Username"}
