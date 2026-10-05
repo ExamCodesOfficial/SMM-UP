@@ -241,18 +241,24 @@ export default function Footer({
         </div>
 
         {/* Bottom Bar (ExamCodes & thatonearyan-sh style) */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-          <div className="text-[10px] sm:text-[11px] tracking-[0.2em] text-zinc-600 font-mono uppercase text-center sm:text-left">
-            &copy; 2026 SMM UP &bull; ALL PROTOCOLS ENFORCED &bull; DIRECT BANK UPI CLEARING
+        <div className="pt-8 flex flex-col items-center gap-3 text-xs">
+          <div className="text-[10px] sm:text-[11px] tracking-[0.18em] text-zinc-400 font-mono uppercase text-center">
+            Founded &amp; Operated by <a href="mailto:examcodesofficial@gmail.com" className="text-[#F5E8D0] hover:text-white transition-colors">Aryan</a> &bull; CEO &amp; Owner &bull; <a href="mailto:examcodesofficial@gmail.com" className="text-zinc-300 hover:text-white transition-colors">examcodesofficial@gmail.com</a>
           </div>
 
-          <button
-            onClick={scrollToTop}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 text-zinc-400 hover:text-white text-[11px] font-mono tracking-wider transition-colors cursor-pointer"
-          >
-            <span>BACK TO TOP</span>
-            <ChevronUp className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-4 pt-2">
+            <div className="text-[10px] sm:text-[11px] tracking-[0.2em] text-zinc-600 font-mono uppercase text-center sm:text-left">
+              &copy; 2026 SMM UP &bull; ALL PROTOCOLS ENFORCED &bull; DIRECT BANK UPI CLEARING
+            </div>
+
+            <button
+              onClick={scrollToTop}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 text-zinc-400 hover:text-white text-[11px] font-mono tracking-wider transition-colors cursor-pointer"
+            >
+              <span>BACK TO TOP</span>
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
         </Reveal>
       </div>

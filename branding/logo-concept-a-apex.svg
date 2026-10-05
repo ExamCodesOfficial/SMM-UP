@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <title>SMM UP — Concept A: Apex Monogram</title>
+
+  <!-- Pure Obsidian Pitch-Black Squircle Canvas -->
+  <rect width="128" height="128" rx="22" fill="#090807"/>
+
+  <!-- Champagne Outer Halo Ring -->
+  <rect x="2.5" y="2.5" width="123" height="123" rx="20.5" fill="none" stroke="#F5E8D0" stroke-opacity="0.35" stroke-width="1.5"/>
+
+  <!-- Precision Inner White Hairline -->
+  <rect x="8" y="8" width="112" height="112" rx="15" fill="none" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="1"/>
+
+  <defs>
+    <filter id="aGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="aChampagneGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Champagne Apex Beacon (Points UP) -->
+  <polygon points="47,18 55,27.5 39,27.5" fill="#F5E8D0" filter="url(#aChampagneGlow)"/>
+
+  <!-- High-Impact Iconic 'UP' Monogram -->
+  <g fill="#FAF7F2" filter="url(#aGlow)">
+    <path d="M 28 38 L 40 38 L 40 64 C 40 68 43 71 47 71 C 51 71 54 68 54 64 L 54 38 L 66 38 L 66 65 C 66 76 58 83 47 83 C 36 83 28 76 28 65 Z"/>
+    <path d="M 74 38 L 94 38 C 103 38 109 43 109 51 C 109 59 103 64 94 64 L 86 64 L 86 83 L 74 83 Z M 86 48 L 86 54 L 93 54 C 96 54 98 53 98 51 C 98 49 96 48 93 48 Z"/>
+  </g>
+
+  <!-- Live Pulse Core Node -->
+  <circle cx="86" cy="51" r="2.5" fill="#090807"/>
+
+  <!-- Signature Champagne Telemetry Lines -->
+  <line x1="28" y1="100" x2="100" y2="100" stroke="#F5E8D0" stroke-width="2.5" opacity="0.9" stroke-linecap="round"/>
+  <line x1="42" y1="108" x2="86" y2="108" stroke="#F5E8D0" stroke-width="1.6" opacity="0.45" stroke-linecap="round"/>
+</svg>
