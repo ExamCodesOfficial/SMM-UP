@@ -44,45 +44,8 @@ import {
 } from "./components/pages/AccountPages";
 import PlatformPage, { PLATFORM_PAGES } from "./components/pages/PlatformPage";
 import { sanitizeBrandText, cleanServiceDescription } from "./lib/utils";
-import { applySeo } from "./lib/seo";
-
-/* ── Route table: tab ↔ URL path (one entry per real page) ── */
-const TAB_PATHS: Record<string, string> = {
-  home: "/",
-  order: "/order",
-  catalog: "/catalog",
-  mass: "/mass",
-  logs: "/logs",
-  auth: "/auth",
-  api: "/api",
-  playground: "/playground",
-  account: "/account",
-  transactions: "/transactions",
-  faq: "/faq",
-  support: "/support",
-  about: "/about",
-  terms: "/terms",
-  privacy: "/privacy",
-  refunds: "/refunds",
-  "acceptable-use": "/acceptable-use",
-  "cookie-policy": "/cookie-policy",
-  security: "/security",
-  abuse: "/abuse",
-  press: "/press",
-  status: "/status",
-  changelog: "/changelog",
-  sitemap: "/sitemap",
-  "p-telegram": "/telegram-smm-panel",
-  "p-instagram": "/instagram-smm-panel",
-  "p-youtube": "/youtube-smm-panel",
-  "p-twitter": "/twitter-smm-panel",
-  "p-tiktok": "/tiktok-smm-panel",
-  "p-spotify": "/spotify-smm-panel",
-};
-
-const PATH_TABS: Record<string, string> = Object.fromEntries(
-  Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab])
-);
+import { applySeo, applyStructuredData } from "./lib/seo";
+import { TAB_PATHS, PATH_TABS } from "./lib/routes";
 
 // Pages that require a signed-in user
 const GUARDED = new Set(["logs", "account", "transactions"]);
@@ -115,8 +78,30 @@ export default function App() {
       window.history.pushState({}, "", url);
     }
     applySeo(tab);
+    applyStructuredData(tab);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
+
+  /* Global SPA anchor interceptor: any same-origin <a href="/..."> becomes
+     router navigation (real hrefs stay crawlable for Googlebot; modifier
+     clicks and target attributes still open normally). */
+  React.useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") || "";
+      if (!href.startsWith("/") || href.startsWith("//") || anchor.target === "_blank") return;
+      const path = href.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
+      const tab = PATH_TABS[path];
+      if (!tab) return; // let unknown paths load normally (assets, downloads)
+      e.preventDefault();
+      navigate(tab);
+    };
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, [navigate]);
 
   // Back/forward buttons + initial SEO
   React.useEffect(() => {
@@ -124,9 +109,11 @@ export default function App() {
       const tab = tabFromPath();
       setCurrentTab(tab);
       applySeo(tab);
+      applyStructuredData(tab);
     };
     window.addEventListener("popstate", onPop);
     applySeo(tabFromPath());
+    applyStructuredData(tabFromPath());
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 

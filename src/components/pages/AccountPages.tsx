@@ -177,59 +177,59 @@ export function NotFoundPage({ onNavigate }: PageProps) {
 
 /* ══════════════════════ HTML SITEMAP ══════════════════════ */
 export function SitemapPage({ onNavigate }: PageProps) {
-  const groups: { title: string; links: { tab: string; label: string }[] }[] = [
+  const groups: { title: string; links: { path: string; label: string }[] }[] = [
     {
       title: "Main",
       links: [
-        { tab: "home", label: "Home" },
-        { tab: "order", label: "Place an Order" },
-        { tab: "catalog", label: "Services & Prices" },
-        { tab: "mass", label: "Mass Order" },
-        { tab: "logs", label: "Order History" },
-        { tab: "auth", label: "Sign In / Create Account" },
-        { tab: "account", label: "My Account" },
-        { tab: "transactions", label: "Deposit History" },
+        { path: "/", label: "Home" },
+        { path: "/order", label: "Place an Order" },
+        { path: "/catalog", label: "Services & Prices" },
+        { path: "/mass", label: "Mass Order" },
+        { path: "/logs", label: "Order History" },
+        { path: "/auth", label: "Sign In / Create Account" },
+        { path: "/account", label: "My Account" },
+        { path: "/transactions", label: "Deposit History" },
       ],
     },
     {
       title: "Platforms",
       links: [
-        { tab: "p-telegram", label: "Telegram SMM Panel" },
-        { tab: "p-instagram", label: "Instagram SMM Panel" },
-        { tab: "p-youtube", label: "YouTube SMM Panel" },
-        { tab: "p-twitter", label: "Twitter / X SMM Panel" },
-        { tab: "p-tiktok", label: "TikTok SMM Panel" },
-        { tab: "p-spotify", label: "Spotify SMM Panel" },
+        { path: "/telegram-smm-panel", label: "Telegram SMM Panel" },
+        { path: "/instagram-smm-panel", label: "Instagram SMM Panel" },
+        { path: "/youtube-smm-panel", label: "YouTube SMM Panel" },
+        { path: "/twitter-smm-panel", label: "Twitter / X SMM Panel" },
+        { path: "/tiktok-smm-panel", label: "TikTok SMM Panel" },
+        { path: "/spotify-smm-panel", label: "Spotify SMM Panel" },
       ],
     },
     {
       title: "Developers",
       links: [
-        { tab: "api", label: "API Documentation" },
-        { tab: "playground", label: "API Playground" },
+        { path: "/api", label: "API Documentation" },
+        { path: "/playground", label: "API Playground" },
       ],
     },
     {
       title: "Help & Company",
       links: [
-        { tab: "faq", label: "FAQ" },
-        { tab: "support", label: "Support & Contact" },
-        { tab: "about", label: "About" },
-        { tab: "status", label: "System Status" },
-        { tab: "changelog", label: "Changelog" },
-        { tab: "press", label: "Press & Brand Kit" },
+        { path: "/faq", label: "FAQ" },
+        { path: "/support", label: "Support & Contact" },
+        { path: "/about", label: "About" },
+        { path: "/status", label: "System Status" },
+        { path: "/changelog", label: "Changelog" },
+        { path: "/press", label: "Press & Brand Kit" },
       ],
     },
     {
       title: "Legal & Trust",
       links: [
-        { tab: "terms", label: "Terms of Service" },
-        { tab: "privacy", label: "Privacy Policy" },
-        { tab: "refunds", label: "Refund & Cancellation" },
-        { tab: "acceptable-use", label: "Acceptable Use" },
-        { tab: "cookie-policy", label: "Cookie Policy" },
-        { tab: "security", label: "Security" },
-        { tab: "abuse", label: "Report Abuse" },
+        { path: "/terms", label: "Terms of Service" },
+        { path: "/privacy", label: "Privacy Policy" },
+        { path: "/refunds", label: "Refund & Cancellation" },
+        { path: "/acceptable-use", label: "Acceptable Use" },
+        { path: "/cookie-policy", label: "Cookie Policy" },
+        { path: "/security", label: "Security" },
+        { path: "/abuse", label: "Report Abuse" },
       ],
     },
   ];
@@ -250,13 +250,13 @@ export function SitemapPage({ onNavigate }: PageProps) {
             </h3>
             <ul className="space-y-2">
               {g.links.map((l) => (
-                <li key={l.tab}>
-                  <button
-                    onClick={() => onNavigate(l.tab)}
+                <li key={l.path}>
+                  <a
+                    href={l.path}
                     className="text-sm text-zinc-400 hover:text-white transition-colors cursor-pointer"
                   >
                     {l.label}
-                  </button>
+                  </a>
                 </li>
               ))}
             </ul>

@@ -1,4 +1,5 @@
 import React from "react";
+import { pathFor } from "../lib/routes";
 import {
   User,
   LogOut,
@@ -127,18 +128,15 @@ export default function Navbar({
       </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
         {/* Brand Logo in thatonearyan-sh / ExamCodes Style */}
-        <button
-          onClick={() => {
-            setCurrentTab("home");
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
+        <a
+          href={pathFor("home")}
           className="flex items-center gap-3 cursor-pointer group text-left"
         >
           <SmmUpLogo size={36} className="shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-transform duration-300 group-hover:scale-105" />
           <span className="text-base sm:text-lg font-light tracking-[0.3em] text-[#FAF9F7] drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] leading-none">
             SMM UP
           </span>
-        </button>
+        </a>
 
         {/* Desktop Nav Links */}
         <nav className="hidden md:flex items-center gap-1.5 lg:gap-2">
@@ -146,9 +144,9 @@ export default function Navbar({
             const Icon = link.icon;
             const isActive = currentTab === link.id;
             return (
-              <button
+              <a
                 key={link.id}
-                onClick={() => setCurrentTab(link.id)}
+                href={pathFor(link.id)}
                 aria-current={isActive ? "page" : undefined}
                 className={`px-4 py-2 rounded-none text-xs font-semibold tracking-wider flex items-center gap-2 transition-all duration-200 cursor-pointer ${
                   isActive
@@ -158,7 +156,7 @@ export default function Navbar({
               >
                 <Icon size={15} />
                 <span>{link.label}</span>
-              </button>
+              </a>
             );
           })}
         </nav>
@@ -194,23 +192,23 @@ export default function Navbar({
               </button>
 
               {/* Support — plain text link (examcodes style) */}
-              <button
-                onClick={() => onNavigateTab("support")}
+              <a
+                href={pathFor("support")}
                 className="hidden sm:block text-xs sm:text-[13px] font-mono tracking-[0.24em] uppercase text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
                 title="Get help — Support"
               >
                 Support
-              </button>
+              </a>
             </>
           ) : (
             <div className="flex items-center gap-5 sm:gap-8">
-              <button
-                onClick={() => onNavigateTab("support")}
+              <a
+                href={pathFor("support")}
                 className="hidden sm:block text-xs sm:text-[13px] font-mono tracking-[0.24em] uppercase text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
                 title="Get help — Support"
               >
                 Support
-              </button>
+              </a>
               <button
                 onClick={() => onOpenAuth("login")}
                 className="text-xs sm:text-[13px] font-mono tracking-[0.24em] uppercase text-zinc-200 hover:text-white transition-colors cursor-pointer"
@@ -247,19 +245,16 @@ export default function Navbar({
         >
           {/* Menu Top Bar */}
           <div className="w-full px-5 py-4 flex items-center justify-between border-b border-white/[0.08] shrink-0">
-            <button
-              onClick={() => {
-                setCurrentTab("home");
-                setMobileMenuOpen(false);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+            <a
+              href={pathFor("home")}
+              onClick={() => setMobileMenuOpen(false)}
               className="flex items-center gap-3 cursor-pointer text-left"
             >
               <SmmUpLogo size={32} />
               <span className="text-base font-light tracking-[0.3em] text-[#FAF9F7]">
                 SMM UP
               </span>
-            </button>
+            </a>
 
             <button
               onClick={() => setMobileMenuOpen(false)}
@@ -360,13 +355,10 @@ export default function Navbar({
                   const Icon = link.icon;
                   const isActive = currentTab === link.id;
                   return (
-                    <button
+                    <a
                       key={link.id}
-                      onClick={() => {
-                        setCurrentTab(link.id);
-                        setMobileMenuOpen(false);
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
+                      href={pathFor(link.id)}
+                      onClick={() => setMobileMenuOpen(false)}
                       className={`w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center justify-between border-b border-white/[0.04] transition-all cursor-pointer min-h-[48px] ${
                         isActive
                           ? "bg-white text-black font-bold shadow-[0_0_15px_rgba(255,255,255,0.25)]"
@@ -378,7 +370,7 @@ export default function Navbar({
                         <span>{link.label}</span>
                       </div>
                       {isActive && <span className="text-[10px] font-mono">&bull; YOU ARE HERE</span>}
-                    </button>
+                    </a>
                   );
                 })}
 
@@ -397,18 +389,14 @@ export default function Navbar({
                 )}
 
                 {/* Customer Support Link */}
-                {onOpenSupport && (
-                  <button
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onNavigateTab("support");
-                    }}
-                    className="w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-[#E4E4E7] hover:text-white transition-all cursor-pointer min-h-[48px]"
-                  >
-                    <MessageCircle className="w-4 h-4 text-[#E4E4E7]" />
-                    <span>Support</span>
-                  </button>
-                )}
+                <a
+                  href={pathFor("support")}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-[#E4E4E7] hover:text-white transition-all cursor-pointer min-h-[48px]"
+                >
+                  <MessageCircle className="w-4 h-4 text-[#E4E4E7]" />
+                  <span>Support</span>
+                </a>
               </div>
             </div>
 

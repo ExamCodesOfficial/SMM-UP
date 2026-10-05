@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { formatINR } from "../lib/utils";
 import Reveal from "./Reveal";
+import { pathFor } from "../lib/routes";
 import {
   SmmUpLogo,
   ExecutiveOrderIcon,
@@ -213,11 +214,11 @@ export default function LandingHero({
           </div>
 
           {/* Two-line headline — SCALE SOCIAL nearly matches SMM UP, brand a notch bigger */}
-          <h1 className="relative z-10 leading-[1.04] mt-20 sm:mt-24">
-            <span className="animate-hero-2 block text-4xl sm:text-6xl md:text-7xl font-light tracking-[0.13em] uppercase text-zinc-400">
+          <h1 className="relative z-10 leading-[1.04] mt-32 sm:mt-40">
+            <span className="animate-hero-2 block text-[2.5rem] sm:text-7xl md:text-8xl font-light tracking-[0.11em] sm:tracking-[0.13em] uppercase text-zinc-400">
               Scale social
             </span>
-            <span className="animate-hero-3 block mt-3 sm:mt-4 text-5xl sm:text-7xl md:text-[7.2rem] font-normal tracking-[0.22em] uppercase text-white drop-shadow-[0_0_32px_rgba(255,255,255,0.42)]">
+            <span className="animate-hero-3 block mt-5 sm:mt-7 text-5xl sm:text-7xl md:text-[7.2rem] font-normal tracking-[0.22em] uppercase text-white drop-shadow-[0_0_32px_rgba(255,255,255,0.42)]">
               SMM UP
             </span>
           </h1>
@@ -237,22 +238,22 @@ export default function LandingHero({
 
           {/* CTAs */}
           <div className="animate-hero-5 mt-10 sm:mt-12 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4">
-            <button
-              onClick={() => onNavigateTab("order")}
+            <a
+              href={pathFor("order")}
               className="btn-up btn-up-solid group"
             >
               <ExecutiveOrderIcon size={16} />
               <span>Place an Order</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </button>
+            </a>
 
-            <button
-              onClick={() => onNavigateTab("catalog")}
+            <a
+              href={pathFor("catalog")}
               className="btn-up btn-up-ghost"
             >
               <ExecutiveCatalogIcon size={16} />
               <span>Browse Services &amp; Prices</span>
-            </button>
+            </a>
           </div>
 
         </div>
@@ -546,8 +547,8 @@ export default function LandingHero({
               const liveMin = minRateFor(services, platform.regex);
               return (
                 <Reveal key={idx} delay={idx * 70}>
-                  <div
-                    onClick={() => onNavigateTab(platform.platformTab)}
+                  <a
+                    href={pathFor(platform.platformTab)}
                     className="card-lift h-full p-3.5 sm:p-7 rounded-none border border-white/[0.08] bg-[#0a0a0a]/85 hover:border-white/25 flex flex-col justify-between group shadow-[0_4px_30px_rgba(0,0,0,0.5)] cursor-pointer"
                   >
                     <div>
@@ -586,7 +587,7 @@ export default function LandingHero({
                         <ArrowRight className="w-3 h-3" />
                       </div>
                     </div>
-                  </div>
+                  </a>
                 </Reveal>
               );
             })}

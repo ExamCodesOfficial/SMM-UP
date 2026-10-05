@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowRight, CheckCircle2, ShieldCheck, Zap, RotateCcw, ChevronDown } from "lucide-react";
+import { pathFor } from "../../lib/routes";
 import ContentPage, { H2, P, Callout } from "../ContentPage";
 import Reveal from "../Reveal";
 import { formatINR } from "../../lib/utils";
@@ -283,13 +284,13 @@ export default function PlatformPage({ config, services, onNavigate }: PlatformP
       )}
 
       <div className="flex flex-col sm:flex-row gap-3 my-8">
-        <button onClick={() => onNavigate("order")} className="btn-up btn-up-solid group">
+        <a href={pathFor("order")} className="btn-up btn-up-solid group">
           <span>Order {config.name} services</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-        </button>
-        <button onClick={() => onNavigate("catalog")} className="btn-up btn-up-ghost">
+        </a>
+        <a href={pathFor("catalog")} className="btn-up btn-up-ghost">
           <span>See full catalog</span>
-        </button>
+        </a>
       </div>
 
       <H2>Why {config.name} buyers choose SMM UP</H2>
@@ -335,9 +336,9 @@ export default function PlatformPage({ config, services, onNavigate }: PlatformP
       <Callout>
         All {config.name} orders need only a public link — never a password. Deposits clear automatically via
         UPI with 0% fee. Questions? The{" "}
-        <button onClick={() => onNavigate("support")} className="text-white underline underline-offset-4 hover:text-zinc-300 cursor-pointer">
+        <a href={pathFor("support")} className="text-white underline underline-offset-4 hover:text-zinc-300 cursor-pointer">
           support desk
-        </button>{" "}
+        </a>{" "}
         runs 24/7.
       </Callout>
     </ContentPage>
