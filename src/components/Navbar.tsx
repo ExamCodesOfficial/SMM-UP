@@ -196,7 +196,7 @@ export default function Navbar({
               {/* Support — plain text link (examcodes style) */}
               <button
                 onClick={() => onNavigateTab("support")}
-                className="hidden sm:block text-[10px] sm:text-[11px] font-mono tracking-[0.26em] uppercase text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                className="hidden sm:block text-xs sm:text-[13px] font-mono tracking-[0.24em] uppercase text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
                 title="Get help — Support"
               >
                 Support
@@ -206,14 +206,14 @@ export default function Navbar({
             <div className="flex items-center gap-5 sm:gap-8">
               <button
                 onClick={() => onNavigateTab("support")}
-                className="hidden sm:block text-[10px] sm:text-[11px] font-mono tracking-[0.26em] uppercase text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                className="hidden sm:block text-xs sm:text-[13px] font-mono tracking-[0.24em] uppercase text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
                 title="Get help — Support"
               >
                 Support
               </button>
               <button
                 onClick={() => onOpenAuth("login")}
-                className="text-[10px] sm:text-[11px] font-mono tracking-[0.26em] uppercase text-zinc-200 hover:text-white transition-colors cursor-pointer"
+                className="text-xs sm:text-[13px] font-mono tracking-[0.24em] uppercase text-zinc-200 hover:text-white transition-colors cursor-pointer"
               >
                 Sign In
               </button>

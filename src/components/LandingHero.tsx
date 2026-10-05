@@ -206,33 +206,37 @@ export default function LandingHero({
     <div className="relative z-10">
       {/* ── 1. CINEMATIC HERO — fullscreen, centered, pure monochrome ── */}
       <section className="relative min-h-[92svh] md:min-h-[100svh] flex items-center justify-center overflow-hidden">
-        <div className="animate-glow-breath absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] max-w-4xl h-[60%] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-24 pb-14 md:pb-20">
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-24 pb-14 md:pb-20">
           {/* Status pill */}
           <div className="animate-hero-1 inline-flex items-center px-4 sm:px-5 py-2 rounded-full border border-white/[0.10] bg-white/[0.02] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_0_0_1px_rgba(0,0,0,0.4)] text-zinc-300 text-[9px] sm:text-[10px] font-mono tracking-[0.18em] sm:tracking-[0.22em] uppercase">
             All systems live &bull; 0% deposit fee
           </div>
 
-          {/* Two-line headline — smaller top line siting tightly above the brand, examcodes style */}
-          <h1 className="relative z-10 leading-[1.04] mt-14 sm:mt-16">
-            <span className="animate-hero-2 block text-2xl sm:text-4xl md:text-5xl font-light tracking-[0.14em] uppercase text-zinc-400">
+          {/* Two-line headline — SCALE SOCIAL nearly matches SMM UP, brand a notch bigger */}
+          <h1 className="relative z-10 leading-[1.04] mt-20 sm:mt-24">
+            <span className="animate-hero-2 block text-4xl sm:text-6xl md:text-7xl font-light tracking-[0.13em] uppercase text-zinc-400">
               Scale social
             </span>
-            <span className="animate-hero-3 block mt-2 sm:mt-3 text-5xl sm:text-7xl md:text-8xl font-normal tracking-[0.22em] uppercase text-white drop-shadow-[0_0_32px_rgba(255,255,255,0.42)]">
+            <span className="animate-hero-3 block mt-3 sm:mt-4 text-5xl sm:text-7xl md:text-[7.2rem] font-normal tracking-[0.22em] uppercase text-white drop-shadow-[0_0_32px_rgba(255,255,255,0.42)]">
               SMM UP
             </span>
           </h1>
 
-          {/* Subtitle */}
-          <p className="animate-hero-4 mt-8 text-sm sm:text-base md:text-lg text-zinc-400 max-w-2xl mx-auto font-light tracking-wide leading-relaxed">
-            India's wholesale SMM panel. Direct 0% fee UPI deposits,{" "}
-            {services.length > 0 ? services.length.toLocaleString() : "2,000"}+ services
-            with refill guarantees from 7 days to lifetime, and a standard reseller API.
-          </p>
+          {/* Defining quotes — define, don't describe */}
+          <div className="animate-hero-4 mt-10 sm:mt-12 flex flex-wrap items-center justify-center gap-x-4 gap-y-2.5 text-[10px] sm:text-xs font-mono tracking-[0.22em] uppercase text-zinc-400">
+            <span>India's own SMM panel</span>
+            <span className="text-zinc-700 select-none" aria-hidden="true">&bull;</span>
+            <span>
+              {services.length > 0 ? services.length.toLocaleString() : "2,128"}+ services
+            </span>
+            <span className="text-zinc-700 select-none" aria-hidden="true">&bull;</span>
+            <span>Refill guaranteed</span>
+            <span className="text-zinc-700 select-none" aria-hidden="true">&bull;</span>
+            <span>Reseller API</span>
+          </div>
 
           {/* CTAs */}
-          <div className="animate-hero-5 mt-10 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4">
+          <div className="animate-hero-5 mt-10 sm:mt-12 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4">
             <button
               onClick={() => onNavigateTab("order")}
               className="btn-up btn-up-solid group"
