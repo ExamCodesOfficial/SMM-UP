@@ -46,6 +46,7 @@ const COLUMNS: { title: string; links: { tab: string; label: string }[] }[] = [
     title: "Company & Legal",
     links: [
       { tab: "about", label: "About" },
+      { tab: "responsible-growth", label: "Responsible Growth" },
       { tab: "reviews", label: "Reviews" },
       { tab: "support", label: "Support" },
       { tab: "terms", label: "Terms of Service" },

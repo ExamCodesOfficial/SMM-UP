@@ -3,7 +3,7 @@
  * and meta description. Applied client-side on navigation.
  */
 
-import { FAQS } from "./faqs";
+import { FAQS, RESPONSIBLE_GROWTH_FAQS } from "./faqs";
 import { PLATFORM_PAGES } from "../components/pages/PlatformPage";
 
 export interface PageMeta {
@@ -70,6 +70,10 @@ export const PAGE_META: Record<string, PageMeta> = {
   about: {
     title: "Who Owns SMM UP? Aryan — Founder & Owner | SMMUP",
     description: "SMM UP (SMMUP) is founded, owned and operated by Aryan. His official Telegram identity is @thatonearyan. Learn about the owner and platform.",
+  },
+  "responsible-growth": {
+    title: "Responsible Social Growth & Service Quality | SMM UP",
+    description: "Learn the practical benefits of SMM UP: transparent wholesale rates, visible service terms, no-password ordering, refill protection, tracking, API tools and responsible-use standards.",
   },
   terms: {
     title: "Terms of Service | SMM UP",
@@ -232,6 +236,21 @@ export function applyStructuredData(tab: string) {
         {
           "@type": "FAQPage",
           mainEntity: items.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        },
+      ],
+    });
+  } else if (tab === "responsible-growth") {
+    injectJsonLd({
+      "@context": "https://schema.org",
+      "@graph": [
+        crumbs,
+        {
+          "@type": "FAQPage",
+          mainEntity: RESPONSIBLE_GROWTH_FAQS.map((f) => ({
             "@type": "Question",
             name: f.q,
             acceptedAnswer: { "@type": "Answer", text: f.a },

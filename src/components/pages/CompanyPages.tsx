@@ -2,6 +2,7 @@ import React from "react";
 import { MessageCircle, Clock, ShieldCheck, CheckCircle2, Download } from "lucide-react";
 import ContentPage, { P, H2, H3, UL, Callout } from "../ContentPage";
 import { SmmUpLogo } from "../icons/ExecutiveIcons";
+import { RESPONSIBLE_GROWTH_FAQS } from "../../lib/faqs";
 
 interface PageProps {
   onNavigate: (tab: string) => void;
@@ -86,6 +87,124 @@ export function AboutPage({ onNavigate }: PageProps) {
         </button>{" "}
         first — no sign-up needed to look around.
       </P>
+    </ContentPage>
+  );
+}
+
+/* ══════════════════════ RESPONSIBLE GROWTH ══════════════════════ */
+export function ResponsibleGrowthPage({ onNavigate }: PageProps) {
+  return (
+    <ContentPage
+      kicker="Trust & Quality"
+      title="Responsible Growth & Service Quality"
+      subtitle="The practical benefits, quality controls and clear expectations behind SMM UP."
+      updated="October 5, 2026"
+      crumbs={[{ label: "Home", tab: "home" }, { label: "Trust" }, { label: "Responsible Growth" }]}
+      onNavigate={onNavigate}
+    >
+      <Callout>
+        <strong className="text-white">The SMM UP advantage:</strong> creators, agencies and resellers can compare
+        more than 2,100 services, control exact quantities, track delivery and manage campaigns from one account —
+        without sharing a social-media password and without losing part of each UPI deposit to a gateway fee.
+      </Callout>
+
+      <H2>What customers gain from SMM UP</H2>
+      <P>
+        SMM UP turns a fragmented wholesale market into one practical workflow. Instead of negotiating with
+        multiple suppliers or manually tracking scattered orders, customers get one live catalog, one wallet,
+        one order history and one support route. This is especially useful for creators managing several
+        campaigns, agencies serving multiple clients and resellers connecting through the standard API.
+      </P>
+      <UL>
+        <li><strong className="text-zinc-200">Cost control:</strong> compare live rates and see the full order price before confirming.</li>
+        <li><strong className="text-zinc-200">Flexible scale:</strong> choose a quantity within each service's clearly displayed minimum and maximum.</li>
+        <li><strong className="text-zinc-200">Operational visibility:</strong> monitor status, start count, remains and refill eligibility from order history.</li>
+        <li><strong className="text-zinc-200">Delivery protection:</strong> use the listed refill coverage, cancellation support or partial refund when applicable.</li>
+        <li><strong className="text-zinc-200">Agency efficiency:</strong> place mass orders or automate repeatable workflows through the SMM v2 API.</li>
+        <li><strong className="text-zinc-200">Account privacy:</strong> order with a public profile, post or channel link — never a social password.</li>
+      </UL>
+
+      <H2>Why wholesale pricing can still deliver practical value</H2>
+      <P>
+        SMM UP's prices are low because orders are routed to wholesale delivery networks without a large retail
+        layer in between, and UPI deposits are verified directly instead of carrying a payment-gateway surcharge.
+        Lower operating overhead is not presented as a promise that every service behaves identically. It means
+        customers can select and test the service that fits their objective without paying unnecessary platform
+        markups on top.
+      </P>
+
+      <H2>Quality controls customers can see</H2>
+      <P>
+        “Quality” is more useful when it is connected to visible terms instead of vague marketing labels. SMM UP
+        shows the information needed to make a reasoned choice before an order is placed and provides tools to
+        follow the result afterward.
+      </P>
+      <UL>
+        <li>Service description and supported platform.</li>
+        <li>Live rate, minimum quantity and maximum quantity.</li>
+        <li>Measured average delivery time from recent orders.</li>
+        <li>Refill duration where protection is included.</li>
+        <li>Live order status and remaining quantity.</li>
+        <li>Refund of the undelivered portion when an order ends as Partial.</li>
+        <li>Direct support for delivery or refill issues.</li>
+      </UL>
+
+      <H2>Operational value beyond a single metric</H2>
+      <P>
+        The platform's value is not limited to the number delivered on one order. Customers also save time on
+        supplier comparison, budgeting, dispatch, status checks, refill management and multi-client operations.
+        That operational layer is particularly useful to agencies and resellers handling repeat campaigns at
+        volume.
+      </P>
+      <P>
+        SMM UP works best as one component of a broader marketing plan. Strong content, genuine audience
+        relationships, customer service and lawful advertising remain responsible for durable organic growth.
+        SMM UP supports the delivery workflow around defined campaign requirements so customers can spend more
+        time on those long-term fundamentals.
+      </P>
+
+      <H2>Clear promises create better customer outcomes</H2>
+      <P>
+        SMM UP promises the controls it can actually provide: transparent rates, listed quantities, public-link-only
+        ordering, trackable delivery, clearly stated refill coverage, partial-order refunds and accessible support.
+        It does not use unverifiable promises about guaranteed sales, guaranteed monetization, guaranteed ranking
+        or immunity from a platform's own moderation decisions.
+      </P>
+      <P>
+        Service source, behavior and retention can differ across a catalog this large. For that reason, SMM UP
+        does not apply one misleading label to every service or treat every delivered profile as a prospective
+        customer. The exact listing and its visible protections are the basis for choosing responsibly.
+      </P>
+
+      <H2>A responsible way to order</H2>
+      <UL>
+        <li>Read the complete service description and refill terms before paying.</li>
+        <li>Use an appropriate test quantity when evaluating an unfamiliar service.</li>
+        <li>Keep the target public and enter the exact profile, post or channel link.</li>
+        <li>Do not place overlapping orders for the same link while delivery is active.</li>
+        <li>Use services only for lawful campaigns that comply with the relevant platform's rules.</li>
+        <li>Track the result in Order History and contact support when delivery differs from the listing.</li>
+      </UL>
+
+      <H2>Common questions about quality and value</H2>
+      {RESPONSIBLE_GROWTH_FAQS.map((faq) => (
+        <React.Fragment key={faq.q}>
+          <H3>{faq.q}</H3>
+          <P>{faq.a}</P>
+        </React.Fragment>
+      ))}
+
+      <Callout>
+        Ready to compare the visible terms? Browse the{" "}
+        <a href="/catalog" className="text-white underline underline-offset-4 hover:text-zinc-300">
+          live services and prices
+        </a>{" "}
+        or read the{" "}
+        <a href="/acceptable-use" className="text-white underline underline-offset-4 hover:text-zinc-300">
+          Acceptable Use Policy
+        </a>{" "}
+        before ordering.
+      </Callout>
     </ContentPage>
   );
 }

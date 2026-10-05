@@ -3,6 +3,26 @@ export interface Faq {
   a: string;
 }
 
+/** FAQs shared by the responsible-growth page, FAQ page and JSON-LD. */
+export const RESPONSIBLE_GROWTH_FAQS: Faq[] = [
+  {
+    q: "What practical value does SMM UP provide?",
+    a: "SMM UP gives creators, agencies and resellers one place to compare live wholesale rates, choose exact quantities, place multi-platform orders, track delivery and use refill or partial-refund protections where listed. It reduces the time and cost of sourcing and managing campaign delivery, while your content, offers and customer relationships continue to drive genuine long-term growth.",
+  },
+  {
+    q: "How does SMM UP address service-quality concerns?",
+    a: "Quality is managed through transparent service descriptions, minimum and maximum quantities, measured delivery times, service-specific refill windows, order tracking and refunds for undelivered quantities. Because service characteristics differ, customers can compare the visible terms and start with a small order before choosing what fits their campaign.",
+  },
+  {
+    q: "Are SMM UP services bots or real users?",
+    a: "Service source, behavior and retention vary by listing, so SMM UP does not apply one misleading label to more than 2,100 different services. The useful comparison is the exact service description, delivery pattern, retention or refill coverage and intended campaign use. Delivered profiles should not automatically be treated as prospective customers or a promise of future organic interaction.",
+  },
+  {
+    q: "Can SMM UP guarantee algorithm safety, monetization or sales?",
+    a: "No responsible provider controls a social platform's algorithms, moderation, monetization decisions or a customer's sales. SMM UP instead provides practical safeguards it can control: public-link-only ordering, no social passwords, clear service limits, visible refill terms, delivery tracking, responsible-use rules and direct support.",
+  },
+];
+
 /** Shared FAQ data — home shows a slice, /faq shows everything. */
 export const FAQS: Faq[] = [
   {
@@ -63,11 +83,11 @@ export const FAQS: Faq[] = [
   },
   {
     q: "Is it safe? Will my account get banned?",
-    a: "We deliver gradually from real-looking sources and never touch your login, which is the primary risk factor. That said, no third-party service can guarantee zero risk against a platform's own rules — keep your quantities sensible and your account will be fine.",
+    a: "SMM UP protects account access by requiring only a public target link — never your social password or login code — and gives you visible service limits, delivery information and refill terms before purchase. Social-platform rules still differ, so no third-party provider can guarantee zero moderation risk. Use services only for lawful campaigns that comply with the relevant platform's rules.",
   },
   {
     q: "Is using an SMM panel legal in India?",
-    a: "Buying social-media marketing services is not illegal in India. What it can conflict with is each social platform's own terms of service, so delivery speed and volumes matter. We keep starts gradual and sources compliant, but every account owner makes their own call — that's why we ship small-batch ordering and transparent refill terms instead of wild promises.",
+    a: "Social-media marketing services are not automatically unlawful in India; legality depends on how a service is used and the content being promoted. Platform terms are a separate consideration. SMM UP prohibits fraud, impersonation, harassment, election manipulation, illegal content and other abusive campaigns, while customers remain responsible for following each platform's rules.",
   },
   {
     q: "Are SMM panels legit? How do I choose a trustworthy one?",
@@ -89,4 +109,5 @@ export const FAQS: Faq[] = [
     q: "Do you offer child panels or white-label reselling?",
     a: "We're focused on the wholesale API and panel right now. Resellers connect their own panels to our API — full docs are on the API page.",
   },
+  ...RESPONSIBLE_GROWTH_FAQS,
 ];

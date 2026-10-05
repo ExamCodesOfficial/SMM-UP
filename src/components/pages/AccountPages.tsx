@@ -215,6 +215,7 @@ export function SitemapPage({ onNavigate }: PageProps) {
         { path: "/faq", label: "FAQ" },
         { path: "/support", label: "Support & Contact" },
         { path: "/about", label: "About" },
+        { path: "/responsible-growth", label: "Responsible Growth & Service Quality" },
         { path: "/review", label: "Leave a Review" },
         { path: "/status", label: "System Status" },
         { path: "/changelog", label: "Changelog" },
