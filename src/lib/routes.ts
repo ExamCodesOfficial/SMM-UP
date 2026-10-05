@@ -16,6 +16,7 @@ export const TAB_PATHS: Record<string, string> = {
   reviews: "/review",
   support: "/support",
   about: "/about",
+  "responsible-growth": "/responsible-growth",
   terms: "/terms",
   privacy: "/privacy",
   refunds: "/refunds",

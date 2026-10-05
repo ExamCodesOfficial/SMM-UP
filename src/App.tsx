@@ -28,6 +28,7 @@ import {
 } from "./components/pages/LegalPages";
 import {
   AboutPage,
+  ResponsibleGrowthPage,
   SupportPage,
   StatusPage,
   ChangelogPage,
@@ -365,6 +366,7 @@ export default function App() {
         {currentTab === "faq" && <FaqPage onNavigate={navigate} />}
         {currentTab === "support" && <SupportPage onNavigate={navigate} />}
         {currentTab === "about" && <AboutPage onNavigate={navigate} />}
+        {currentTab === "responsible-growth" && <ResponsibleGrowthPage onNavigate={navigate} />}
         {currentTab === "status" && <StatusPage onNavigate={navigate} />}
         {currentTab === "changelog" && <ChangelogPage onNavigate={navigate} />}
         {currentTab === "security" && <SecurityPage onNavigate={navigate} />}
