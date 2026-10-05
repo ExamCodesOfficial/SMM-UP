@@ -4,7 +4,7 @@ import NewOrder from "./components/NewOrder";
 import MassOrder from "./components/MassOrder";
 import OrderHistory from "./components/OrderHistory";
 import ServicesCatalog from "./components/ServicesCatalog";
-import AuthModal from "./components/AuthModal";
+import AuthPage from "./components/AuthPage";
 import AddFundsModal from "./components/AddFundsModal";
 import ProfileModal from "./components/ProfileModal";
 import MobileBottomNav from "./components/MobileBottomNav";
@@ -25,6 +25,7 @@ import { sanitizeBrandText, cleanServiceDescription } from "./lib/utils";
 function tabFromPath(): string {
   const p = window.location.pathname.replace(/\/+$/, "");
   if (p === "/api") return "api";
+  if (p === "/auth") return "auth";
   return "home";
 }
 
@@ -36,8 +37,9 @@ export default function App() {
   const [loadingOrders, setLoadingOrders] = React.useState<boolean>(false);
   const [preselectedServiceId, setPreselectedServiceId] = React.useState<number | string | null>(null);
 
+  // Auth page mode
+  const [authPageMode, setAuthPageMode] = React.useState<"login" | "register">("login");
   // Modals
-  const [authModalOpen, setAuthModalOpen] = React.useState(false);
   const [walletModalOpen, setWalletModalOpen] = React.useState(false);
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
@@ -52,12 +54,22 @@ export default function App() {
 
   const navigate = React.useCallback((tab: string) => {
     setCurrentTab(tab);
-    const url = tab === "api" ? "/api" : "/";
+    const url = tab === "api" ? "/api" : tab === "auth" ? "/auth" : "/";
     if (window.location.pathname !== url) {
       window.history.pushState({}, "", url);
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
+
+  const openAuth = React.useCallback((mode: "login" | "register" = "login") => {
+    setAuthPageMode(mode);
+    navigate("auth");
+  }, [navigate]);
+
+  const handleAuthSuccess = React.useCallback(() => {
+    checkAuth().then(() => loadOrders());
+    navigate("home");
+  }, [navigate]);
 
   React.useEffect(() => {
     checkAuth();
@@ -171,9 +183,9 @@ export default function App() {
         currentTab={currentTab}
         setCurrentTab={navigate}
         user={user}
-        onOpenAuth={() => setAuthModalOpen(true)}
+        onOpenAuth={(mode) => openAuth(mode || "login")}
         onOpenWallet={() => {
-          if (!user) setAuthModalOpen(true);
+          if (!user) openAuth("login");
           else setWalletModalOpen(true);
         }}
         onOpenProfile={() => setProfileModalOpen(true)}
@@ -190,9 +202,9 @@ export default function App() {
             <LandingHero
               user={user}
               onNavigateTab={navigate}
-              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenAuth={() => openAuth("login")}
               onOpenWallet={() => {
-                if (!user) setAuthModalOpen(true);
+                if (!user) openAuth("login");
                 else setWalletModalOpen(true);
               }}
               onOpenTerms={() => setTermsModalOpen(true)}
@@ -202,7 +214,7 @@ export default function App() {
               <GuaranteesBento
                 onOpenTerms={() => setTermsModalOpen(true)}
                 onOpenWallet={() => {
-                  if (!user) setAuthModalOpen(true);
+                  if (!user) openAuth("login");
                   else setWalletModalOpen(true);
                 }}
               />
@@ -225,7 +237,7 @@ export default function App() {
               user={user}
               onOrderSuccess={handleOrderSuccess}
               onOpenWallet={() => setWalletModalOpen(true)}
-              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenAuth={() => openAuth("login")}
               onOpenTerms={() => setTermsModalOpen(true)}
               preselectedServiceId={preselectedServiceId}
             />
@@ -245,7 +257,7 @@ export default function App() {
             <MassOrder
               services={services}
               user={user}
-              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenAuth={() => openAuth("login")}
               onOpenWallet={() => setWalletModalOpen(true)}
               onOrderSuccess={handleOrderSuccess}
             />
@@ -255,10 +267,23 @@ export default function App() {
         {currentTab === "api" && (
           <ApiDocs
             user={user}
-            onOpenAuth={() => setAuthModalOpen(true)}
+            onOpenAuth={() => openAuth("login")}
             onOpenProfile={() => setProfileModalOpen(true)}
             onBack={() => navigate("home")}
           />
+        )}
+
+        {currentTab === "auth" && !user && (
+          <AuthPage
+            initialMode={authPageMode}
+            onAuthSuccess={handleAuthSuccess}
+            onOpenTerms={() => setTermsModalOpen(true)}
+          />
+        )}
+        {currentTab === "auth" && user && (
+          <div className="pt-32 pb-24 text-center text-zinc-400 text-sm tracking-wider font-mono uppercase">
+            Session Active — Redirecting…
+          </div>
         )}
 
         {currentTab === "orders" && (
@@ -277,7 +302,7 @@ export default function App() {
         onNavigateTab={navigate}
         onOpenTerms={() => setTermsModalOpen(true)}
         onOpenWallet={() => {
-          if (!user) setAuthModalOpen(true);
+          if (!user) openAuth("login");
           else setWalletModalOpen(true);
         }}
         onOpenSupport={() => setSupportModalOpen(true)}
@@ -291,24 +316,15 @@ export default function App() {
         currentTab={currentTab}
         setCurrentTab={navigate}
         onOpenWallet={() => {
-          if (!user) setAuthModalOpen(true);
+          if (!user) openAuth("login");
           else setWalletModalOpen(true);
         }}
         onOpenProfile={() => setProfileModalOpen(true)}
-        onOpenAuth={() => setAuthModalOpen(true)}
+        onOpenAuth={() => openAuth("login")}
         user={user}
       />
 
       {/* Modals */}
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        onAuthSuccess={(userData) => {
-          setUser(userData);
-          loadOrders();
-        }}
-      />
-
       <AddFundsModal
         isOpen={walletModalOpen}
         onClose={() => setWalletModalOpen(false)}

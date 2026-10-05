@@ -27,7 +27,7 @@ interface NavbarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   user: any;
-  onOpenAuth: () => void;
+  onOpenAuth: (mode?: "login" | "register") => void;
   onOpenWallet: () => void;
   onOpenProfile: () => void;
   onOpenTerms?: () => void;
@@ -50,6 +50,12 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [scrollProgress, setScrollProgress] = React.useState(0);
   const prevScrollY = React.useRef(0);
+
+  // Lock background scroll while the mobile drawer is open
+  React.useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileMenuOpen]);
 
   // Champagne reading-progress line under the navbar
   React.useEffect(() => {
@@ -106,12 +112,13 @@ export default function Navbar({
   ];
 
   return (
+    <>
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl bg-[#090807]/85 border-b border-white/[0.08] ${
         navVisible ? "translate-y-0" : "-translate-y-full"
       }`}
     >
-      {/* Champagne reading-progress line */}
+      {/* Reading-progress line */}
       <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent pointer-events-none" aria-hidden="true">
         <div
           className="h-full bg-gradient-to-r from-[#E4E4E7]/40 via-[#E4E4E7] to-[#E4E4E7]/40 shadow-[0_0_8px_rgba(255,255,255,0.5)]"
@@ -188,7 +195,7 @@ export default function Navbar({
             </>
           ) : (
             <button
-              onClick={onOpenAuth}
+              onClick={() => onOpenAuth("login")}
               className="px-5 py-2.5 rounded-none bg-white text-black font-semibold text-xs tracking-wider hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] cursor-pointer"
             >
               SIGN IN
@@ -218,10 +225,12 @@ export default function Navbar({
         </div>
       </div>
 
+    </header>
+
       {/* ── EXAMCODES-STYLE FULLSCREEN CINEMATIC MOBILE MENU ── */}
       {mobileMenuOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/98 backdrop-blur-2xl z-50 flex flex-col animate-fadeIn"
+          className="md:hidden fixed inset-0 bg-black/95 backdrop-blur-2xl z-[70] flex flex-col animate-fadeIn"
           style={{
             paddingTop: "max(1rem, env(safe-area-inset-top))",
             paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
@@ -316,7 +325,7 @@ export default function Navbar({
                     <button
                       onClick={() => {
                         setMobileMenuOpen(false);
-                        onOpenAuth();
+                        onOpenAuth("login");
                       }}
                       className="py-3 px-4 rounded-none bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                     >
@@ -326,7 +335,7 @@ export default function Navbar({
                     <button
                       onClick={() => {
                         setMobileMenuOpen(false);
-                        onOpenAuth();
+                        onOpenAuth("register");
                       }}
                       className="py-3 px-4 rounded-none border border-white/20 bg-white/[0.03] hover:bg-white/[0.08] text-white font-semibold tracking-wider text-xs uppercase transition-all flex items-center justify-center cursor-pointer"
                     >
@@ -418,6 +427,6 @@ export default function Navbar({
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }
