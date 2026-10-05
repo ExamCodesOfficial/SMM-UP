@@ -83,7 +83,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const respond = async (
       status: number,
       payload: any,
-      meta: { orderId?: ObjectId | string | null; chargeInr?: number | null } = {},
+      meta: {
+        orderId?: ObjectId | string | null;
+        orderIds?: Array<ObjectId | string>;
+        serviceId?: number | string | null;
+        serviceName?: string | null;
+        target?: string | null;
+        quantity?: number | null;
+        grossChargeInr?: number | null;
+        refundInr?: number | null;
+        netChargeInr?: number | null;
+      } = {},
     ) => {
       const message = payload && !Array.isArray(payload) && payload.error
         ? String(payload.error).slice(0, 160)
@@ -98,7 +108,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           result: message,
           requestId,
           orderId: meta.orderId,
-          chargeInr: meta.chargeInr,
+          orderIds: meta.orderIds,
+          serviceId: meta.serviceId,
+          serviceName: meta.serviceName,
+          target: meta.target,
+          quantity: meta.quantity,
+          grossChargeInr: meta.grossChargeInr,
+          refundInr: meta.refundInr,
+          netChargeInr: meta.netChargeInr,
           ipHash,
           startedAt,
         });
@@ -185,7 +202,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           spendReservation = await reserveApiKeyOrderSpend(db, apiAuth, totalCharge, operationId);
         } catch (error: any) {
           if (error instanceof ApiKeyError) {
-            return respond(error.statusCode, { error: error.message, code: error.code }, { chargeInr: totalCharge });
+            return respond(error.statusCode, { error: error.message, code: error.code }, {
+              serviceId: matched.service,
+              serviceName: matched.name,
+              target: String(link).trim(),
+              quantity: effQuantity,
+              grossChargeInr: totalCharge,
+              netChargeInr: 0,
+            });
           }
           throw error;
         }
@@ -248,7 +272,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return respond(400, {
             error: sanitizeProviderError(providerRes.error || "Provider rejected order. Order flagged for administrative review."),
             order: failedInsert.insertedId.toString(),
-          }, { orderId: failedInsert.insertedId, chargeInr: totalCharge });
+          }, {
+            orderId: failedInsert.insertedId,
+            serviceId: matched.service,
+            serviceName: matched.name,
+            target: String(link).trim(),
+            quantity: effQuantity,
+            grossChargeInr: totalCharge,
+            netChargeInr: totalCharge,
+          });
         }
 
         // Record order (same flags the site order path sets, so refill/cancel work via API too)
@@ -279,7 +311,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         return respond(200, {
           order: providerRes.orderId || orderInsert.insertedId.toString(),
-        }, { orderId: orderInsert.insertedId, chargeInr: totalCharge });
+        }, {
+          orderId: orderInsert.insertedId,
+          serviceId: matched.service,
+          serviceName: matched.name,
+          target: String(link).trim(),
+          quantity: effQuantity,
+          grossChargeInr: totalCharge,
+          netChargeInr: totalCharge,
+        });
       } catch (err: any) {
         return respond(500, { error: sanitizeProviderError(err.message) || "Order execution failed" });
       }
@@ -420,7 +460,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               currency: "INR",
             };
           });
-          return respond(200, out);
+          return respond(200, out, { orderIds: orders.map((order: any) => order._id) });
         } catch (e: any) {
           return respond(500, { error: sanitizeProviderError(e.message) || "Multi-order status check failed" });
         }

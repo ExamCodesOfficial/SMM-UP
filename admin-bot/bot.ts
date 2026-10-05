@@ -486,78 +486,162 @@ bot.command("refund", async (ctx) => {
 
     const orderId = new ObjectId(orderIdStr);
     const database = await getDatabase();
-    const order = await database.collection("orders").findOne({ _id: orderId });
+    if (!mongoClient) throw new Error("MongoDB client is unavailable");
 
-    if (!order) {
-      return ctx.reply(`❌ Order <code>${orderIdStr}</code> not found in database.`, { parse_mode: "HTML" });
-    }
-
-    if (order.refund_status === "refunded") {
-      return ctx.reply(`⚠️ Order <code>${orderIdStr}</code> has already been refunded previously.`);
-    }
-
-    const refundAmount = Number(order.charge || 0);
-    if (refundAmount <= 0) {
-      return ctx.reply(`❌ Order charge is ₹${refundAmount.toFixed(2)}, cannot refund.`);
-    }
-
-    // Atomically credit user balance
-    const userUpdate = await database.collection("users").findOneAndUpdate(
-      { _id: order.user_id },
+    // The uniqueness index is a hard prerequisite for an idempotent refund.
+    await database.collection("wallet_ledger").createIndex(
+      { settlement_key: 1 },
       {
-        $inc: {
-          balance: refundAmount,
-          total_spent: -refundAmount,
-          total_orders: -1,
-        },
+        unique: true,
+        partialFilterExpression: { settlement_key: { $type: "string" } },
       },
-      { returnDocument: "after" }
     );
 
-    // Update order status
-    await database.collection("orders").updateOne(
-      { _id: order._id },
-      {
-        $set: {
-          status: "Refunded",
-          refund_status: "refunded",
-          refunded_at: new Date(),
-          refunded_by: ctx.from?.id,
-          refund_reason: reason,
-          updated_at: new Date(),
-        },
-      }
-    );
+    const session = mongoClient.startSession();
+    let summary: { email: string; refundAmount: number; newBalance: number } | null = null;
+    try {
+      await session.withTransaction(async () => {
+        const order: any = await database.collection("orders").findOne({ _id: orderId }, { session });
+        if (!order) throw new Error("ORDER_NOT_FOUND");
+        if (order.refund_status === "refunded") throw new Error("ALREADY_REFUNDED");
 
-    // Record audit transaction
-    await database.collection("transactions").insertOne({
-      user_id: order.user_id,
-      user_email: order.user_email,
-      amount: refundAmount,
-      type: "manual_refund",
-      status: "completed",
-      order_id: order._id,
-      api_key_id: order.api_key_id || null,
-      api_key_version: order.api_key_version || null,
-      source: "telegram_bot",
-      reason: reason,
-      refunded_by: ctx.from?.id,
-      created_at: new Date(),
-    });
+        const refundAmount = Number(order.charge || 0);
+        if (!Number.isFinite(refundAmount) || refundAmount <= 0) throw new Error("INVALID_REFUND_AMOUNT");
+        const now = new Date();
+        const settlementKey = `order_refund:${order._id.toString()}`;
 
-    const newBalance = userUpdate?.balance ?? "Updated";
+        await database.collection("wallet_ledger").insertOne(
+          {
+            settlement_key: settlementKey,
+            type: "api_order_refund",
+            user_id: order.user_id,
+            order_id: order._id,
+            api_key_id: order.api_key_id || null,
+            api_key_version: order.api_key_version || null,
+            amount: refundAmount,
+            amount_paise: Math.round(refundAmount * 100),
+            currency: "INR",
+            source: "telegram_bot",
+            refunded_by: ctx.from?.id,
+            created_at: now,
+          },
+          { session },
+        );
 
+        const orderUpdate = await database.collection("orders").updateOne(
+          { _id: order._id, refund_status: { $ne: "refunded" } },
+          {
+            $set: {
+              status: "Refunded",
+              refund_status: "refunded",
+              refunded_at: now,
+              refunded_by: ctx.from?.id,
+              refund_reason: reason,
+              updated_at: now,
+            },
+          },
+          { session },
+        );
+        if (orderUpdate.modifiedCount !== 1) throw new Error("ALREADY_REFUNDED");
+
+        const userUpdate: any = await database.collection("users").findOneAndUpdate(
+          { _id: order.user_id },
+          [
+            {
+              $set: {
+                balance: { $add: [{ $ifNull: ["$balance", 0] }, refundAmount] },
+                total_spent: {
+                  $max: [0, { $subtract: [{ $ifNull: ["$total_spent", 0] }, refundAmount] }],
+                },
+                total_orders: {
+                  $max: [0, { $subtract: [{ $ifNull: ["$total_orders", 0] }, 1] }],
+                },
+                updated_at: now,
+              },
+            },
+          ],
+          { returnDocument: "after", session },
+        );
+        if (!userUpdate) throw new Error("REFUND_USER_NOT_FOUND");
+
+        await database.collection("transactions").insertOne(
+          {
+            user_id: order.user_id,
+            user_email: order.user_email,
+            amount: refundAmount,
+            type: "manual_refund",
+            status: "completed",
+            order_id: order._id,
+            api_key_id: order.api_key_id || null,
+            api_key_version: order.api_key_version || null,
+            wallet_settlement_key: settlementKey,
+            source: "telegram_bot",
+            reason,
+            refunded_by: ctx.from?.id,
+            created_at: now,
+          },
+          { session },
+        );
+
+        if (order.api_key_id) {
+          await database.collection("api_key_activity").insertOne(
+            {
+              user_id: order.user_id,
+              api_key_id: order.api_key_id,
+              api_key_version: order.api_key_version || null,
+              action: "refund",
+              scope: "financial:refund",
+              http_status: 200,
+              result: "refunded_by_owner",
+              request_id: `telegram-refund:${order._id.toString()}`,
+              order_id: order._id,
+              service_id: order.service_id || null,
+              service_name: order.service_name || null,
+              target: order.link || null,
+              quantity: order.quantity || null,
+              gross_charge_inr: refundAmount,
+              refund_inr: refundAmount,
+              net_charge_inr: 0,
+              started_at: now,
+              completed_at: now,
+              duration_ms: 0,
+            },
+            { session },
+          );
+        }
+
+        summary = {
+          email: String(order.user_email || "unknown"),
+          refundAmount,
+          newBalance: Number(userUpdate.balance || 0),
+        };
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    if (!summary) throw new Error("Refund transaction did not complete");
     await ctx.reply(
       `✅ <b>Order Refunded Successfully!</b>\n\n` +
       `🆔 Order ID: <code>${orderIdStr}</code>\n` +
-      `👤 Client: <code>${order.user_email}</code>\n` +
-      `💵 Refunded: <b>₹${refundAmount.toFixed(2)} INR</b>\n` +
-      `💳 New Balance: <b>₹${Number(newBalance).toFixed(2)}</b>\n` +
-      `📝 Reason: <i>${reason}</i>`,
+      `👤 Client: <code>${escapeHtml(summary.email)}</code>\n` +
+      `💵 Refunded: <b>₹${summary.refundAmount.toFixed(2)} INR</b>\n` +
+      `💳 New Balance: <b>₹${summary.newBalance.toFixed(2)}</b>\n` +
+      `📝 Reason: <i>${escapeHtml(reason)}</i>`,
       { parse_mode: "HTML" }
     );
   } catch (err: any) {
-    await ctx.reply(`❌ Refund operation failed: ${err.message}`);
+    if (err?.message === "ORDER_NOT_FOUND") {
+      return ctx.reply("❌ Order not found.");
+    }
+    if (err?.message === "ALREADY_REFUNDED" || err?.code === 11000) {
+      return ctx.reply("⚠️ This order has already been refunded.");
+    }
+    if (err?.message === "INVALID_REFUND_AMOUNT") {
+      return ctx.reply("❌ This order does not have a refundable charge.");
+    }
+    console.error("[AdminBot] Refund failed:", err);
+    await ctx.reply("❌ Refund operation failed safely. No partial refund was committed.");
   }
 });
 
