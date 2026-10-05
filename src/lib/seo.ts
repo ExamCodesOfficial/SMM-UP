@@ -9,7 +9,7 @@ export interface PageMeta {
 }
 
 export const SITE = "SMM UP";
-const BASE_DESC = "SMM UP — India's wholesale SMM panel with 0% UPI deposit fee, 2,000+ services, instant start and refill guarantee.";
+const BASE_DESC = "SMM UP — India's wholesale SMM panel with 0% UPI deposit fee, 2,100+ services, instant start and refill guarantee.";
 
 export const PAGE_META: Record<string, PageMeta> = {
   home: {
@@ -18,11 +18,11 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   order: {
     title: "Place an Order | SMM UP",
-    description: "Order Telegram members, Instagram followers, YouTube views and 2,000+ SMM services at wholesale rates. Instant start, refill guarantee, pay via UPI with 0% fee.",
+    description: "Order Telegram members, Instagram followers, YouTube views and 2,100+ SMM services at wholesale rates. Instant start, refill guarantee, pay via UPI with 0% fee.",
   },
   catalog: {
-    title: "Services & Prices — 2,000+ SMM Services | SMM UP",
-    description: "Browse the full SMM UP catalog: Telegram, Instagram, YouTube, TikTok, Spotify, X and more. Live wholesale rates per 1,000, min/max, refill SLA and average delivery time.",
+    title: "Services & Prices — 2,100+ SMM Services | SMM UP",
+    description: "Browse the full SMM UP catalog: Telegram, Instagram, YouTube, TikTok, Spotify, X and more. Live wholesale rates per 1,000, min/max, refill guarantee and average delivery time.",
   },
   mass: {
     title: "Mass Order — Bulk SMM Orders | SMM UP",
@@ -46,11 +46,11 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   account: {
     title: "My Account | SMM UP",
-    description: "Manage your SMM UP account: profile details, API key, session security.",
+    description: "Manage your SMM UP account: profile details, API key generation and rotation, wallet balance, session security and sign-out.",
   },
   transactions: {
     title: "Deposit & Transaction History | SMM UP",
-    description: "View your UPI deposits, UTR references and wallet transaction history on SMM UP.",
+    description: "View your full UPI deposit history on SMM UP: amounts, UTR references, automatic verification status and wallet transaction log.",
   },
   faq: {
     title: "FAQ — Frequently Asked Questions | SMM UP",
@@ -66,7 +66,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   terms: {
     title: "Terms of Service | SMM UP",
-    description: "Terms of Service for SMM UP: account rules, ordering, deposits and refunds, refill SLA, acceptable use and liability.",
+    description: "Terms of Service for SMM UP: account rules, ordering, deposits and refunds, refill guarantee, acceptable use and liability.",
   },
   privacy: {
     title: "Privacy Policy | SMM UP",
@@ -98,7 +98,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   status: {
     title: "System Status | SMM UP",
-    description: "Live operational status of SMM UP: ordering, UPI deposit clearing, API and provider networks, plus incident history.",
+    description: "Live operational status of SMM UP: ordering, UPI deposit processing, API and delivery networks, plus incident history.",
   },
   changelog: {
     title: "Changelog | SMM UP",

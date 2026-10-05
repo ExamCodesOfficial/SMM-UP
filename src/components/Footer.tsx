@@ -79,7 +79,7 @@ export default function Footer({ onNavigateTab, onOpenSupport }: FooterProps) {
               </span>
             </button>
             <p className="text-xs sm:text-sm text-zinc-400 font-light leading-relaxed max-w-sm">
-              India's wholesale SMM panel, founded by Aryan. 0% fee UPI deposits, 2,000+ services
+              India's wholesale SMM panel, founded by Aryan. 0% fee UPI deposits, 2,100+ services
               with refill guarantees from 7 days to lifetime, and a standard reseller API.
             </p>
             <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-none border border-white/[0.1] bg-[#0A0A0A] text-zinc-300 text-[11px] font-mono">
@@ -172,7 +172,7 @@ export default function Footer({ onNavigateTab, onOpenSupport }: FooterProps) {
         </div>
 
         {/* ── Baseline bar ── */}
-        <div className="pt-7 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="pt-7 flex flex-col sm:flex-row items-center justify-between gap-4 pr-12 sm:pr-0">
           <div className="text-[10px] sm:text-[11px] font-mono tracking-[0.18em] text-zinc-500 uppercase text-center sm:text-left">
             <span className="block">
               Founded &amp; Operated by <span className="text-zinc-300">Aryan</span> &bull; CEO &amp; Owner

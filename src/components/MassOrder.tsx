@@ -123,9 +123,9 @@ export default function MassOrder({
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 relative z-10">
       {/* Title */}
       <div className="text-center mb-10">
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
           MASS ORDER
-        </h2>
+        </h1>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
         <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-xl mx-auto">
           Place many orders at once across multiple platforms.

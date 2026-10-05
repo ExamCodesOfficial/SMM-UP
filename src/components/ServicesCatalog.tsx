@@ -176,9 +176,9 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
           <ExecutiveCatalogIcon size={14} className="text-[#E4E4E7]" />
           <span>Wholesale Catalog Matrix</span>
         </div>
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-[#FAF9F7] drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-[#FAF9F7] drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
           SERVICES DIRECTORY
-        </h2>
+        </h1>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
         <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-2xl mx-auto">
           Explore {services.length.toLocaleString()} verified wholesale channels with real-time provisioning &amp; zero retail markups.

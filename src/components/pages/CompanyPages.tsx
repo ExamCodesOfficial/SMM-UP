@@ -138,7 +138,7 @@ export function StatusPage({ onNavigate }: PageProps) {
   const systems = [
     { name: "Website & dashboard", note: "Operational" },
     { name: "Order processing", note: "Operational" },
-    { name: "UPI deposit clearing (UTR)", note: "Operational" },
+    { name: "UPI deposit processing (UTR)", note: "Operational" },
     { name: "Reseller API (v2)", note: "Operational" },
     { name: "Telegram support desk", note: "Operational" },
   ];
@@ -203,7 +203,7 @@ export function ChangelogPage({ onNavigate }: PageProps) {
       date: "September 2026",
       items: [
         "Mobile experience overhaul: full-screen navigation drawer, bottom thumb bar, safe-area support.",
-        "Automatic UTR deposit clearing upgraded — most deposits credit within minutes, 24/7.",
+        "Automatic UTR deposit verification upgraded — most deposits credit within minutes, 24/7.",
         "Added refill request and cancel support directly from order history.",
       ],
     },

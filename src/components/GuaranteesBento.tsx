@@ -41,7 +41,7 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet, onNavigate 
           </div>
 
           <h3 className="text-lg sm:text-xl font-medium tracking-wide text-white mb-2">
-            Direct Bank-to-Bank UPI Clearing
+            Direct Bank-to-Bank UPI Deposits
           </h3>
           <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed font-light mb-6">
             Traditional gateways levy 2% to 4% transaction friction. SMM UP bypasses processor surcharges through automated 12-digit UTR reconciliation, crediting 100% of your capital directly to your balance.
