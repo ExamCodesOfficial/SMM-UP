@@ -1,9 +1,9 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ObjectId } from "mongodb";
-import { getDb } from "../lib/db.js";
-import { getUserFromRequest } from "../lib/auth.js";
-import { checkRateLimit } from "../lib/rateLimit.js";
-import { sendReviewSubmittedAlert } from "../lib/telegram.js";
+import { getDb } from "../../server/lib/db.js";
+import { getUserFromRequest } from "../../server/lib/auth.js";
+import { checkRateLimit } from "../../server/lib/rateLimit.js";
+import { sendReviewSubmittedAlert } from "../../server/lib/telegram.js";
 
 // ── Data model ─────────────────────────────────────────────────
 // reviews: { user_id?: ObjectId, seed: boolean, username, city?,

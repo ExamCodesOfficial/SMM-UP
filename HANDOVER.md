@@ -42,10 +42,10 @@
 ## 3. WHAT HAS BEEN FULLY BUILT & VERIFIED (COMPLETED)
 
 ### A. Full Backend Engine (`/api`)
-- **`api/lib/db.ts`**: MongoDB connection pool with lazy indexing and optimized server timeouts (`serverSelectionTimeoutMS: 15000`).
-- **`api/lib/smm.ts`**: Live wholesale integration with the upstream panel API (endpoint supplied via the `PANEL_URL` env var). Successfully categorizes 2,177 services across all major platforms.
-- **`api/lib/imap.ts`**: Gmail IMAP SSL connection with `X-GM-RAW` search across 6,400+ emails to verify FamPay payment notifications by 12-digit UTR and exact amount.
-- **`api/lib/auth.ts`**: Password hashing with bcrypt, JWT token signing, and HTTP-only secure cookie verification.
+- **`server/lib/db.ts`**: MongoDB connection pool with lazy indexing and optimized server timeouts (`serverSelectionTimeoutMS: 15000`).
+- **`server/lib/smm.ts`**: Live wholesale integration with the upstream panel API (endpoint supplied via the `PANEL_URL` env var). Successfully categorizes 2,177 services across all major platforms.
+- **`server/lib/imap.ts`**: Gmail IMAP SSL connection with `X-GM-RAW` search across 6,400+ emails to verify FamPay payment notifications by 12-digit UTR and exact amount.
+- **`server/lib/auth.ts`**: Password hashing with bcrypt, JWT token signing, and HTTP-only secure cookie verification.
 - **`api/auth/`**:
   - `register.ts`: Generates user with bcrypt password and unique personal API key (`sup_<hex>`).
   - `login.ts`: Authenticates user, sets `token` HTTP-only cookie.
