@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowUpRight, ShieldCheck, Zap, RotateCcw, ChevronUp, FileText, Lock, MessageCircle } from "lucide-react";
+import { ArrowUpRight, ShieldCheck, Zap, RotateCcw, ChevronUp, FileText, Lock, MessageCircle, Terminal } from "lucide-react";
 import { SmmUpLogo } from "./icons/ExecutiveIcons";
 import {
   TelegramIcon,
@@ -146,6 +146,16 @@ export default function Footer({
                 className="text-left text-zinc-400 hover:text-white transition-colors cursor-pointer"
               >
                 Mass Order Engine
+              </button>
+              <button
+                onClick={() => {
+                  onNavigateTab("api");
+                  scrollToTop();
+                }}
+                className="text-left text-[#F5E8D0] hover:text-white transition-colors cursor-pointer font-medium flex items-center gap-1.5"
+              >
+                <Terminal className="w-3.5 h-3.5 text-[#F5E8D0]" />
+                <span>Developer API</span>
               </button>
               <button
                 onClick={() => {

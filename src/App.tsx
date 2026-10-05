@@ -16,11 +16,18 @@ import LandingHero from "./components/LandingHero";
 import GuaranteesBento from "./components/GuaranteesBento";
 import TestimonialsTicker from "./components/TestimonialsTicker";
 import Footer from "./components/Footer";
+import ApiDocs from "./components/ApiDocs";
 import { SmmUpLogo } from "./components/icons/ExecutiveIcons";
 import { sanitizeBrandText, cleanServiceDescription } from "./lib/utils";
 
+function tabFromPath(): string {
+  const p = window.location.pathname.replace(/\/+$/, "");
+  if (p === "/api") return "api";
+  return "home";
+}
+
 export default function App() {
-  const [currentTab, setCurrentTab] = React.useState<string>("home");
+  const [currentTab, setCurrentTab] = React.useState<string>(tabFromPath());
   const [user, setUser] = React.useState<any>(null);
   const [services, setServices] = React.useState<any[]>([]);
   const [orders, setOrders] = React.useState<any[]>([]);
@@ -33,6 +40,22 @@ export default function App() {
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
   const [supportModalOpen, setSupportModalOpen] = React.useState(false);
+
+  // Sync tab state <-> URL so /api is a real, shareable, indexable route
+  React.useEffect(() => {
+    const onPop = () => setCurrentTab(tabFromPath());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const navigate = React.useCallback((tab: string) => {
+    setCurrentTab(tab);
+    const url = tab === "api" ? "/api" : "/";
+    if (window.location.pathname !== url) {
+      window.history.pushState({}, "", url);
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   React.useEffect(() => {
     checkAuth();
@@ -130,8 +153,7 @@ export default function App() {
 
   const handleSelectFromCatalog = (serviceId: number | string) => {
     setPreselectedServiceId(serviceId);
-    setCurrentTab("store");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    navigate("store");
   };
 
   return (
@@ -145,7 +167,7 @@ export default function App() {
       {/* Header */}
       <Navbar
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={navigate}
         user={user}
         onOpenAuth={() => setAuthModalOpen(true)}
         onOpenWallet={() => {
@@ -165,10 +187,7 @@ export default function App() {
           <>
             <LandingHero
               user={user}
-              onNavigateTab={(tab) => {
-                setCurrentTab(tab);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
+              onNavigateTab={navigate}
               onOpenAuth={() => setAuthModalOpen(true)}
               onOpenWallet={() => {
                 if (!user) setAuthModalOpen(true);
@@ -224,6 +243,15 @@ export default function App() {
           </div>
         )}
 
+        {currentTab === "api" && (
+          <ApiDocs
+            user={user}
+            onOpenAuth={() => setAuthModalOpen(true)}
+            onOpenProfile={() => setProfileModalOpen(true)}
+            onBack={() => navigate("home")}
+          />
+        )}
+
         {currentTab === "orders" && (
           <div className="pt-6">
             <OrderHistory
@@ -237,10 +265,7 @@ export default function App() {
 
       {/* Grand ExamCodes-Style Multi-Column Architectural Footer */}
       <Footer
-        onNavigateTab={(tab) => {
-          setCurrentTab(tab);
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }}
+        onNavigateTab={navigate}
         onOpenTerms={() => setTermsModalOpen(true)}
         onOpenWallet={() => {
           if (!user) setAuthModalOpen(true);
@@ -252,7 +277,7 @@ export default function App() {
       {/* Mobile Bottom Thumb Navigation */}
       <MobileBottomNav
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={navigate}
         onOpenWallet={() => {
           if (!user) setAuthModalOpen(true);
           else setWalletModalOpen(true);
@@ -285,6 +310,7 @@ export default function App() {
         onClose={() => setProfileModalOpen(false)}
         user={user}
         onLogout={handleLogout}
+        onUserUpdate={(patch) => setUser((prev: any) => ({ ...prev, ...patch }))}
       />
 
       <TermsModal

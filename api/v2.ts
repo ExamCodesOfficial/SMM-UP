@@ -6,26 +6,48 @@ import {
   calculateOrderTotal,
   addProviderOrder,
   checkOrderStatus,
+  requestOrderRefill,
+  cancelProviderOrder,
 } from "./lib/smm.js";
 import { sendFailedOrderAlert } from "./lib/telegram.js";
+import { checkRateLimit } from "./lib/rateLimit.js";
+import crypto from "crypto";
+import { sanitizeBrandText, sanitizeProviderError } from "./lib/smm.js";
 
-// Standard SMM v2 API Specification for Resellers & Developers
+function hashApiKey(raw: string): string {
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+// Standard SMM v2 API Specification for Resellers & Developers — smmup.co.in
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    // Support both GET and POST with URLSearchParams or JSON body
     const body = req.method === "POST" ? req.body || {} : req.query;
-    const key = body.key || req.query.key;
+    const rawKey = (body.key || req.query.key || req.headers["x-api-key"] || "").toString().trim();
+    const authHeader = String(req.headers.authorization || "");
+    const bearerKey = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+    const key = rawKey || bearerKey;
     const action = body.action || req.query.action;
 
     if (!key) {
-      return res.status(400).json({ error: "API key is required" });
+      return res.status(400).json({ error: "API key is required. Generate one at https://smmup.co.in/api" });
     }
 
+    const keyHash = hashApiKey(key);
     const db = await getDb();
-    const user = await db.collection("users").findOne({ api_key: String(key).trim() });
+    const user: any = await db.collection("users").findOne({
+      $or: [{ api_key_hash: keyHash }, { api_key: key }],
+    });
 
     if (!user) {
       return res.status(401).json({ error: "Invalid API key" });
+    }
+    // Touch last-used timestamp (best-effort, non-blocking)
+    db.collection("users").updateOne({ _id: user._id }, { $set: { api_key_last_used_at: new Date() } }).catch(() => {});
+
+    // Rate limit per API key so one leaked key cannot be brute-forced or abused
+    const rl = checkRateLimit(`v2_${user._id}`, 120, 60);
+    if (!rl.allowed) {
+      return res.status(429).json({ error: `Rate limit exceeded. Retry in ${rl.remainingSec}s.` });
     }
 
     // ── 1. ACTION: BALANCE ─────────────────────────────────────────
@@ -57,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }));
         return res.status(200).json(formatted);
       } catch (err: any) {
-        return res.status(500).json({ error: err.message || "Failed to fetch services" });
+        return res.status(500).json({ error: sanitizeProviderError(err.message) || "Failed to fetch services" });
       }
     }
 
@@ -149,7 +171,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }).catch((e) => console.error("v2 failed order alert error:", e));
 
           return res.status(400).json({
-            error: providerRes.error || "Provider rejected order. Order flagged for administrative review.",
+            error: sanitizeProviderError(providerRes.error || "Provider rejected order. Order flagged for administrative review."),
             order: failedInsert.insertedId.toString(),
           });
         }
@@ -176,11 +198,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           order: providerRes.orderId || orderInsert.insertedId.toString(),
         });
       } catch (err: any) {
-        return res.status(500).json({ error: err.message || "Order execution failed" });
+        return res.status(500).json({ error: sanitizeProviderError(err.message) || "Order execution failed" });
       }
     }
 
-    // ── 4. ACTION: STATUS ──────────────────────────────────────────
+    // ── 4. ACTION: CANCEL ──────────────────────────────────────────
+    if (action === "cancel") {
+      const orderId = body.order;
+      if (!orderId) return res.status(400).json({ error: "order parameter is required" });
+      try {
+        const order = await db.collection("orders").findOne({
+          user_id: user._id,
+          $or: [
+            { provider_order_id: Number(orderId) || String(orderId) },
+            { _id: ObjectId.isValid(orderId) ? new ObjectId(orderId) : null },
+          ],
+        });
+        if (!order || !order.provider_order_id) return res.status(404).json({ error: "Order not found" });
+        if (!order.cancel_available) return res.status(400).json({ error: "Cancel not available for this order" });
+        const result = await cancelProviderOrder(order.provider_order_id);
+        if (result.error) return res.status(400).json({ error: sanitizeProviderError(result.error) });
+        await db.collection("orders").updateOne({ _id: order._id }, { $set: { status: "Cancelled", updated_at: new Date() } });
+        return res.status(200).json({ success: true, message: "Cancel requested", result });
+      } catch (e: any) {
+        return res.status(500).json({ error: sanitizeProviderError(e.message) || "Cancel failed" });
+      }
+    }
+
+    // ── 5. ACTION: REFILL ──────────────────────────────────────────
+    if (action === "refill") {
+      const orderId = body.order;
+      if (!orderId) return res.status(400).json({ error: "order parameter is required" });
+      try {
+        const order = await db.collection("orders").findOne({
+          user_id: user._id,
+          $or: [
+            { provider_order_id: Number(orderId) || String(orderId) },
+            { _id: ObjectId.isValid(orderId) ? new ObjectId(orderId) : null },
+          ],
+        });
+        if (!order || !order.provider_order_id) return res.status(404).json({ error: "Order not found" });
+        if (!order.refill_available) return res.status(400).json({ error: "Refill not available for this order" });
+        const result = await requestOrderRefill(order.provider_order_id);
+        if (result.error) return res.status(400).json({ error: sanitizeProviderError(result.error) });
+        await db.collection("orders").updateOne({ _id: order._id }, { $set: { refill_id: result.refill, last_refill_at: new Date() } });
+        return res.status(200).json({ success: true, refill: result.refill });
+      } catch (e: any) {
+        return res.status(500).json({ error: sanitizeProviderError(e.message) || "Refill failed" });
+      }
+    }
+
+    // ── 6. ACTION: STATUS ──────────────────────────────────────────
     if (action === "status") {
       const orderId = body.order;
       if (!orderId) return res.status(400).json({ error: "order parameter required" });
@@ -214,6 +282,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "Invalid action parameter" });
   } catch (globalErr: any) {
     console.error("api/v2 uncaught error:", globalErr);
-    return res.status(500).json({ error: globalErr.message || "Internal server error" });
+    return res.status(500).json({ error: "Internal server error. Please try again or contact support." });
   }
 }

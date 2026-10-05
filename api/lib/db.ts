@@ -1,6 +1,7 @@
 import { MongoClient, Db } from "mongodb";
 
-const uri = process.env.MONGODB_URI || "***REMOVED_MONGODB_URI***";
+const uri = process.env.MONGODB_URI;
+if (!uri) throw new Error("MONGODB_URI environment variable is required");
 const dbName = process.env.DATABASE_NAME || "smm_up_db";
 
 interface GlobalWithMongo {
@@ -35,7 +36,7 @@ export async function getDb(): Promise<Db> {
     Promise.allSettled([
       db.collection("users").createIndex({ email: 1 }, { unique: true }),
       db.collection("users").createIndex({ username: 1 }),
-      db.collection("users").createIndex({ api_key: 1 }),
+      db.collection("users").createIndex({ api_key: 1 }, { unique: true, sparse: true }),
       db.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true, sparse: true }),
       db.collection("processed_transactions").createIndex({ transaction_id: 1 }, { unique: true, sparse: true }),
       db.collection("processed_transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),

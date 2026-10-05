@@ -1,6 +1,8 @@
 User-agent: *
 Allow: /
-Disallow: /api/admin
-Disallow: /api/auth
+Disallow: /api/
+Disallow: /admin
+Disallow: /*?key=
+Disallow: /*?action=
 
-Sitemap: https://smmup.vercel.app/sitemap.xml
+Sitemap: https://smmup.co.in/sitemap.xml

@@ -41,8 +41,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Minimum deposit is ₹10.00 INR" });
     }
 
-    const upiVpa = process.env.UPI_VPA || "***REMOVED_UPI_VPA***";
-    const merchantName = process.env.UPI_MERCHANT_NAME || "SMM UP Official";
+    const upiVpa = process.env.UPI_VPA;
+    const merchantName = process.env.UPI_MERCHANT_NAME || "SMM UP";
+    if (!upiVpa) return res.status(500).json({ error: "Payment configuration missing. Contact support." });
     const memo = generateDynamicMemo();
 
     const upiQuery = new URLSearchParams({

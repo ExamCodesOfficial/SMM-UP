@@ -75,7 +75,7 @@ export function sanitizeBrandText(raw: string | undefined | null): string {
   let str = String(raw);
 
   // Replace upstream-brand.invalid domain
-  str = str.replace(/smm[\s_\-]*bin\.com/gi, "smmup.vercel.app");
+  str = str.replace(/smm[\s_\-]*bin\.com/gi, "smmup.co.in");
 
   // Replace mathematical bold/sans Unicode variants (e.g. 𝗦𝗠𝗠 𝗕𝗜N)
   str = str.replace(/[\u{1D5E6}\u{1D5B2}\u{1D412}s][\u{1D5E0}\u{1D5C6}\u{1D40C}m]{2}\s*[\u{1D5D5}\u{1D5BB}\u{1D401}b][\u{1D5DC}\u{1D5C2}\u{1D408}i][\u{1D5E1}\u{1D5C7}\u{1D40D}n]/giu, "SMM UP");
@@ -87,7 +87,7 @@ export function sanitizeBrandText(raw: string | undefined | null): string {
   const normalized = str.normalize("NFKD");
   if (/smm[\s_\-]*bin/i.test(normalized)) {
     str = normalized
-      .replace(/smm[\s_\-]*bin\.com/gi, "smmup.vercel.app")
+      .replace(/smm[\s_\-]*bin\.com/gi, "smmup.co.in")
       .replace(/smm[\s_\-]*bin/gi, "SMM UP");
   }
 
