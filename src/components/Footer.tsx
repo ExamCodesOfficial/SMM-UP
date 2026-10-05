@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowUpRight, ShieldCheck, Zap, RotateCcw, ChevronUp, FileText, Lock, MessageCircle, Terminal } from "lucide-react";
 import { SmmUpLogo } from "./icons/ExecutiveIcons";
+import Reveal from "./Reveal";
 import {
   TelegramIcon,
   InstagramIcon,
@@ -41,6 +42,7 @@ export default function Footer({
   return (
     <footer className="border-t border-white/[0.08] bg-[#000000] text-zinc-400 relative z-10 pt-16 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Reveal>
         {/* Main Multi-Column Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-12 pb-16 border-b border-white/[0.08]">
           {/* Column 1: Brand & Node Identity (4 cols) */}
@@ -252,6 +254,7 @@ export default function Footer({
             <ChevronUp className="w-3.5 h-3.5" />
           </button>
         </div>
+        </Reveal>
       </div>
     </footer>
   );
