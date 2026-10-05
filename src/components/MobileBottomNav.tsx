@@ -11,16 +11,12 @@ import {
 interface MobileBottomNavProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
-  onOpenProfile: () => void;
-  onOpenAuth: () => void;
   user: any;
 }
 
 export default function MobileBottomNav({
   currentTab,
   setCurrentTab,
-  onOpenProfile,
-  onOpenAuth,
   user,
 }: MobileBottomNavProps) {
   return (
@@ -81,13 +77,14 @@ export default function MobileBottomNav({
         </button>
 
         {/* User Account */}
-        <button
-          onClick={user ? onOpenProfile : onOpenAuth}
-          className="flex flex-col items-center justify-center py-1.5 rounded-none text-[10px] font-semibold tracking-wider text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
+        <a
+          href={pathFor(user ? "account" : "auth")}
+          aria-current={currentTab === "account" ? "page" : undefined}
+          className={`flex flex-col items-center justify-center py-1.5 rounded-none text-[10px] font-semibold tracking-wider hover:text-zinc-200 transition-all cursor-pointer ${currentTab === "account" ? "text-white bg-white/[0.08]" : "text-zinc-400"}`}
         >
           <User className="w-4 h-4 mb-1" />
           <span className="truncate max-w-[50px]">{user ? "ACCOUNT" : "SIGN IN"}</span>
-        </button>
+        </a>
       </div>
     </div>
   );

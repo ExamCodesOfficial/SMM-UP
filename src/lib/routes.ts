@@ -37,9 +37,11 @@ export const TAB_PATHS: Record<string, string> = {
   "p-spotify": "/spotify-smm-panel",
 };
 
-export const PATH_TABS: Record<string, string> = Object.fromEntries(
-  Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab]),
-);
+export const PATH_TABS: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab])),
+  // Legacy/private alias; Vercel permanently redirects this to the canonical page.
+  "/profile": "account",
+};
 
 /** Absolute HTTPS URL for a tab (canonicals, JSON-LD, sitemap helpers). */
 export function absoluteUrl(tab: string): string {

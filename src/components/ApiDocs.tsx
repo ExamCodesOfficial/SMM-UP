@@ -4,10 +4,6 @@ import { SmmUpLogo } from "./icons/ExecutiveIcons";
 
 interface ApiDocsProps {
   user: any;
-  onOpenAuth: () => void;
-  onOpenProfile: () => void;
-  onBack: () => void;
-  onOpenPlayground?: () => void;
 }
 
 const BASE = "https://smmup.co.in/api/v2";
@@ -95,20 +91,18 @@ const NAV = [
   { id: "examples", label: "Code examples" },
 ];
 
-export default function ApiDocs({ user, onOpenAuth, onOpenProfile, onBack, onOpenPlayground }: ApiDocsProps) {
-  const apiKey = user?.api_key || user?.apiKey || "";
-
+export default function ApiDocs({ user }: ApiDocsProps) {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20">
       {/* Header */}
       <div className="mb-10">
-        <button
-          onClick={onBack}
+        <a
+          href="/"
           className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-zinc-500 hover:text-white transition-colors cursor-pointer mb-6"
         >
           <ArrowLeft className="w-3 h-3" />
           <span>Home</span>
-        </button>
+        </a>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
           <div>
             <span className="text-[10px] font-bold tracking-[0.25em] text-zinc-500 uppercase block mb-2 font-mono">
@@ -125,22 +119,20 @@ export default function ApiDocs({ user, onOpenAuth, onOpenProfile, onBack, onOpe
           </div>
           <div className="flex gap-3 shrink-0">
             {user ? (
-              <button onClick={onOpenProfile} className="btn-up btn-up-ghost btn-up-sm">
+              <a href="/account" className="btn-up btn-up-ghost btn-up-sm">
                 <Key className="w-4 h-4" />
-                <span>My API key</span>
-              </button>
+                <span>Manage API key</span>
+              </a>
             ) : (
-              <button onClick={onOpenAuth} className="btn-up btn-up-solid btn-up-sm">
+              <a href="/auth" className="btn-up btn-up-solid btn-up-sm">
                 <Key className="w-4 h-4" />
                 <span>Sign in to get key</span>
-              </button>
+              </a>
             )}
-            {onOpenPlayground && (
-              <button onClick={onOpenPlayground} className="btn-up btn-up-ghost btn-up-sm">
-                <FlaskConical className="w-4 h-4" />
-                <span>Playground</span>
-              </button>
-            )}
+            <a href="/playground" className="btn-up btn-up-ghost btn-up-sm">
+              <FlaskConical className="w-4 h-4" />
+              <span>Playground</span>
+            </a>
           </div>
         </div>
       </div>
@@ -171,7 +163,7 @@ export default function ApiDocs({ user, onOpenAuth, onOpenProfile, onBack, onOpe
             <div className="grid sm:grid-cols-3 gap-3 my-4">
               {[
                 { icon: BookOpen, t: "1. Create account", d: "Free, 10 seconds, no KYC." },
-                { icon: Key, t: "2. Copy API key", d: "From your account / profile panel." },
+                { icon: Key, t: "2. Copy API key", d: "Generate and copy it from the Account page." },
                 { icon: Terminal, t: "3. Call the API", d: "key + action = full automation." },
               ].map((s, i) => (
                 <div key={i} className="p-4 rounded-none border border-white/10 bg-white/[0.02]">
@@ -204,9 +196,9 @@ export default function ApiDocs({ user, onOpenAuth, onOpenProfile, onBack, onOpe
                 Leaked it? Regenerate instantly from your profile — the old key dies immediately.
               </span>
             </div>
-            {apiKey && (
+            {user?.hasApiKey && (
               <p className="text-xs text-zinc-500 font-mono">
-                Signed in — your key is in your profile panel. Keep it server-side.
+                Signed in — manage your key on the Account page. Keep it server-side.
               </p>
             )}
           </Section>
