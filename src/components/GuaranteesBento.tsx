@@ -1,14 +1,14 @@
 import React from "react";
 import { ShieldCheck, Zap, RotateCcw, Lock, ArrowUpRight, CheckCircle2 } from "lucide-react";
 import { ExecutiveWalletIcon, ExecutiveOrderIcon } from "./icons/ExecutiveIcons";
+import { pathFor } from "../lib/routes";
 
 interface GuaranteesBentoProps {
   onNavigate?: (tab: string) => void;
-  onOpenTerms?: () => void;
   onOpenWallet?: () => void;
 }
 
-export default function GuaranteesBento({ onOpenTerms, onOpenWallet, onNavigate }: GuaranteesBentoProps) {
+export default function GuaranteesBento({ onOpenWallet, onNavigate }: GuaranteesBentoProps) {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
       {/* Section Header in ExamCodes Style */}
@@ -97,15 +97,13 @@ export default function GuaranteesBento({ onOpenTerms, onOpenWallet, onNavigate 
             Eligible service channels feature guaranteed retention protection tailored to the package tier — from 7-day rapid replenishment to 30-day, 365-day, and Lifetime non-drop coverage with 1-click re-delivery.
           </p>
 
-          {onOpenTerms && (
-            <button
-              onClick={onOpenTerms}
-              className="text-xs text-[#E4E4E7] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer underline"
-            >
-              <span>Read Retention SLA Standards</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <a
+            href={pathFor("terms")}
+            className="text-xs text-[#E4E4E7] hover:text-white transition-colors flex items-center gap-1.5 cursor-pointer underline"
+          >
+            <span>Read Retention SLA Standards</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </a>
         </div>
 
         {/* Card 4: Zero Password Architecture (Span 7) */}

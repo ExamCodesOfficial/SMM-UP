@@ -1,17 +1,17 @@
 import React from "react";
 import { SmmUpLogo } from "./icons/ExecutiveIcons";
+import { pathFor } from "../lib/routes";
 
 interface AuthPageProps {
   initialMode: "login" | "register";
   onAuthSuccess: () => void;
-  onOpenTerms?: () => void;
 }
 
 /**
  * Full-page Authentication Terminal — replaces the legacy popup modal.
  * Route: /auth (state-synced). Sharp, monochrome, mobile-first.
  */
-export default function AuthPage({ initialMode, onAuthSuccess, onOpenTerms }: AuthPageProps) {
+export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) {
   const [mode, setMode] = React.useState<"login" | "register">(initialMode);
   const [identifier, setIdentifier] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -202,19 +202,13 @@ export default function AuthPage({ initialMode, onAuthSuccess, onOpenTerms }: Au
               )}
             </p>
             <p className="text-[11px] text-zinc-600">
-              100% Free &bull; No social media passwords ever needed.
-              {onOpenTerms && (
-                <>
-                  {" "}
-                  <button
-                    type="button"
-                    onClick={onOpenTerms}
-                    className="underline underline-offset-4 hover:text-zinc-400 transition-colors cursor-pointer"
-                  >
-                    Service Terms
-                  </button>
-                </>
-              )}
+              100% Free &bull; No social media passwords ever needed.{" "}
+              <a
+                href={pathFor("terms")}
+                className="underline underline-offset-4 hover:text-zinc-400 transition-colors cursor-pointer"
+              >
+                Service Terms
+              </a>
             </p>
           </div>
         </div>

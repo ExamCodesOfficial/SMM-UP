@@ -6,7 +6,6 @@ import { pathFor } from "../lib/routes";
 
 interface FooterProps {
   onNavigateTab: (tab: string) => void;
-  onOpenTerms: () => void;
   onOpenWallet: () => void;
   onOpenSupport?: () => void;
 }
