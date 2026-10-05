@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ObjectId } from "mongodb";
-import { getDb } from "./lib/db.js";
+import { getDb } from "../server/lib/db.js";
 import {
   fetchAllServices,
   calculateOrderTotal,
@@ -10,11 +10,11 @@ import {
   checkRefillStatus,
   requestOrderRefill,
   cancelProviderOrder,
-} from "./lib/smm.js";
-import { sendFailedOrderAlert } from "./lib/telegram.js";
-import { checkRateLimit } from "./lib/rateLimit.js";
+} from "../server/lib/smm.js";
+import { sendFailedOrderAlert } from "../server/lib/telegram.js";
+import { checkRateLimit } from "../server/lib/rateLimit.js";
 import crypto from "crypto";
-import { sanitizeBrandText, sanitizeProviderError } from "./lib/smm.js";
+import { sanitizeBrandText, sanitizeProviderError } from "../server/lib/smm.js";
 
 function hashApiKey(raw: string): string {
   return crypto.createHash("sha256").update(raw).digest("hex");

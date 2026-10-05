@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
 import { ObjectId } from "mongodb";
-import { getDb } from "../lib/db.js";
+import { getDb } from "../../server/lib/db.js";
 import {
   hashPassword,
   verifyPassword,
@@ -9,9 +9,9 @@ import {
   setAuthCookie,
   clearAuthCookie,
   getUserFromRequest,
-} from "../lib/auth.js";
-import { checkRateLimit } from "../lib/rateLimit.js";
-import { sanitizeBrandText } from "../lib/smm.js";
+} from "../../server/lib/auth.js";
+import { checkRateLimit } from "../../server/lib/rateLimit.js";
+import { sanitizeBrandText } from "../../server/lib/smm.js";
 
 function hashApiKey(raw: string): string {
   return crypto.createHash("sha256").update(raw).digest("hex");

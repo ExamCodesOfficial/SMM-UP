@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import crypto from "crypto";
 import { ObjectId } from "mongodb";
-import { getDb } from "../lib/db.js";
-import { getUserFromRequest } from "../lib/auth.js";
-import { checkRateLimit } from "../lib/rateLimit.js";
-import { searchFamPayPayment } from "../lib/imap.js";
-import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../lib/telegram.js";
+import { getDb } from "../../server/lib/db.js";
+import { getUserFromRequest } from "../../server/lib/auth.js";
+import { checkRateLimit } from "../../server/lib/rateLimit.js";
+import { searchFamPayPayment } from "../../server/lib/imap.js";
+import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../../server/lib/telegram.js";
 
 /**
  * Generates SUP + 5-character uppercase alphanumeric memo

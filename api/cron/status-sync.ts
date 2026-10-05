@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getDb } from "../lib/db.js";
-import { checkOrderStatusMulti } from "../lib/smm.js";
+import { getDb } from "../../server/lib/db.js";
+import { checkOrderStatusMulti } from "../../server/lib/smm.js";
 
 /**
  * Periodic order status sync (Vercel Cron, every 15 minutes).

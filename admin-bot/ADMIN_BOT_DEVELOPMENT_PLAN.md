@@ -802,7 +802,7 @@ Requirements:
 - cryptographically random token;
 - unique index;
 - TTL index on `expires_at`;
-- maximum lifetime around 60 seconds for financial actions;
+- maximum lifetime of 5 minutes for financial actions, accommodating temporary owner connectivity issues without leaving confirmations valid indefinitely;
 - conditional consume operation;
 - owner ID binding;
 - single use.

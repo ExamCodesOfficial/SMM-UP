@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ObjectId } from "mongodb";
-import { getDb } from "../lib/db.js";
-import { getUserFromRequest } from "../lib/auth.js";
+import { getDb } from "../../server/lib/db.js";
+import { getUserFromRequest } from "../../server/lib/auth.js";
 import {
   fetchAllServices,
   calculateOrderTotal,
@@ -11,8 +11,8 @@ import {
   cancelProviderOrder,
   sanitizeBrandText,
   sanitizeProviderError,
-} from "../lib/smm.js";
-import { sendFailedOrderAlert } from "../lib/telegram.js";
+} from "../../server/lib/smm.js";
+import { sendFailedOrderAlert } from "../../server/lib/telegram.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
