@@ -1,9 +1,6 @@
 import React from "react";
 import {
   ArrowRight,
-  ShieldCheck,
-  Zap,
-  RotateCcw,
   User,
 } from "lucide-react";
 import { formatINR } from "../lib/utils";
@@ -209,17 +206,12 @@ export default function LandingHero({
     <div className="relative z-10">
       {/* ── 1. CINEMATIC HERO — fullscreen, centered, pure monochrome ── */}
       <section className="relative min-h-[92svh] md:min-h-[100svh] flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 bg-grid-pattern bg-grid-fade pointer-events-none" />
         <div className="animate-glow-breath absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[110%] max-w-4xl h-[60%] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-24 pb-14 md:pb-20">
           {/* Status pill */}
-          <div className="animate-hero-1 inline-flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-1.5 rounded-none border border-white/15 bg-white/[0.03] text-zinc-200 text-[9px] sm:text-[10px] font-mono tracking-[0.14em] sm:tracking-[0.2em] uppercase">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-            </span>
-            <span>All systems live &bull; 0% deposit fee</span>
+          <div className="animate-hero-1 inline-flex items-center px-4 sm:px-5 py-2 rounded-full border border-white/[0.10] bg-white/[0.02] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_0_0_1px_rgba(0,0,0,0.4)] text-zinc-300 text-[9px] sm:text-[10px] font-mono tracking-[0.18em] sm:tracking-[0.22em] uppercase">
+            All systems live &bull; 0% deposit fee
           </div>
 
           {/* Two-line headline */}
@@ -259,21 +251,6 @@ export default function LandingHero({
             </button>
           </div>
 
-          {/* Trust indicators */}
-          <div className="animate-hero-5 mt-10 sm:mt-12 pt-6 sm:pt-8 flex flex-wrap items-center justify-center gap-x-6 sm:gap-x-8 gap-y-3 text-[11px] sm:text-xs text-zinc-500 font-light border-t border-white/[0.06]">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-zinc-400" />
-              <span>No social passwords ever</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <RotateCcw className="w-4 h-4 text-zinc-400" />
-              <span>Free refill on drops</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-zinc-400" />
-              <span>Deposits credit in minutes</span>
-            </div>
-          </div>
         </div>
       </section>
 
