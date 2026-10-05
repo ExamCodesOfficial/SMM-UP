@@ -172,11 +172,11 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
     <div ref={catalogTopRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
       {/* Title Section */}
       <div className="text-center mb-10">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.02] text-[#F5E8D0] text-[11px] font-semibold tracking-wider uppercase mb-3">
-          <ExecutiveCatalogIcon size={14} className="text-[#F5E8D0]" />
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.02] text-[#E4E4E7] text-[11px] font-semibold tracking-wider uppercase mb-3">
+          <ExecutiveCatalogIcon size={14} className="text-[#E4E4E7]" />
           <span>Wholesale Catalog Matrix</span>
         </div>
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-[#FAF7F2] drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.2em] sm:tracking-[0.25em] text-[#FAF9F7] drop-shadow-[0_0_15px_rgba(255,255,255,0.4)] uppercase mb-3">
           SERVICES DIRECTORY
         </h2>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
@@ -197,7 +197,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                 setSelectedPlatform(p.id);
                 setSelectedCat("All");
               }}
-              className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-medium tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer ${
+              className={`flex items-center gap-2.5 px-4 py-2.5 rounded-none text-xs font-medium tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer ${
                 isActive
                   ? "bg-white text-black font-semibold shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-[1.02]"
                   : "bg-white/[0.02] border border-white/[0.08] text-zinc-300 hover:text-white hover:bg-white/[0.05] hover:border-white/20"
@@ -211,7 +211,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-6 p-4 rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-6 p-4 rounded-none border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
         {/* Search Input */}
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -220,7 +220,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={`Search across ${platformFiltered.length} ${selectedPlatform === "All" ? "" : selectedPlatform} services...`}
-            className="w-full bg-black/60 border border-white/10 focus:border-white/40 focus:ring-1 focus:ring-white/20 text-white pl-10 pr-4 py-2.5 rounded-xl text-sm outline-none transition-all placeholder:text-zinc-500"
+            className="w-full bg-black/60 border border-white/10 focus:border-white/40 focus:ring-1 focus:ring-white/20 text-white pl-10 pr-4 py-2.5 rounded-none text-sm outline-none transition-all placeholder:text-zinc-500"
           />
         </div>
 
@@ -229,7 +229,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
           <select
             value={selectedCat}
             onChange={(e) => setSelectedCat(e.target.value)}
-            className="bg-black/80 border border-white/10 text-white px-4 py-2.5 rounded-xl text-xs font-medium outline-none focus:border-white/40 max-w-xs cursor-pointer truncate"
+            className="bg-black/80 border border-white/10 text-white px-4 py-2.5 rounded-none text-xs font-medium outline-none focus:border-white/40 max-w-xs cursor-pointer truncate"
           >
             {categories.map((c) => (
               <option key={c} value={c} className="bg-zinc-900 text-white">
@@ -239,10 +239,10 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
           </select>
 
           {/* View Toggle */}
-          <div className="flex items-center border border-white/10 rounded-xl bg-black/50 p-1 shrink-0">
+          <div className="flex items-center border border-white/10 rounded-none bg-black/50 p-1 shrink-0">
             <button
               onClick={() => setViewMode("cards")}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              className={`p-1.5 rounded-sm transition-colors cursor-pointer ${
                 viewMode === "cards" ? "bg-white text-black" : "text-zinc-400 hover:text-white"
               }`}
               title="Card Grid View"
@@ -251,7 +251,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
             </button>
             <button
               onClick={() => setViewMode("table")}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              className={`p-1.5 rounded-sm transition-colors cursor-pointer ${
                 viewMode === "table" ? "bg-white text-black" : "text-zinc-400 hover:text-white"
               }`}
               title="Table View"
@@ -285,7 +285,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                   setItemsPerPage(sz);
                   setCurrentPage(1);
                 }}
-                className={`ml-1.5 px-2 py-0.5 rounded-md text-xs font-semibold cursor-pointer ${
+                className={`ml-1.5 px-2 py-0.5 rounded-sm text-xs font-semibold cursor-pointer ${
                   itemsPerPage === sz
                     ? "bg-white text-black"
                     : "text-zinc-500 hover:text-zinc-300"
@@ -310,12 +310,12 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
 
       {/* ── CARD GRID VIEW (Paginated) ────────────────────────── */}
       {services.length > 0 && viewMode === "cards" && filtered.length === 0 && (
-        <div className="py-20 text-center border border-white/[0.06] rounded-2xl bg-white/[0.015]">
+        <div className="py-20 text-center border border-white/[0.06] rounded-none bg-white/[0.015]">
           <Sparkles className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
           <p className="text-sm text-zinc-400">No service nodes match your filters.</p>
           <button
             onClick={() => { setSearch(""); setSelectedCat("All"); }}
-            className="mt-3 text-xs text-[#F5E8D0] hover:text-white underline underline-offset-4 cursor-pointer"
+            className="mt-3 text-xs text-[#E4E4E7] hover:text-white underline underline-offset-4 cursor-pointer"
           >
             Reset filters
           </button>
@@ -331,13 +331,13 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
             return (
               <div
                 key={s.service}
-                className="rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 hover:border-[#F5E8D0]/30 transition-all duration-300 p-6 flex flex-col justify-between shadow-[0_4px_25px_rgba(0,0,0,0.5)] group relative"
+                className="rounded-none border border-white/[0.08] bg-[#0A0A0A]/85 hover:border-[#E4E4E7]/30 transition-all duration-300 p-6 flex flex-col justify-between shadow-[0_4px_25px_rgba(0,0,0,0.5)] group relative"
               >
                 <div>
                   {/* Top Bar: Platform SVG + ID */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-white/10 bg-white/[0.03] shrink-0">
+                      <div className="w-9 h-9 rounded-none flex items-center justify-center border border-white/10 bg-white/[0.03] shrink-0">
                         <PlatformIcon size={20} />
                       </div>
                       <span className="text-xs font-semibold tracking-wider text-zinc-300 uppercase">
@@ -347,13 +347,13 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
 
                     <button
                       onClick={() => copyServiceId(s.service)}
-                      className="px-2.5 py-1 rounded-lg border border-white/10 bg-black/40 text-[11px] font-medium text-zinc-400 hover:text-white hover:border-white/30 transition-all cursor-pointer flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-sm border border-white/10 bg-black/40 text-[11px] font-medium text-zinc-400 hover:text-white hover:border-white/30 transition-all cursor-pointer flex items-center gap-1"
                       title="Copy Service ID"
                     >
                       {copiedId === s.service ? (
                         <>
-                          <Check className="w-3 h-3 text-[#F5E8D0]" />
-                          <span className="text-[#F5E8D0]">Copied</span>
+                          <Check className="w-3 h-3 text-[#E4E4E7]" />
+                          <span className="text-[#E4E4E7]">Copied</span>
                         </>
                       ) : (
                         <span>#{s.service}</span>
@@ -368,18 +368,18 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
 
                   {/* Category Pill & Dynamic Refill Badge */}
                   <div className="mb-4 flex items-center justify-between gap-2">
-                    <span className="inline-block px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] text-zinc-400 max-w-[70%] truncate">
+                    <span className="inline-block px-2.5 py-1 rounded-sm bg-white/[0.04] border border-white/[0.06] text-[11px] text-zinc-400 max-w-[70%] truncate">
                       {sanitizeBrandText(s.category)}
                     </span>
                     {(() => {
                       const policy = parseRefillPolicy(s);
                       return policy.hasRefill ? (
-                        <span className="px-2 py-0.5 rounded-md border border-[#F5E8D0]/30 bg-[#F5E8D0]/10 text-[#F5E8D0] text-[10px] font-semibold flex items-center gap-1 shrink-0">
+                        <span className="px-2 py-0.5 rounded-sm border border-[#E4E4E7]/30 bg-[#E4E4E7]/10 text-[#E4E4E7] text-[10px] font-semibold flex items-center gap-1 shrink-0">
                           <RotateCcw className="w-2.5 h-2.5" />
                           {policy.shortLabel}
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-md border border-white/5 bg-black/40 text-zinc-600 text-[10px] font-medium shrink-0">
+                        <span className="px-2 py-0.5 rounded-sm border border-white/5 bg-black/40 text-zinc-600 text-[10px] font-medium shrink-0">
                           No Refill
                         </span>
                       );
@@ -387,7 +387,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                   </div>
 
                   {/* Key Metrics Grid */}
-                  <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-black/40 border border-white/[0.05] mb-5 text-xs">
+                  <div className="grid grid-cols-2 gap-2 p-3 rounded-none bg-black/40 border border-white/[0.05] mb-5 text-xs">
                     <div>
                       <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Min / Max</span>
                       <span className="text-zinc-300 font-medium">
@@ -408,14 +408,14 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                 <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
                   <div>
                     <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">Price per 1,000</span>
-                    <span className="text-base font-bold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.25)] tracking-wide">
+                    <span className="text-base font-bold text-[#FFFFFF] drop-shadow-[0_0_8px_rgba(255,255,255,0.25)] tracking-wide">
                       {formatINR(s.rate)}
                     </span>
                   </div>
 
                   <button
                     onClick={() => onSelectService(s.service)}
-                    className="px-4 py-2.5 rounded-xl bg-white text-black font-semibold text-xs tracking-wider hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.25)] flex items-center gap-1.5 cursor-pointer"
+                    className="px-4 py-2.5 rounded-none bg-white text-black font-semibold text-xs tracking-wider hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.25)] flex items-center gap-1.5 cursor-pointer"
                   >
                     <span>Order</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -429,7 +429,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
 
       {/* ── CLEAN TABLE VIEW (Paginated) ─────────────────────── */}
       {services.length > 0 && viewMode === "table" && (
-        <div className="rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+        <div className="rounded-none border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-black/90 border-b border-white/10 text-zinc-400 uppercase tracking-wider text-[11px] font-semibold">
@@ -463,7 +463,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                         <div className="font-medium text-white line-clamp-1">{sanitizeBrandText(s.name)}</div>
                         <div className="text-[11px] text-zinc-500 truncate">{sanitizeBrandText(s.category)}</div>
                       </td>
-                      <td className="py-3.5 px-5 font-bold text-[#F5E8D0] whitespace-nowrap text-sm">
+                      <td className="py-3.5 px-5 font-bold text-[#E4E4E7] whitespace-nowrap text-sm">
                         {formatINR(s.rate)}
                       </td>
                       <td className="py-3.5 px-5 text-zinc-300 whitespace-nowrap">
@@ -473,7 +473,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                         {(() => {
                           const policy = parseRefillPolicy(s);
                           return policy.hasRefill ? (
-                            <span className="text-[11px] text-[#F5E8D0] font-semibold flex items-center gap-1">
+                            <span className="text-[11px] text-[#E4E4E7] font-semibold flex items-center gap-1">
                               <RotateCcw className="w-3 h-3" /> {policy.shortLabel}
                             </span>
                           ) : (
@@ -484,7 +484,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                       <td className="py-3.5 px-5 text-right whitespace-nowrap">
                         <button
                           onClick={() => onSelectService(s.service)}
-                          className="px-3 py-1.5 rounded-lg bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all inline-flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 rounded-sm bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all inline-flex items-center gap-1 cursor-pointer"
                         >
                           <span>Order</span>
                           <ArrowRight className="w-3 h-3" />
@@ -501,7 +501,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
 
       {/* ── PAGINATION CONTROLS ──────────────────────────────── */}
       {totalPages > 1 && (
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-none border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
           <div className="text-xs text-zinc-400">
             Page <strong className="text-white">{currentPage}</strong> of <strong className="text-white">{totalPages}</strong>
           </div>
@@ -510,7 +510,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
             <button
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="px-3 py-2 rounded-xl border border-white/10 hover:border-white/30 text-xs font-semibold text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
+              className="px-3 py-2 rounded-none border border-white/10 hover:border-white/30 text-xs font-semibold text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
               <span>Previous</span>
@@ -529,7 +529,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
                   <button
                     key={pNum}
                     onClick={() => handlePageChange(pNum)}
-                    className={`w-8 h-8 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    className={`w-8 h-8 rounded-none text-xs font-semibold transition-all cursor-pointer ${
                       isCurrent
                         ? "bg-white text-black shadow-[0_0_12px_rgba(255,255,255,0.25)]"
                         : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
@@ -544,7 +544,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="px-3 py-2 rounded-xl border border-white/10 hover:border-white/30 text-xs font-semibold text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
+              className="px-3 py-2 rounded-none border border-white/10 hover:border-white/30 text-xs font-semibold text-zinc-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
             >
               <span>Next</span>
               <ChevronRight className="w-4 h-4" />

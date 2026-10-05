@@ -34,7 +34,7 @@ function useCopy() {
 
 function CodeBlock({ id, code, copied, copy, lang = "bash" }: any) {
   return (
-    <div className="relative rounded-2xl border border-white/[0.08] bg-black/70 overflow-hidden">
+    <div className="relative rounded-none border border-white/[0.08] bg-black/70 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
         <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">{lang}</span>
         <button
@@ -43,7 +43,7 @@ function CodeBlock({ id, code, copied, copy, lang = "bash" }: any) {
         >
           {copied === id ? (
             <>
-              <Check className="w-3 h-3 text-emerald-400" />
+              <Check className="w-3 h-3 text-zinc-100" />
               <span>Copied</span>
             </>
           ) : (
@@ -63,7 +63,7 @@ function CodeBlock({ id, code, copied, copy, lang = "bash" }: any) {
 
 function ParamTable({ rows }: { rows: [string, string, boolean][] }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] overflow-hidden">
+    <div className="rounded-none border border-white/[0.08] overflow-hidden">
       {rows.map(([name, desc, required], i) => (
         <div
           key={name}
@@ -72,9 +72,9 @@ function ParamTable({ rows }: { rows: [string, string, boolean][] }) {
           }`}
         >
           <div className="sm:w-44 shrink-0 flex items-center gap-2">
-            <code className="text-amber-300 font-mono">{name}</code>
+            <code className="text-zinc-100 font-mono">{name}</code>
             {required ? (
-              <span className="text-[9px] font-mono uppercase text-rose-400">required</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-100">required</span>
             ) : (
               <span className="text-[9px] font-mono uppercase text-zinc-600">optional</span>
             )}
@@ -146,7 +146,7 @@ console.log(await res.json());`;
           <SmmUpLogo size={36} />
           <div>
             <h1 className="text-xl sm:text-2xl font-semibold tracking-wide text-white flex items-center gap-2">
-              <Terminal className="w-5 h-5 text-[#F5E8D0]" />
+              <Terminal className="w-5 h-5 text-[#E4E4E7]" />
               Developer API
             </h1>
             <p className="text-xs text-zinc-400 font-mono mt-0.5">Standard SMM v2 &bull; smmup.co.in</p>
@@ -154,31 +154,31 @@ console.log(await res.json());`;
         </div>
         <button
           onClick={onBack}
-          className="px-3.5 py-2 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-zinc-300 hover:text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+          className="px-3.5 py-2 rounded-none border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-zinc-300 hover:text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
         >
           <ChevronRight className="w-3.5 h-3.5 rotate-180" />
           Back
         </button>
       </div>
 
-      <div className="p-5 rounded-2xl border border-[#F5E8D0]/20 bg-[#F5E8D0]/[0.04] mb-8">
+      <div className="p-5 rounded-none border border-[#E4E4E7]/20 bg-[#E4E4E7]/[0.04] mb-8">
         <div className="flex items-start gap-3">
-          <Zap className="w-4 h-4 text-[#F5E8D0] shrink-0 mt-0.5" />
+          <Zap className="w-4 h-4 text-[#E4E4E7] shrink-0 mt-0.5" />
           <div className="space-y-2">
             <p className="text-sm text-white font-medium">One endpoint. Six actions. Full compatibility.</p>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Every request goes to a single URL with an <code className="text-amber-300 font-mono">action</code> parameter.
+              Every request goes to a single URL with an <code className="text-zinc-100 font-mono">action</code> parameter.
               Works with any SMM panel, bot framework, or custom script that speaks the v2 spec.
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <code className="px-2.5 py-1 rounded-lg bg-black/60 border border-white/10 text-[11px] font-mono text-emerald-400">
+              <code className="px-2.5 py-1 rounded-sm bg-black/60 border border-white/10 text-[11px] font-mono text-zinc-100">
                 {BASE}
               </code>
               <button
                 onClick={() => copy("base", BASE)}
-                className="px-2 py-1 rounded-lg border border-white/10 text-[10px] font-mono uppercase text-zinc-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1"
+                className="px-2 py-1 rounded-sm border border-white/10 text-[10px] font-mono uppercase text-zinc-400 hover:text-white transition-colors cursor-pointer flex items-center gap-1"
               >
-                {copied === "base" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                {copied === "base" ? <Check className="w-3 h-3 text-zinc-100" /> : <Copy className="w-3 h-3" />}
               </button>
             </div>
           </div>
@@ -186,13 +186,13 @@ console.log(await res.json());`;
       </div>
 
       {/* ── API KEY PANEL ── */}
-      <div className="p-5 rounded-2xl border border-white/[0.08] bg-white/[0.015] mb-10">
+      <div className="p-5 rounded-none border border-white/[0.08] bg-white/[0.015] mb-10">
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300 flex items-center gap-2">
-            <Key className="w-4 h-4 text-amber-400" />
+            <Key className="w-4 h-4 text-zinc-100" />
             <span>Your API Key</span>
           </span>
-          <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full">
+          <span className="text-[10px] text-zinc-100 font-semibold bg-white/[0.06] px-2 py-0.5 rounded-full">
             Standard v2
           </span>
         </div>
@@ -204,7 +204,7 @@ console.log(await res.json());`;
             </p>
             <button
               onClick={onOpenAuth}
-              className="px-5 py-2.5 rounded-xl bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer"
+              className="px-5 py-2.5 rounded-none bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer"
             >
               Sign in to generate key
             </button>
@@ -216,7 +216,7 @@ console.log(await res.json());`;
             </p>
             <button
               onClick={onOpenProfile}
-              className="px-5 py-2.5 rounded-xl bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer"
+              className="px-5 py-2.5 rounded-none bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer"
             >
               Generate API key
             </button>
@@ -231,11 +231,11 @@ console.log(await res.json());`;
                 type="text"
                 readOnly
                 value={user.apiKeyMasked || "sup_••••••••••••••••"}
-                className="flex-1 bg-black/70 border border-white/10 text-zinc-300 px-3.5 py-2.5 rounded-xl text-xs outline-none font-mono"
+                className="flex-1 bg-black/70 border border-white/10 text-zinc-300 px-3.5 py-2.5 rounded-none text-xs outline-none font-mono"
               />
               <button
                 onClick={onOpenProfile}
-                className="px-4 py-2.5 rounded-xl bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer shrink-0"
+                className="px-4 py-2.5 rounded-none bg-white text-black font-semibold text-xs hover:bg-zinc-200 transition-all cursor-pointer shrink-0"
               >
                 Manage
               </button>
@@ -255,10 +255,10 @@ console.log(await res.json());`;
       <SectionTitle icon={<Shield className="w-4 h-4" />} title="Authentication" />
       <div className="space-y-4 mb-10">
         <p className="text-sm text-zinc-400 leading-relaxed">
-          Pass your key as the <code className="text-amber-300 font-mono">key</code> parameter in the POST body. For
+          Pass your key as the <code className="text-zinc-100 font-mono">key</code> parameter in the POST body. For
           server-to-server integrations you may also send it as an{" "}
-          <code className="text-amber-300 font-mono">Authorization: Bearer</code> header or{" "}
-          <code className="text-amber-300 font-mono">X-API-Key</code> header instead, which keeps the key out of
+          <code className="text-zinc-100 font-mono">Authorization: Bearer</code> header or{" "}
+          <code className="text-zinc-100 font-mono">X-API-Key</code> header instead, which keeps the key out of
           server logs and URL history.
         </p>
         <ParamTable
@@ -267,7 +267,7 @@ console.log(await res.json());`;
             ["action", "The operation to perform: services, add, status, cancel, refill, balance.", true],
           ]}
         />
-        <div className="flex items-start gap-2 p-4 rounded-2xl border border-amber-500/20 bg-amber-500/[0.05] text-[11px] text-amber-200/90">
+        <div className="flex items-start gap-2 p-4 rounded-none border border-white/15 bg-white/[0.05] text-[11px] text-zinc-100/90">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>
             Treat your API key like a password. Anyone holding it can spend your wallet balance. Regenerate it
@@ -287,13 +287,13 @@ console.log(await res.json());`;
               setActive(ep.id);
               document.getElementById(`ep-${ep.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
-            className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+            className={`p-4 rounded-none border text-left transition-all cursor-pointer ${
               active === ep.id
-                ? "border-[#F5E8D0]/40 bg-[#F5E8D0]/[0.06]"
+                ? "border-[#E4E4E7]/40 bg-[#E4E4E7]/[0.06]"
                 : "border-white/[0.08] bg-white/[0.015] hover:bg-white/[0.04]"
             }`}
           >
-            <div className="text-[10px] font-mono text-[#F5E8D0] mb-1.5">action={ep.action}</div>
+            <div className="text-[10px] font-mono text-[#E4E4E7] mb-1.5">action={ep.action}</div>
             <div className="text-sm font-semibold text-white mb-1">{ep.title}</div>
             <div className="text-[11px] text-zinc-400 leading-relaxed">{ep.desc}</div>
           </button>
@@ -429,7 +429,7 @@ console.log(await res.json());`;
 function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
     <h2 className="text-sm font-bold uppercase tracking-[0.2em] text-white font-mono mb-5 flex items-center gap-2.5 pb-3 border-b border-white/[0.08]">
-      <span className="text-[#F5E8D0]">{icon}</span>
+      <span className="text-[#E4E4E7]">{icon}</span>
       {title}
     </h2>
   );
@@ -452,12 +452,12 @@ function EndpointBlock({
     <div
       id={id}
       onMouseEnter={onHover}
-      className={`scroll-mt-24 p-5 rounded-2xl border transition-all ${
-        active ? "border-[#F5E8D0]/30 bg-[#F5E8D0]/[0.03]" : "border-white/[0.08] bg-white/[0.01]"
+      className={`scroll-mt-24 p-5 rounded-none border transition-all ${
+        active ? "border-[#E4E4E7]/30 bg-[#E4E4E7]/[0.03]" : "border-white/[0.08] bg-white/[0.01]"
       }`}
     >
       <div className="flex items-center gap-2.5 mb-2">
-        <code className="px-2.5 py-1 rounded-lg bg-black/60 border border-[#F5E8D0]/20 text-[11px] font-mono text-[#F5E8D0]">
+        <code className="px-2.5 py-1 rounded-sm bg-black/60 border border-[#E4E4E7]/20 text-[11px] font-mono text-[#E4E4E7]">
           action={action}
         </code>
         <h3 className="text-sm font-semibold text-white">{title}</h3>

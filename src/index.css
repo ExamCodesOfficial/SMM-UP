@@ -2,12 +2,11 @@
 
 @layer base {
   :root {
-    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-    --bg-dark-cream: #090807;
-    --card-dark-cream: #0e0d0b;
-    --text-cream: #FAF7F2;
-    --text-champagne: #F5E8D0;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, monospace;
+    --bg-dark: #050505;
+    --card-dark: #12100e;
+    --text-cream: #FAF9F7;
   }
 
   html {
@@ -15,14 +14,14 @@
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
     font-family: var(--font-sans);
-    background-color: #090807;
+    background-color: #050505;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 245, 230, 0.16) #090807;
+    scrollbar-color: rgba(255, 255, 255, 0.16) #050505;
   }
 
   body {
-    background-color: #090807;
-    color: #FAF7F2;
+    background-color: #050505;
+    color: #FAF9F7;
     overscroll-behavior: none;
     min-height: 100vh;
     min-height: 100dvh;
@@ -35,23 +34,23 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Accessible, luxurious focus rings (keyboard navigation) */
+  /* Accessible luxury focus rings (keyboard navigation) */
   :focus-visible {
-    outline: 2px solid rgba(245, 232, 208, 0.55);
+    outline: 2px solid rgba(255, 255, 255, 0.5);
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 2px;
   }
 
   ::selection {
-    background: rgba(245, 232, 208, 0.22);
-    color: #FAF7F2;
+    background: rgba(255, 255, 255, 0.22);
+    color: #ffffff;
   }
 }
 
-/* Subtle warm creamy 40px grid from ExamCodes */
+/* Subtle warm 40px grid from ExamCodes */
 .bg-grid-pattern {
-  background-image: linear-gradient(rgba(255, 245, 230, 0.035) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(255, 245, 230, 0.035) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 40px 40px;
 }
 
@@ -61,29 +60,29 @@
   mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 78%);
 }
 
-/* Warm Cream Luxury Velvet Surface */
+/* Dark Luxury Velvet Surface */
 .bg-velvet-dark {
-  background-color: rgba(14, 13, 11, 0.85);
-  border-color: rgba(255, 245, 230, 0.08);
+  background-color: rgba(18, 16, 14, 0.85);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
-/* Custom Sleek Scrollbar in warm dark tone */
+/* Custom Sleek Scrollbar */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090807;
+  background: #050505;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 245, 230, 0.16);
+  background: rgba(255, 255, 255, 0.16);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 245, 230, 0.32);
+  background: rgba(255, 255, 255, 0.32);
 }
 
 .scrollbar-none {
@@ -144,10 +143,11 @@
   50% { opacity: 0.9; transform: scale(1.06); }
 }
 
-@keyframes scrollCueDot {
-  0% { transform: translateY(0); opacity: 1; }
-  70% { transform: translateY(12px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 0; }
+@keyframes scrollCueLine {
+  0% { transform: scaleY(0); transform-origin: top; opacity: 0; }
+  45% { transform: scaleY(1); transform-origin: top; opacity: 1; }
+  55% { transform: scaleY(1); transform-origin: bottom; opacity: 1; }
+  100% { transform: scaleY(0); transform-origin: bottom; opacity: 0; }
 }
 
 .animate-fadeIn {
@@ -163,11 +163,11 @@
 }
 
 /* Staggered entrance cadence for hero choreography */
-.animate-hero-1 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both; }
-.animate-hero-2 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both; }
-.animate-hero-3 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both; }
-.animate-hero-4 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.35s both; }
-.animate-hero-5 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both; }
+.animate-hero-1 { animation: fadeInUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both; }
+.animate-hero-2 { animation: fadeInUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.18s both; }
+.animate-hero-3 { animation: fadeInUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.30s both; }
+.animate-hero-4 { animation: fadeInUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.42s both; }
+.animate-hero-5 { animation: fadeInUp 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.54s both; }
 
 /* Infinite brand/rate marquee */
 .animate-marquee {
@@ -181,13 +181,13 @@
   mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
 }
 
-/* Champagne shimmer sweep (for "live" surfaces) */
-.shimmer-champagne {
+/* Silver shimmer sweep (for "live" surfaces) */
+.shimmer-silver {
   background: linear-gradient(
     110deg,
-    rgba(245, 232, 208, 0) 30%,
-    rgba(245, 232, 208, 0.14) 50%,
-    rgba(245, 232, 208, 0) 70%
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0) 70%
   );
   background-size: 200% 100%;
   animation: shimmerSweep 2.6s linear infinite;
@@ -197,7 +197,7 @@
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: rgba(255, 245, 230, 0.045);
+  background: rgba(255, 255, 255, 0.045);
 }
 .skeleton::after {
   content: "";
@@ -206,7 +206,7 @@
   background: linear-gradient(
     110deg,
     transparent 30%,
-    rgba(250, 247, 242, 0.08) 50%,
+    rgba(250, 250, 250, 0.08) 50%,
     transparent 70%
   );
   background-size: 200% 100%;
@@ -236,7 +236,7 @@
   transform: translateY(0);
 }
 
-/* Luxury card hover lift used across bento/catalog surfaces */
+/* Architectural hover lift for sharp cards */
 .card-lift {
   transition:
     transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
@@ -245,13 +245,14 @@
     background-color 0.3s ease;
 }
 .card-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(245, 232, 208, 0.08);
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.7);
 }
 
-/* Scroll cue mouse indicator */
-.scroll-cue-dot {
-  animation: scrollCueDot 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+/* Scroll cue: single drawing line */
+.scroll-cue-line {
+  animation: scrollCueLine 2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 /* Respect users who prefer reduced motion */
@@ -271,4 +272,121 @@
   .animate-marquee {
     animation: none;
   }
+}
+
+/* ────────────────────────────────────────────────────────────
+   BUTTON SYSTEM — tactile, sharp, REAL.
+   White base · soft-mint flood on hover (#65e0ad) · hard offset
+   shadow that physically collapses on press (mechanical click).
+   ──────────────────────────────────────────────────────────── */
+.btn-up {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  border-radius: 0;
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    border-color 0.22s ease,
+    box-shadow 0.14s ease,
+    transform 0.08s ease;
+}
+.btn-up:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Solid white → mint flood */
+.btn-up-solid {
+  background: #ffffff;
+  color: #050505;
+  border-color: #ffffff;
+  box-shadow: 5px 5px 0 rgba(255, 255, 255, 0.22);
+}
+.btn-up-solid:hover:not(:disabled) {
+  background: #65e0ad;
+  border-color: #65e0ad;
+  color: #050505;
+  box-shadow: 5px 5px 0 rgba(101, 224, 173, 0.25);
+}
+.btn-up-solid:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0 rgba(101, 224, 173, 0.3);
+}
+
+/* Hairline ghost → mint hairline + mint type */
+.btn-up-ghost {
+  background: rgba(255, 255, 255, 0.02);
+  color: #faf9f7;
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 5px 5px 0 rgba(255, 255, 255, 0.08);
+}
+.btn-up-ghost:hover:not(:disabled) {
+  border-color: rgba(101, 224, 173, 0.65);
+  color: #65e0ad;
+  background: rgba(101, 224, 173, 0.05);
+  box-shadow: 5px 5px 0 rgba(101, 224, 173, 0.12);
+}
+.btn-up-ghost:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 2px 2px 0 rgba(101, 224, 173, 0.15);
+}
+
+/* Compact variant (cards, tables, modals) */
+.btn-up-sm {
+  padding: 0.55rem 1rem;
+  font-size: 0.65rem;
+  gap: 0.45rem;
+}
+.btn-up-sm.btn-up-solid {
+  box-shadow: 3px 3px 0 rgba(255, 255, 255, 0.22);
+}
+.btn-up-sm.btn-up-solid:hover:not(:disabled) {
+  box-shadow: 3px 3px 0 rgba(101, 224, 173, 0.25);
+}
+.btn-up-sm.btn-up-solid:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(101, 224, 173, 0.3);
+}
+.btn-up-sm.btn-up-ghost {
+  box-shadow: 3px 3px 0 rgba(255, 255, 255, 0.08);
+}
+.btn-up-sm.btn-up-ghost:hover:not(:disabled) {
+  box-shadow: 3px 3px 0 rgba(101, 224, 173, 0.12);
+}
+.btn-up-sm.btn-up-ghost:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(101, 224, 173, 0.15);
+}
+
+/* Sharp monochrome input surface */
+.up-input {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.6);
+  color: #faf9f7;
+  font-size: 0.75rem;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+.up-input::placeholder {
+  color: #52525b;
+}
+.up-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.8);
 }

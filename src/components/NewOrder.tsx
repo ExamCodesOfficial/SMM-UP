@@ -355,7 +355,7 @@ export default function NewOrder({
                 setCatPickerOpen(false);
                 setServicePickerOpen(false);
               }}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-none text-xs font-medium tracking-wider whitespace-nowrap transition-all duration-300 cursor-pointer ${
                 isActive
                   ? "bg-white text-black font-semibold shadow-[0_0_20px_rgba(255,255,255,0.3)] scale-[1.02]"
                   : "bg-white/[0.02] border border-white/[0.08] text-zinc-300 hover:text-white hover:bg-white/[0.05] hover:border-white/20"
@@ -375,11 +375,11 @@ export default function NewOrder({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Clean Order Form */}
         <div className="lg:col-span-7">
-          <div className="p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+          <div className="p-6 sm:p-8 rounded-none border border-white/[0.08] bg-[#0A0A0A]/85 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
             <h3 className="text-base sm:text-lg font-semibold tracking-wide text-white mb-6 flex items-center justify-between">
               <span>Order Configuration</span>
-              <span className="text-xs font-medium text-[#F5E8D0] bg-[#F5E8D0]/[0.08] border border-[#F5E8D0]/20 px-3 py-1 rounded-full flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#F5E8D0] animate-pulse" />
+              <span className="text-xs font-medium text-[#E4E4E7] bg-[#E4E4E7]/[0.08] border border-[#E4E4E7]/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#E4E4E7] animate-pulse" />
                 Live Wholesale Node
               </span>
             </h3>
@@ -398,10 +398,10 @@ export default function NewOrder({
                     setCatPickerOpen(!catPickerOpen);
                     setServicePickerOpen(false);
                   }}
-                  className="w-full flex items-center justify-between p-3.5 rounded-xl border border-white/15 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/30 transition-all text-left cursor-pointer group"
+                  className="w-full flex items-center justify-between p-3.5 rounded-none border border-white/15 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/30 transition-all text-left cursor-pointer group"
                 >
                   <div className="flex items-center gap-3 truncate pr-2">
-                    <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-sm bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
                       <ActivePlatformIcon size={16} />
                     </div>
                     <span className="text-sm font-semibold text-white truncate">
@@ -417,7 +417,7 @@ export default function NewOrder({
 
                 {/* Floating Command Popover */}
                 {catPickerOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-2xl border border-white/15 bg-zinc-950/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.9)] p-3 space-y-2 max-h-80 flex flex-col">
+                  <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-none border border-white/15 bg-zinc-950/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.9)] p-3 space-y-2 max-h-80 flex flex-col">
                     <div className="relative">
                       <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
@@ -426,7 +426,7 @@ export default function NewOrder({
                         onChange={(e) => setCatSearch(e.target.value)}
                         placeholder="Search category (e.g. Followers, Views, Reels)..."
                         autoFocus
-                        className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-3 py-2 text-xs rounded-xl outline-none"
+                        className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-3 py-2 text-xs rounded-none outline-none"
                       />
                     </div>
 
@@ -447,7 +447,7 @@ export default function NewOrder({
                                 setCatPickerOpen(false);
                                 setCatSearch("");
                               }}
-                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-left transition-all cursor-pointer ${
+                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-none text-xs font-medium text-left transition-all cursor-pointer ${
                                 isSelected
                                   ? "bg-white text-black font-semibold shadow-[0_0_12px_rgba(255,255,255,0.2)]"
                                   : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
@@ -455,10 +455,10 @@ export default function NewOrder({
                             >
                               <div className="flex items-center gap-2.5 truncate pr-2">
                                 <div
-                                  className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${
+                                  className={`w-6 h-6 rounded-sm flex items-center justify-center shrink-0 border ${
                                     isSelected
                                       ? "bg-black/10 border-black/20 text-black"
-                                      : "bg-white/[0.04] border-white/10 text-[#F5E8D0]"
+                                      : "bg-white/[0.04] border-white/10 text-[#E4E4E7]"
                                   }`}
                                 >
                                   <CatIcon size={14} />
@@ -488,19 +488,19 @@ export default function NewOrder({
                     setServicePickerOpen(!servicePickerOpen);
                     setCatPickerOpen(false);
                   }}
-                  className="w-full flex items-center justify-between p-3.5 rounded-xl border border-white/15 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/30 transition-all text-left cursor-pointer group"
+                  className="w-full flex items-center justify-between p-3.5 rounded-none border border-white/15 bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/30 transition-all text-left cursor-pointer group"
                 >
                   <div className="truncate pr-2">
                     {currentService ? (
                       <div>
                         <div className="text-sm font-semibold text-white truncate flex items-center gap-2">
-                          <span className="px-1.5 py-0.5 rounded-md bg-white/[0.08] text-[11px] font-medium text-zinc-300">
+                          <span className="px-1.5 py-0.5 rounded-sm bg-white/[0.08] text-[11px] font-medium text-zinc-300">
                             #{currentService.service}
                           </span>
                           <span className="truncate">{currentService.name}</span>
                         </div>
-                        <div className="text-xs text-[#FFFDF9] font-semibold mt-1 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">
-                          {formatINR(currentService.rate)} <span className="text-[10px] text-[#F5E8D0] font-normal">/ 1,000 units</span>
+                        <div className="text-xs text-[#FFFFFF] font-semibold mt-1 drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">
+                          {formatINR(currentService.rate)} <span className="text-[10px] text-[#E4E4E7] font-normal">/ 1,000 units</span>
                         </div>
                       </div>
                     ) : (
@@ -516,7 +516,7 @@ export default function NewOrder({
 
                 {/* Floating Service Popover */}
                 {servicePickerOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-2xl border border-white/15 bg-zinc-950/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.9)] p-3 space-y-2 max-h-96 flex flex-col">
+                  <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-none border border-white/15 bg-zinc-950/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.9)] p-3 space-y-2 max-h-96 flex flex-col">
                     <div className="relative">
                       <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
@@ -525,7 +525,7 @@ export default function NewOrder({
                         onChange={(e) => setServiceSearch(e.target.value)}
                         placeholder="Search service name, ID (e.g. 2664), or speed..."
                         autoFocus
-                        className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-3 py-2 text-xs rounded-xl outline-none"
+                        className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-3 py-2 text-xs rounded-none outline-none"
                       />
                     </div>
 
@@ -544,7 +544,7 @@ export default function NewOrder({
                                 setServicePickerOpen(false);
                                 setServiceSearch("");
                               }}
-                              className={`w-full p-3 rounded-xl text-left transition-all cursor-pointer border ${
+                              className={`w-full p-3 rounded-none text-left transition-all cursor-pointer border ${
                                 isSelected
                                   ? "bg-white/[0.08] border-white/30 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
                                   : "bg-black/40 border-white/[0.06] hover:border-white/20 hover:bg-white/[0.03]"
@@ -554,8 +554,8 @@ export default function NewOrder({
                                 <span className="text-xs font-semibold text-white leading-snug line-clamp-2">
                                   #{s.service} — {s.name}
                                 </span>
-                                <span className="text-xs font-semibold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] shrink-0">
-                                  {formatINR(s.rate)} <span className="text-[10px] text-[#F5E8D0] font-normal">/ 1K</span>
+                                <span className="text-xs font-semibold text-[#FFFFFF] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] shrink-0">
+                                  {formatINR(s.rate)} <span className="text-[10px] text-[#E4E4E7] font-normal">/ 1K</span>
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 text-[10px] text-zinc-400">
@@ -563,7 +563,7 @@ export default function NewOrder({
                                 {(() => {
                                   const policy = parseRefillPolicy(s);
                                   return policy.hasRefill ? (
-                                    <span className="text-[#F5E8D0] font-medium flex items-center gap-0.5">
+                                    <span className="text-[#E4E4E7] font-medium flex items-center gap-0.5">
                                       <RotateCcw className="w-2.5 h-2.5" /> {policy.shortLabel}
                                     </span>
                                   ) : (
@@ -593,7 +593,7 @@ export default function NewOrder({
                     onChange={(e) => setLink(e.target.value)}
                     placeholder="https://t.me/channel or https://instagram.com/p/..."
                     required
-                    className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
+                    className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
                   />
                 </div>
               </div>
@@ -609,11 +609,11 @@ export default function NewOrder({
                     value={comments}
                     onChange={(e) => setComments(e.target.value)}
                     placeholder="Nice work!&#10;Great video!&#10;Keep it up!"
-                    className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white p-4 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
+                    className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white p-4 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
                   />
                 </div>
               ) : currentService?.type === "Package" ? (
-                <div className="p-4 rounded-xl border border-white/10 bg-white/[0.02] text-sm text-zinc-300">
+                <div className="p-4 rounded-none border border-white/10 bg-white/[0.02] text-sm text-zinc-300">
                   Fixed Package: 1 Complete Delivery Unit
                 </div>
               ) : (
@@ -638,14 +638,14 @@ export default function NewOrder({
                       max={currentService?.max || 1000000}
                       placeholder={currentService ? `e.g. ${currentService.min}` : "1000"}
                       required
-                      className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
+                      className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
                     />
                   </div>
                 </div>
               )}
 
               {/* Transparent Financial Calculation in Plain, Simple Language */}
-              <div className="p-5 rounded-2xl border border-white/10 bg-white/[0.02] space-y-3">
+              <div className="p-5 rounded-none border border-white/10 bg-white/[0.02] space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs uppercase tracking-wider text-zinc-400 font-semibold">Total Order Cost</span>
                   <span className="text-2xl font-bold text-white tracking-tight">
@@ -657,7 +657,7 @@ export default function NewOrder({
                   <div className="flex items-center justify-between">
                     <span className="text-zinc-400">Current Wallet Balance:</span>
                     {user ? (
-                      <span className="font-semibold text-[#FFFDF9]">
+                      <span className="font-semibold text-[#FFFFFF]">
                         {formatINR(userBalance)}
                       </span>
                     ) : (
@@ -671,8 +671,8 @@ export default function NewOrder({
                       <span
                         className={`font-semibold ${
                           userBalance >= calculatedCharge
-                            ? "text-[#FAF7F2] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
-                            : "text-rose-400"
+                            ? "text-[#FAF9F7] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]"
+                            : "text-zinc-100"
                         }`}
                       >
                         {userBalance >= calculatedCharge
@@ -688,7 +688,7 @@ export default function NewOrder({
                     <button
                       type="button"
                       onClick={onOpenWallet}
-                      className="w-full py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 font-semibold text-xs tracking-wider hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-2.5 rounded-none border border-white/15 bg-white/[0.06] text-zinc-100 font-semibold text-xs tracking-wider hover:bg-white/[0.06] transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <ExecutiveWalletIcon size={15} />
                       <span>Wallet Low — Add Funds via 0% UPI</span>
@@ -699,15 +699,15 @@ export default function NewOrder({
 
               {/* Status Messages */}
               {errorMsg && (
-                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
+                <div className="p-4 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs sm:text-sm flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 shrink-0 text-zinc-100" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
               {successMsg && (
-                <div className="p-4 rounded-xl bg-[#F5E8D0]/10 border border-[#F5E8D0]/30 text-[#FAF7F2] text-xs sm:text-sm flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 shrink-0 text-[#F5E8D0]" />
+                <div className="p-4 rounded-none bg-[#E4E4E7]/10 border border-[#E4E4E7]/30 text-[#FAF9F7] text-xs sm:text-sm flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 shrink-0 text-[#E4E4E7]" />
                   <span>{successMsg}</span>
                 </div>
               )}
@@ -716,7 +716,7 @@ export default function NewOrder({
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3.5 px-6 rounded-xl bg-white text-black font-bold tracking-[0.12em] text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2.5 cursor-pointer"
+                className="w-full py-3.5 px-6 rounded-none bg-white text-black font-bold tracking-[0.12em] text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2.5 cursor-pointer"
               >
                 {submitting ? (
                   <>
@@ -737,10 +737,10 @@ export default function NewOrder({
         {/* Right Column: Service Intelligence & Rules */}
         <div className="lg:col-span-5 space-y-6">
           {currentService && platformInfo ? (
-            <div className="p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+            <div className="p-6 sm:p-8 rounded-none border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
               {/* Header with SVG */}
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center border border-white/10 bg-white/[0.03]">
+                <div className="w-12 h-12 rounded-none flex items-center justify-center border border-white/10 bg-white/[0.03]">
                   <ActivePlatformIcon size={26} />
                 </div>
                 <div>
@@ -760,14 +760,14 @@ export default function NewOrder({
 
               {/* Metrics Grid */}
               <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                <div className="p-3.5 rounded-none border border-white/[0.06] bg-black/40">
                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Wholesale Rate</span>
-                  <span className="text-base font-bold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">
-                    {formatINR(currentService.rate)} <span className="text-xs text-[#F5E8D0] font-normal">/ 1K</span>
+                  <span className="text-base font-bold text-[#FFFFFF] drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">
+                    {formatINR(currentService.rate)} <span className="text-xs text-[#E4E4E7] font-normal">/ 1K</span>
                   </span>
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                <div className="p-3.5 rounded-none border border-white/[0.06] bg-black/40">
                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Start Speed</span>
                   <span className="text-sm font-semibold text-white flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-zinc-400" />
@@ -778,9 +778,9 @@ export default function NewOrder({
                 {(() => {
                   const policy = parseRefillPolicy(currentService);
                   return (
-                    <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                    <div className="p-3.5 rounded-none border border-white/[0.06] bg-black/40">
                       <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Refill Policy</span>
-                      <span className={`text-sm font-semibold flex items-center gap-1.5 ${policy.hasRefill ? "text-[#F5E8D0]" : "text-zinc-500"}`}>
+                      <span className={`text-sm font-semibold flex items-center gap-1.5 ${policy.hasRefill ? "text-[#E4E4E7]" : "text-zinc-500"}`}>
                         <RotateCcw className="w-3.5 h-3.5" />
                         {policy.label}
                       </span>
@@ -788,7 +788,7 @@ export default function NewOrder({
                   );
                 })()}
 
-                <div className="p-3.5 rounded-xl border border-white/[0.06] bg-black/40">
+                <div className="p-3.5 rounded-none border border-white/[0.06] bg-black/40">
                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Cancel Option</span>
                   <span className="text-sm font-semibold text-zinc-300">
                     {currentService.cancel ? "Supported" : "Immediate Lock"}
@@ -801,7 +801,7 @@ export default function NewOrder({
                 <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300 block">
                   Service Description &amp; Instructions
                 </span>
-                <div className="p-4 rounded-xl border border-white/[0.06] bg-black/30 text-xs text-zinc-300 leading-relaxed whitespace-pre-line max-h-56 overflow-y-auto">
+                <div className="p-4 rounded-none border border-white/[0.06] bg-black/30 text-xs text-zinc-300 leading-relaxed whitespace-pre-line max-h-56 overflow-y-auto">
                   {cleanServiceDescription(currentService.description)}
                 </div>
               </div>
@@ -809,7 +809,7 @@ export default function NewOrder({
               {/* Guarantees */}
               <div className="space-y-2.5 pt-4 border-t border-white/[0.06] text-xs text-zinc-400">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#F5E8D0] shrink-0" />
+                  <ShieldCheck className="w-4 h-4 text-[#E4E4E7] shrink-0" />
                   <span>Account privacy strictly maintained. Never requires passwords.</span>
                 </div>
                 {onOpenTerms && (
@@ -825,7 +825,7 @@ export default function NewOrder({
               </div>
             </div>
           ) : (
-            <div className="p-8 rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl text-center">
+            <div className="p-8 rounded-none border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl text-center">
               <Sparkles className="w-8 h-8 text-zinc-500 mx-auto mb-3" />
               <p className="text-sm text-zinc-400">Select a category and service to inspect specifications.</p>
             </div>

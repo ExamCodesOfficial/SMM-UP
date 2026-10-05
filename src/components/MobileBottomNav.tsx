@@ -33,7 +33,7 @@ export default function MobileBottomNav({
             setCurrentTab("home");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
+          className={`flex flex-col items-center justify-center py-1.5 rounded-none text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
             currentTab === "home" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -47,7 +47,7 @@ export default function MobileBottomNav({
             setCurrentTab("store");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
+          className={`flex flex-col items-center justify-center py-1.5 rounded-none text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
             currentTab === "store" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -58,10 +58,10 @@ export default function MobileBottomNav({
         {/* Luxury Champagne Platinum Wallet */}
         <button
           onClick={onOpenWallet}
-          className="flex flex-col items-center justify-center py-1 rounded-xl text-[10px] font-semibold tracking-wider text-[#F5E8D0] cursor-pointer group"
+          className="flex flex-col items-center justify-center py-1 rounded-none text-[10px] font-semibold tracking-wider text-[#E4E4E7] cursor-pointer group"
         >
-          <div className="w-7 h-7 rounded-xl bg-[#F5E8D0]/10 border border-[#F5E8D0]/30 flex items-center justify-center mb-0.5 shadow-[0_0_15px_rgba(245,232,208,0.2)] group-hover:scale-105 transition-transform">
-            <ExecutiveWalletIcon size={14} className="text-[#F5E8D0]" />
+          <div className="w-7 h-7 rounded-none bg-[#E4E4E7]/10 border border-[#E4E4E7]/30 flex items-center justify-center mb-0.5 shadow-[0_0_15px_rgba(255,255,255,0.2)] group-hover:scale-105 transition-transform">
+            <ExecutiveWalletIcon size={14} className="text-[#E4E4E7]" />
           </div>
           <span>WALLET</span>
         </button>
@@ -72,7 +72,7 @@ export default function MobileBottomNav({
             setCurrentTab("services");
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
+          className={`flex flex-col items-center justify-center py-1.5 rounded-none text-[10px] font-semibold tracking-wider transition-all cursor-pointer ${
             currentTab === "services" ? "text-white bg-white/[0.08]" : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
@@ -83,7 +83,7 @@ export default function MobileBottomNav({
         {/* User Account */}
         <button
           onClick={user ? onOpenProfile : onOpenAuth}
-          className="flex flex-col items-center justify-center py-1.5 rounded-xl text-[10px] font-semibold tracking-wider text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
+          className="flex flex-col items-center justify-center py-1.5 rounded-none text-[10px] font-semibold tracking-wider text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer"
         >
           <User className="w-4 h-4 mb-1" />
           <span className="truncate max-w-[50px]">{user ? "ACCOUNT" : "SIGN IN"}</span>
