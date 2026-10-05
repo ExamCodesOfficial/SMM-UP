@@ -192,26 +192,32 @@ export default function Navbar({
                 <User className="w-3.5 h-3.5 text-zinc-400" />
                 <span className="max-w-[100px] truncate">{user.username}</span>
               </button>
+
+              {/* Support — plain text link (examcodes style) */}
+              <button
+                onClick={() => onNavigateTab("support")}
+                className="hidden sm:block text-[10px] sm:text-[11px] font-mono tracking-[0.26em] uppercase text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                title="Get help — Support"
+              >
+                Support
+              </button>
             </>
           ) : (
-            <button
-              onClick={() => onOpenAuth("login")}
-              className="px-5 py-2.5 rounded-none bg-white text-black font-semibold text-xs tracking-wider hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] cursor-pointer"
-            >
-              SIGN IN
-            </button>
-          )}
-
-          {/* Telegram Customer Support Button */}
-          {onOpenSupport && (
-            <button
-              onClick={() => onNavigateTab("support")}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-none border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
-              title="Get help — Support"
-            >
-              <MessageCircle className="w-3.5 h-3.5 text-[#E4E4E7]" />
-              <span className="hidden md:inline">Support</span>
-            </button>
+            <div className="flex items-center gap-5 sm:gap-8">
+              <button
+                onClick={() => onNavigateTab("support")}
+                className="hidden sm:block text-[10px] sm:text-[11px] font-mono tracking-[0.26em] uppercase text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                title="Get help — Support"
+              >
+                Support
+              </button>
+              <button
+                onClick={() => onOpenAuth("login")}
+                className="text-[10px] sm:text-[11px] font-mono tracking-[0.26em] uppercase text-zinc-200 hover:text-white transition-colors cursor-pointer"
+              >
+                Sign In
+              </button>
+            </div>
           )}
 
           {/* Mobile Hamburger Button */}
