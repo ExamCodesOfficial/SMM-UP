@@ -16,6 +16,8 @@
     -webkit-tap-highlight-color: transparent;
     font-family: var(--font-sans);
     background-color: #090807;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 245, 230, 0.16) #090807;
   }
 
   body {
@@ -28,6 +30,21 @@
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Accessible, luxurious focus rings (keyboard navigation) */
+  :focus-visible {
+    outline: 2px solid rgba(245, 232, 208, 0.55);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: rgba(245, 232, 208, 0.22);
+    color: #FAF7F2;
   }
 }
 
@@ -36,6 +53,12 @@
   background-image: linear-gradient(rgba(255, 245, 230, 0.035) 1px, transparent 1px),
                     linear-gradient(90deg, rgba(255, 245, 230, 0.035) 1px, transparent 1px);
   background-size: 40px 40px;
+}
+
+/* Fades the grid out toward the bottom of the hero (architectural depth) */
+.bg-grid-fade {
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 78%);
 }
 
 /* Warm Cream Luxury Velvet Surface */
@@ -69,4 +92,183 @@
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* ────────────────────────────────────────────────────────────
+   MOTION DESIGN SYSTEM — ExamCodes-grade cinematic kinetics
+   ──────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes marqueeX {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes shimmerSweep {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes glowBreath {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.06); }
+}
+
+@keyframes scrollCueDot {
+  0% { transform: translateY(0); opacity: 1; }
+  70% { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 0; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fadeInScale {
+  animation: fadeInScale 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered entrance cadence for hero choreography */
+.animate-hero-1 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both; }
+.animate-hero-2 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both; }
+.animate-hero-3 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both; }
+.animate-hero-4 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.35s both; }
+.animate-hero-5 { animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both; }
+
+/* Infinite brand/rate marquee */
+.animate-marquee {
+  animation: marqueeX 42s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, black 8%, black 92%, transparent);
+}
+
+/* Champagne shimmer sweep (for "live" surfaces) */
+.shimmer-champagne {
+  background: linear-gradient(
+    110deg,
+    rgba(245, 232, 208, 0) 30%,
+    rgba(245, 232, 208, 0.14) 50%,
+    rgba(245, 232, 208, 0) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmerSweep 2.6s linear infinite;
+}
+
+/* Skeleton loading surfaces */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 245, 230, 0.045);
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(250, 247, 242, 0.08) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmerSweep 1.6s linear infinite;
+}
+
+.animate-float {
+  animation: floatY 6s ease-in-out infinite;
+}
+
+.animate-glow-breath {
+  animation: glowBreath 5s ease-in-out infinite;
+}
+
+/* Scroll-reveal primitive (pairs with React IntersectionObserver) */
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition:
+    opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+.reveal.reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Luxury card hover lift used across bento/catalog surfaces */
+.card-lift {
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s ease,
+    box-shadow 0.45s ease,
+    background-color 0.3s ease;
+}
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(245, 232, 208, 0.08);
+}
+
+/* Scroll cue mouse indicator */
+.scroll-cue-dot {
+  animation: scrollCueDot 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+  .animate-marquee {
+    animation: none;
+  }
 }

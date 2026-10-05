@@ -1,6 +1,5 @@
 import React from "react";
 import Navbar from "./components/Navbar";
-import HeroStats from "./components/HeroStats";
 import NewOrder from "./components/NewOrder";
 import MassOrder from "./components/MassOrder";
 import OrderHistory from "./components/OrderHistory";
@@ -17,6 +16,8 @@ import GuaranteesBento from "./components/GuaranteesBento";
 import TestimonialsTicker from "./components/TestimonialsTicker";
 import Footer from "./components/Footer";
 import ApiDocs from "./components/ApiDocs";
+import Reveal from "./components/Reveal";
+import BackToTop from "./components/BackToTop";
 import { SmmUpLogo } from "./components/icons/ExecutiveIcons";
 import { sanitizeBrandText, cleanServiceDescription } from "./lib/utils";
 
@@ -196,15 +197,21 @@ export default function App() {
               onOpenTerms={() => setTermsModalOpen(true)}
               totalServices={services.length || 2177}
             />
-            <GuaranteesBento
-              onOpenTerms={() => setTermsModalOpen(true)}
-              onOpenWallet={() => {
-                if (!user) setAuthModalOpen(true);
-                else setWalletModalOpen(true);
-              }}
-            />
-            <TestimonialsTicker />
-            <FaqSection />
+            <Reveal>
+              <GuaranteesBento
+                onOpenTerms={() => setTermsModalOpen(true)}
+                onOpenWallet={() => {
+                  if (!user) setAuthModalOpen(true);
+                  else setWalletModalOpen(true);
+                }}
+              />
+            </Reveal>
+            <Reveal>
+              <TestimonialsTicker />
+            </Reveal>
+            <Reveal>
+              <FaqSection />
+            </Reveal>
           </>
         )}
 
@@ -273,6 +280,9 @@ export default function App() {
         }}
         onOpenSupport={() => setSupportModalOpen(true)}
       />
+
+      {/* Floating Back-To-Top with scroll progress ring */}
+      <BackToTop />
 
       {/* Mobile Bottom Thumb Navigation */}
       <MobileBottomNav

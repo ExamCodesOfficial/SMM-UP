@@ -334,6 +334,8 @@ export default function AddFundsModal({
                   <img
                     src={qrData.qrUrl}
                     alt="Scan UPI QR"
+                    loading="eager"
+                    decoding="async"
                     className="w-48 h-48 sm:w-52 sm:h-52 object-contain"
                   />
                 </div>

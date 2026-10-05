@@ -15,6 +15,7 @@ import {
   Filter,
 } from "lucide-react";
 import { formatINR, formatNumber, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
+import { SkeletonCatalogGrid } from "./Skeleton";
 import { ExecutiveCatalogIcon } from "./icons/ExecutiveIcons";
 import {
   TelegramIcon,
@@ -297,8 +298,31 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
         </div>
       </div>
 
+      {/* ── LOADING STATE: shimmer cards mirroring the final layout ── */}
+      {services.length === 0 && (
+        <>
+          <SkeletonCatalogGrid count={9} />
+          <p className="text-center text-xs text-zinc-500 font-mono tracking-widest uppercase mt-8 animate-pulse">
+            Syncing wholesale nodes…
+          </p>
+        </>
+      )}
+
       {/* ── CARD GRID VIEW (Paginated) ────────────────────────── */}
-      {viewMode === "cards" && (
+      {services.length > 0 && viewMode === "cards" && filtered.length === 0 && (
+        <div className="py-20 text-center border border-white/[0.06] rounded-2xl bg-white/[0.015]">
+          <Sparkles className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
+          <p className="text-sm text-zinc-400">No service nodes match your filters.</p>
+          <button
+            onClick={() => { setSearch(""); setSelectedCat("All"); }}
+            className="mt-3 text-xs text-[#F5E8D0] hover:text-white underline underline-offset-4 cursor-pointer"
+          >
+            Reset filters
+          </button>
+        </div>
+      )}
+
+      {services.length > 0 && viewMode === "cards" && filtered.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {paginatedItems.map((s) => {
             const platformInfo = getPlatformInfo(s.category, s.name);
@@ -404,7 +428,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
       )}
 
       {/* ── CLEAN TABLE VIEW (Paginated) ─────────────────────── */}
-      {viewMode === "table" && (
+      {services.length > 0 && viewMode === "table" && (
         <div className="rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">

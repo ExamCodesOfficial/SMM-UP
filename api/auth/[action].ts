@@ -100,12 +100,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(429).json({ error: `Too many login attempts. Try again in ${remainingSec}s.` });
     }
 
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
+    const { email, identifier, username, password } = req.body || {};
+    const rawIdentity = String(identifier || email || username || "").trim();
+    if (!rawIdentity || !password) return res.status(400).json({ error: "Username/email and password are required" });
 
-    const cleanEmail = String(email).trim().toLowerCase();
     try {
-      const user: any = await users.findOne({ email: cleanEmail });
+      // Accept email OR username login (landing quick-access desk + modal)
+      const identityQuery = rawIdentity.includes("@")
+        ? { email: rawIdentity.toLowerCase() }
+        : {
+            $or: [
+              { email: rawIdentity.toLowerCase() },
+              { username: rawIdentity },
+            ],
+          };
+      const user: any = await users.findOne(identityQuery);
       if (!user || !user.password_hash) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
