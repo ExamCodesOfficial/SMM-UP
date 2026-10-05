@@ -116,7 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Atomic balance deduction BEFORE calling upstream provider
         const debitResult: any = await db.collection("users").findOneAndUpdate(
-          { _id: user._id, balance: { $gte: totalCharge } },
+          { _id: user._id, balance: { $gte: totalCharge }, payment_hold: { $ne: true } },
           {
             $inc: {
               balance: -totalCharge,
@@ -128,6 +128,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         );
 
         if (!debitResult) {
+          if (user.payment_hold) {
+            return res.status(403).json({
+              error: "Ordering is paused while a payment refund or dispute is reviewed",
+            });
+          }
+          // Re-read because a webhook can place the account on hold after API authentication.
+          const currentUser = await db.collection("users").findOne(
+            { _id: user._id },
+            { projection: { payment_hold: 1 } },
+          );
+          if (currentUser?.payment_hold) {
+            return res.status(403).json({
+              error: "Ordering is paused while a payment refund or dispute is reviewed",
+            });
+          }
           return res.status(400).json({ error: "Insufficient balance" });
         }
 

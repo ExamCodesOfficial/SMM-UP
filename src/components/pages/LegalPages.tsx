@@ -46,10 +46,11 @@ export function TermsPage({ onNavigate }: PageProps) {
       <H2>4. Wallet, deposits and payments</H2>
       <UL>
         <li>All purchases are prepaid through your SMM UP wallet balance, denominated in INR.</li>
-        <li>Deposits are accepted via UPI only and are credited after the 12-digit UTR reference is verified against the bank credit alert. Verification is fully automated and typically completes within minutes.</li>
-        <li>We charge 0% deposit fee — 100% of your payment becomes spendable balance.</li>
+        <li><strong className="text-zinc-200">Direct UPI</strong> uses the existing QR/intent and 12-digit UTR verification flow. It remains separate from Razorpay and carries a 0% deposit fee.</li>
+        <li><strong className="text-zinc-200">Razorpay Checkout</strong>, when enabled, is a second payment option for the methods activated on our Razorpay account. The final payable and wallet-credit amounts are shown before confirmation.</li>
+        <li>Razorpay handles payment credentials in its hosted checkout. SMM UP receives provider order/payment identifiers, status, amount, method and reconciliation events—not card numbers, CVVs, bank passwords or UPI PINs.</li>
         <li>Wallet balance is not cash, can't be withdrawn, and isn't transferable between users.</li>
-        <li>Submitting a false, reused or someone else's UTR is fraud and leads to permanent account closure.</li>
+        <li>Submitting a false, reused or someone else's UTR, abusing test payments, or filing a fraudulent chargeback can lead to payment review and account suspension.</li>
       </UL>
 
       <H2>5. Orders</H2>
@@ -131,7 +132,7 @@ export function PrivacyPage({ onNavigate }: PageProps) {
       <UL>
         <li><strong className="text-zinc-200">Account data</strong> — username, email address, bcrypt-hashed password.</li>
         <li><strong className="text-zinc-200">Order data</strong> — the public links you submit, quantities, and order status history.</li>
-        <li><strong className="text-zinc-200">Payment references</strong> — UPI amounts and 12-digit UTR numbers you submit for wallet top-ups. We never see your bank account, card, or UPI PIN.</li>
+        <li><strong className="text-zinc-200">Payment references</strong> — Direct UPI amounts and UTRs, plus Razorpay order/payment IDs, amount, status and method when you choose Razorpay. We never receive your full card number, CVV, bank password or UPI PIN.</li>
         <li><strong className="text-zinc-200">Technical data</strong> — IP address and basic device information, used for security and rate-limiting.</li>
       </UL>
 
@@ -145,16 +146,17 @@ export function PrivacyPage({ onNavigate }: PageProps) {
       <H2>How your data is used</H2>
       <UL>
         <li>Delivering your orders and keeping their status history accurate.</li>
-        <li>Verifying UPI deposits against bank credit alerts (UTR matching).</li>
+        <li>Verifying Direct UPI deposits through UTR matching and reconciling Razorpay payments through signed callbacks and webhooks.</li>
         <li>Security: fraud detection, session management, rate limiting.</li>
         <li>Service email: deposit confirmations, critical account or policy notices. No marketing spam.</li>
       </UL>
 
       <H2>Who it is shared with</H2>
       <P>
-        Order links are passed to upstream delivery networks to fulfil your order — that is the sole purpose of
-        sharing. We do not sell, rent, or trade personal data to anyone. Data may be disclosed only if required by
-        Indian law or a valid court order.
+        Order links are passed to upstream delivery networks only to fulfil your order. If you choose Razorpay,
+        the payment information needed to open and reconcile its hosted Checkout is processed by Razorpay under
+        its own privacy and security terms. Direct UPI does not use Razorpay. We do not sell, rent, or trade
+        personal data. Data may otherwise be disclosed only if required by Indian law or a valid court order.
       </P>
 
       <H2>Storage and protection</H2>
@@ -162,7 +164,7 @@ export function PrivacyPage({ onNavigate }: PageProps) {
         <li>Passwords are hashed with bcrypt (cost 12) — we cannot read them ourselves.</li>
         <li>Sessions use signed, httpOnly cookies; API keys are stored hashed.</li>
         <li>Database access is restricted to the application; no public exposure.</li>
-        <li>UTR references are retained for payment-dispute resolution and accounting.</li>
+        <li>UTR references and Razorpay provider IDs/events are retained for payment reconciliation, dispute resolution and accounting.</li>
       </UL>
 
       <H2>Your controls</H2>
@@ -201,7 +203,7 @@ export function RefundsPage({ onNavigate }: PageProps) {
       <UL>
         <li><strong className="text-zinc-200">Failed order</strong> — the provider rejects or cannot start the order (invalid link, private account, offline service): 100% of the charge returns to your wallet automatically.</li>
         <li><strong className="text-zinc-200">Cancelled order</strong> — when a service supports cancellation and you cancel before completion: the undelivered remainder returns automatically.</li>
-        <li><strong className="text-zinc-200">Duplicate deposit alert</strong> — if a UTR mismatch is flagged and verified as a system error, the deposit is corrected to your wallet after manual review.</li>
+        <li><strong className="text-zinc-200">Deposit reconciliation error</strong> — a verified duplicate Direct UPI credit or Razorpay processing error is corrected after payment-provider and wallet-ledger review.</li>
       </UL>
 
       <H2>Partial orders</H2>
@@ -230,15 +232,16 @@ export function RefundsPage({ onNavigate }: PageProps) {
       <UL>
         <li>Completed orders that delivered exactly what was ordered.</li>
         <li>Orders sent to a wrong-but-valid link you pasted (always re-check the preview).</li>
-        <li>Wallet top-ups themselves — deposits don't withdraw back to bank, but never expire and work on every service.</li>
+        <li>Wallet top-ups themselves — deposits normally do not withdraw back to the original payment method, but never expire and work on every service. A duplicate or legally required Razorpay reversal is handled only after the corresponding wallet credit is reconciled.</li>
         <li>Accounts closed for fraud or abuse.</li>
       </UL>
 
       <H2>Disputes</H2>
       <P>
-        If something looks wrong with a refund, message the 24/7 Telegram desk with your username and order ID.
-        Genuine errors are corrected — usually same day. Chargebacks raised with your bank while a valid deposit
-        was already credited inevitably lead to account closure.
+        If something looks wrong with a refund, message the 24/7 Telegram desk with your username, order ID and
+        payment reference. Genuine errors are corrected after reconciliation. A Razorpay refund or dispute places
+        the related payment and account under temporary review so funds cannot be credited or spent twice.
+        Fraudulent chargebacks may result in suspension or account closure.
       </P>
     </ContentPage>
   );
@@ -318,6 +321,13 @@ export function CookiePolicyPage({ onNavigate }: PageProps) {
         </li>
       </UL>
       <P>That's the complete list of cookies set by SMM UP itself.</P>
+
+      <H2>Razorpay Checkout</H2>
+      <P>
+        Razorpay loads only after you select its separate payment option. Its hosted Checkout may use strictly
+        necessary cookies or technical browser storage for payment security, fraud prevention and completion,
+        under Razorpay's own cookie and privacy terms. Selecting Direct UPI does not load Razorpay Checkout.
+      </P>
 
       <H2>What we don't use</H2>
       <UL>

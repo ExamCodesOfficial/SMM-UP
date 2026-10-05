@@ -96,10 +96,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!memo && !txnId) {
       return res.status(400).json({ error: "memo or transactionId is required" });
     }
+    if (!memo && !ObjectId.isValid(txnId)) {
+      return res.status(400).json({ error: "Invalid Direct UPI transaction ID" });
+    }
 
     try {
       const tx = await db.collection("transactions").findOne({
         user_id: userObjectId,
+        method: "FAMPAY_UPI",
         ...(memo ? { memo } : { _id: new ObjectId(txnId) }),
       });
 
@@ -183,6 +187,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+      // Direct UPI verification must never bind to a separate Razorpay order.
+      const pendingDeposit = await db.collection("transactions").findOne(
+        {
+          user_id: userObjectId,
+          method: "FAMPAY_UPI",
+          amount: requestedAmount,
+          status: "pending",
+        },
+        { sort: { created_at: -1 } },
+      );
+      if (!pendingDeposit) {
+        return res.status(400).json({
+          error: "No matching pending Direct UPI deposit was found. Generate its QR before submitting a UTR.",
+        });
+      }
+
       // Check Anti-Replay in MongoDB
       const alreadyProcessed = await db.collection("processed_transactions").findOne({
         $or: [
@@ -270,7 +290,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Update Ledger
       await db.collection("transactions").updateOne(
-        { user_id: userObjectId, amount: requestedAmount, status: "pending" },
+        { _id: pendingDeposit._id, method: "FAMPAY_UPI", status: "pending" },
         {
           $set: {
             status: "paid",
@@ -327,7 +347,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: t.method || "UPI",
         memo: t.memo,
         utr: t.utr || "—",
-        transactionId: t.transaction_id || "—",
+        transactionId: t.transaction_id || t.razorpay_payment_id || t.razorpay_order_id || "—",
+        environment: t.environment,
         status: t.status,
         createdAt: t.created_at,
         paidAt: t.paid_at,
