@@ -164,7 +164,16 @@ export default function Footer({ onNavigateTab, onOpenSupport }: FooterProps) {
         <div className="pt-7 flex flex-col sm:flex-row items-center justify-between gap-4 pr-12 sm:pr-0">
           <div className="text-[10px] sm:text-[11px] font-mono tracking-[0.18em] text-zinc-500 uppercase text-center sm:text-left">
             <span className="block">
-              Founded &amp; Operated by <span className="text-zinc-300">Aryan</span> &bull; CEO &amp; Owner
+              Founded, owned &amp; operated by <span className="text-zinc-300">Aryan</span> &bull;{" "}
+              <a
+                href="https://t.me/thatonearyan"
+                target="_blank"
+                rel="me noopener noreferrer"
+                className="text-zinc-300 hover:text-white transition-colors underline underline-offset-2"
+                aria-label="Aryan's official Telegram profile"
+              >
+                @thatonearyan
+              </a>
             </span>
             <span className="block mt-1.5">
               &copy; 2026 SMM UP &bull; All rights reserved 

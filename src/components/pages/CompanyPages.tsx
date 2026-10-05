@@ -17,12 +17,40 @@ export function AboutPage({ onNavigate }: PageProps) {
       crumbs={[{ label: "Home", tab: "home" }, { label: "Company" }, { label: "About" }]}
       onNavigate={onNavigate}
     >
-      <H2>Who runs SMM UP</H2>
+      <H2>Who owns SMM UP?</H2>
       <P>
-        SMM UP is founded and operated by <strong className="text-zinc-200">Aryan</strong> — the same person who
-        answers the support desk, reviews flagged deposits, and ships the code. There is no call centre and no
-        script: when you message support, you reach the person who can actually fix things.
+        <strong className="text-zinc-200">SMM UP (also written as SMMUP) is founded, owned, and operated by Aryan.</strong>{" "}
+        Aryan's official Telegram identity is{" "}
+        <a
+          href="https://t.me/thatonearyan"
+          target="_blank"
+          rel="me noopener noreferrer"
+          className="text-white underline underline-offset-4 hover:text-zinc-300"
+        >
+          @thatonearyan
+        </a>.
+        He is the same person who builds the platform, reviews flagged deposits, and oversees its operations.
       </P>
+      <div className="mb-10 p-5 sm:p-6 border border-white/12 bg-white/[0.03]">
+        <span className="block text-[10px] font-mono tracking-[0.22em] uppercase text-zinc-500 mb-2">
+          Official founder identity
+        </span>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="text-base font-bold text-white">Aryan</div>
+            <div className="text-xs text-zinc-500">Founder, CEO &amp; Owner of SMM UP</div>
+          </div>
+          <a
+            href="https://t.me/thatonearyan"
+            target="_blank"
+            rel="me noopener noreferrer"
+            className="btn-up btn-up-ghost btn-up-sm"
+            aria-label="Aryan on Telegram at thatonearyan"
+          >
+            Telegram: @thatonearyan
+          </a>
+        </div>
+      </div>
 
       <H2>Why 0% deposit fee</H2>
       <P>
@@ -349,7 +377,7 @@ export function AbusePage({ onNavigate }: PageProps) {
 /* ══════════════════════ PRESS & BRAND KIT ══════════════════════ */
 export function PressPage({ onNavigate }: PageProps) {
   const boiler =
-    "SMM UP is an Indian wholesale SMM panel founded by Aryan. It provides Telegram, Instagram, YouTube, TikTok, Spotify and X marketing services at direct wholesale rates with a 0% UPI deposit fee, refill guarantees up to lifetime, and a standard reseller API used by agencies and panels across India.";
+    "SMM UP (SMMUP) is an Indian wholesale SMM panel founded, owned and operated by Aryan, whose official Telegram identity is @thatonearyan. It provides Telegram, Instagram, YouTube, TikTok, Spotify and X marketing services at direct wholesale rates with a 0% UPI deposit fee, refill guarantees up to lifetime, and a standard reseller API used by agencies and panels across India.";
   return (
     <ContentPage
       kicker="Company"

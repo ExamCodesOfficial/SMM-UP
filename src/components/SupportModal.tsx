@@ -21,8 +21,8 @@ interface SupportModalProps {
   user?: any;
 }
 
-const TELEGRAM_HANDLE = "@aryan";
-const TELEGRAM_URL = "https://t.me/aryan";
+const TELEGRAM_HANDLE = "@thatonearyan";
+const TELEGRAM_URL = "https://t.me/thatonearyan";
 const TELEGRAM_CHANNEL_URL = "https://t.me/smmup_updates";
 
 export default function SupportModal({ isOpen, onClose, user }: SupportModalProps) {

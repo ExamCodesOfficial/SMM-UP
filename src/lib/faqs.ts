@@ -10,6 +10,10 @@ export const FAQS: Faq[] = [
     a: "SMM UP is an Indian wholesale SMM panel. You can order social media services — Telegram members, Instagram followers, YouTube views and 2,000+ more — at direct wholesale rates. Individuals, agencies and reseller panels all use the same rates.",
   },
   {
+    q: "Who owns SMM UP (SMMUP)?",
+    a: "SMM UP is founded, owned and operated by Aryan. His official Telegram identity is @thatonearyan, available at t.me/thatonearyan. Aryan builds the platform and oversees its operations.",
+  },
+  {
     q: "Do I need to share my social media password?",
     a: "Never. We only need a public link or username — for example a channel link, a post URL or a profile handle. Any service that asks for your password is unsafe; we will never ask for one.",
   },
