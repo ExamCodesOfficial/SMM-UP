@@ -3,12 +3,7 @@ import { ShieldCheck, Zap, RotateCcw, Lock, ArrowUpRight, CheckCircle2 } from "l
 import { ExecutiveWalletIcon, ExecutiveOrderIcon } from "./icons/ExecutiveIcons";
 import { pathFor } from "../lib/routes";
 
-interface GuaranteesBentoProps {
-  onNavigate?: (tab: string) => void;
-  onOpenWallet?: () => void;
-}
-
-export default function GuaranteesBento({ onOpenWallet, onNavigate }: GuaranteesBentoProps) {
+export default function GuaranteesBento() {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
       {/* Section Header in ExamCodes Style */}

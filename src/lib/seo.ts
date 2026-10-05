@@ -57,7 +57,11 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   transactions: {
     title: "Deposit & Transaction History | SMM UP",
-    description: "View your full UPI deposit history on SMM UP: amounts, UTR references, automatic verification status and wallet transaction log.",
+    description: "View your Direct UPI and Razorpay deposit history on SMM UP: amounts, references, verification status and wallet transaction records.",
+  },
+  "add-funds": {
+    title: "Add Funds — Direct UPI or Razorpay | SMM UP",
+    description: "Add money to your SMM UP wallet using 0% fee Direct UPI or the separate Razorpay Secure Checkout payment flow.",
   },
   faq: {
     title: "FAQ — Frequently Asked Questions | SMM UP",

@@ -30,7 +30,6 @@ interface LandingHeroProps {
   services: any[];
   onNavigateTab: (tab: string) => void;
   onOpenAuth: () => void;
-  onOpenWallet: () => void;
   totalServices: number;
 }
 
@@ -153,7 +152,6 @@ export default function LandingHero({
   services,
   onNavigateTab,
   onOpenAuth,
-  onOpenWallet,
 }: LandingHeroProps) {
   // Quick-Access auth state
   const [authMode, setAuthMode] = React.useState<"login" | "register">("login");
@@ -325,10 +323,10 @@ export default function LandingHero({
                           {formatINR(user.balance)}
                         </span>
                       </div>
-                      <button onClick={onOpenWallet} className="btn-up btn-up-ghost btn-up-sm">
+                      <a href={pathFor("add-funds")} className="btn-up btn-up-ghost btn-up-sm">
                         <ExecutiveWalletIcon size={14} />
                         <span>Add Funds</span>
-                      </button>
+                      </a>
                     </div>
 
                     <div className="space-y-3">

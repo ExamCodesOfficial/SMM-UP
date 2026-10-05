@@ -4,12 +4,6 @@ import { SmmUpLogo } from "./icons/ExecutiveIcons";
 import Reveal from "./Reveal";
 import { pathFor } from "../lib/routes";
 
-interface FooterProps {
-  onNavigateTab: (tab: string) => void;
-  onOpenWallet: () => void;
-  onOpenSupport?: () => void;
-}
-
 const COLUMNS: { title: string; links: { tab: string; label: string }[] }[] = [
   {
     title: "Explore",
@@ -18,6 +12,7 @@ const COLUMNS: { title: string; links: { tab: string; label: string }[] }[] = [
       { tab: "catalog", label: "Services & Prices" },
       { tab: "mass", label: "Mass Order" },
       { tab: "logs", label: "Order History" },
+      { tab: "add-funds", label: "Add Funds" },
       { tab: "auth", label: "Sign In / Join" },
       { tab: "faq", label: "FAQ" },
     ],
@@ -57,7 +52,7 @@ const COLUMNS: { title: string; links: { tab: string; label: string }[] }[] = [
   },
 ];
 
-export default function Footer({ onNavigateTab, onOpenSupport }: FooterProps) {
+export default function Footer() {
   const [expanded, setExpanded] = React.useState<string | null>(null);
 
   return (

@@ -5,11 +5,10 @@ import MassOrder from "./components/MassOrder";
 import OrderHistory from "./components/OrderHistory";
 import ServicesCatalog from "./components/ServicesCatalog";
 import AuthPage from "./components/AuthPage";
-import AddFundsModal from "./components/AddFundsModal";
+import AddFundsPage from "./components/AddFundsPage";
 import ProfileModal from "./components/ProfileModal";
 import MobileBottomNav from "./components/MobileBottomNav";
 import FaqSection from "./components/FaqSection";
-import SupportModal from "./components/SupportModal";
 import LandingHero from "./components/LandingHero";
 import GuaranteesBento from "./components/GuaranteesBento";
 import ReviewsSection from "./components/ReviewsSection";
@@ -49,7 +48,7 @@ import { applySeo, applyStructuredData } from "./lib/seo";
 import { TAB_PATHS, PATH_TABS } from "./lib/routes";
 
 // Pages that require a signed-in user
-const GUARDED = new Set(["logs", "account", "transactions"]);
+const GUARDED = new Set(["logs", "account", "transactions", "add-funds"]);
 
 function tabFromPath(): string {
   const p = window.location.pathname.replace(/\/+$/, "") || "/";
@@ -67,9 +66,7 @@ export default function App() {
   // Auth page mode
   const [authPageMode, setAuthPageMode] = React.useState<"login" | "register">("login");
   // Modals
-  const [walletModalOpen, setWalletModalOpen] = React.useState(false);
   const [profileModalOpen, setProfileModalOpen] = React.useState(false);
-  const [supportModalOpen, setSupportModalOpen] = React.useState(false);
 
   const navigate = React.useCallback((tab: string) => {
     setCurrentTab(tab);
@@ -125,11 +122,6 @@ export default function App() {
     [navigate]
   );
 
-  const openWallet = React.useCallback(() => {
-    if (!user) openAuth("login");
-    else setWalletModalOpen(true);
-  }, [user, openAuth]);
-
   React.useEffect(() => {
     checkAuth();
     loadServices();
@@ -156,9 +148,12 @@ export default function App() {
   };
 
   const handleAuthSuccess = React.useCallback(() => {
-    checkAuth().then(() => loadOrders());
-    navigate("home");
-  }, [navigate]);
+    const destination = GUARDED.has(currentTab) ? currentTab : "home";
+    checkAuth().then(() => {
+      loadOrders();
+      navigate(destination);
+    });
+  }, [currentTab, navigate]);
 
   const loadServices = async () => {
     try {
@@ -248,9 +243,7 @@ export default function App() {
         setCurrentTab={navigate}
         user={user}
         onOpenAuth={(mode) => openAuth(mode || "login")}
-        onOpenWallet={openWallet}
         onOpenProfile={() => setProfileModalOpen(true)}
-        onOpenSupport={() => setSupportModalOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -263,14 +256,10 @@ export default function App() {
               services={services}
               onNavigateTab={navigate}
               onOpenAuth={() => openAuth("login")}
-              onOpenWallet={openWallet}
-                    totalServices={services.length || 2000}
+              totalServices={services.length || 2000}
             />
             <Reveal>
-              <GuaranteesBento
-                        onOpenWallet={openWallet}
-                onNavigate={navigate}
-              />
+              <GuaranteesBento />
             </Reveal>
             <ReviewsSection />
             <Reveal>
@@ -286,7 +275,6 @@ export default function App() {
               services={services}
               user={user}
               onOrderSuccess={handleOrderSuccess}
-              onOpenWallet={openWallet}
               onOpenAuth={() => openAuth("login")}
                     preselectedServiceId={preselectedServiceId}
             />
@@ -307,7 +295,6 @@ export default function App() {
               services={services}
               user={user}
               onOpenAuth={() => openAuth("login")}
-              onOpenWallet={openWallet}
               onOrderSuccess={handleOrderSuccess}
             />
           </div>
@@ -343,6 +330,13 @@ export default function App() {
 
         {!guardedBlocked && currentTab === "transactions" && (
           <TransactionsPage user={user} onNavigate={navigate} />
+        )}
+
+        {!guardedBlocked && currentTab === "add-funds" && (
+          <AddFundsPage
+            user={user}
+            onDepositSuccess={handleDepositSuccess}
+          />
         )}
 
         {/* ── Auth page (also the guard landing) ── */}
@@ -388,32 +382,19 @@ export default function App() {
         {currentTab === "notfound" && <NotFoundPage onNavigate={navigate} />}
       </main>
 
-      <Footer
-        onNavigateTab={navigate}
-        onOpenWallet={openWallet}
-        onOpenSupport={() => setSupportModalOpen(true)}
-      />
+      <Footer />
 
       <BackToTop />
 
       <MobileBottomNav
         currentTab={currentTab}
         setCurrentTab={navigate}
-        onOpenWallet={openWallet}
         onOpenProfile={() => setProfileModalOpen(true)}
         onOpenAuth={() => openAuth("login")}
         user={user}
       />
 
       {/* Modals */}
-      <AddFundsModal
-        isOpen={walletModalOpen}
-        onClose={() => setWalletModalOpen(false)}
-        user={user}
-        onDepositSuccess={handleDepositSuccess}
-        onOpenSupport={() => setSupportModalOpen(true)}
-      />
-
       <ProfileModal
         isOpen={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
@@ -422,11 +403,6 @@ export default function App() {
         onUserUpdate={(patch) => setUser((prev: any) => ({ ...prev, ...patch }))}
       />
 
-      <SupportModal
-        isOpen={supportModalOpen}
-        onClose={() => setSupportModalOpen(false)}
-        user={user}
-      />
     </div>
   );
 }

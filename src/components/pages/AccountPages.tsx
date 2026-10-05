@@ -68,15 +68,19 @@ export function AccountPage({ onNavigate, user }: PageProps & { user: any }) {
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-3">
-          <button onClick={() => onNavigate("transactions")} className="btn-up btn-up-ghost w-full justify-between">
+        <div className="grid sm:grid-cols-3 gap-3">
+          <a href="/add-funds" className="btn-up btn-up-solid w-full justify-between">
+            <span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds</span>
+            <span>→</span>
+          </a>
+          <a href="/transactions" className="btn-up btn-up-ghost w-full justify-between">
             <span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Deposit history</span>
             <span>→</span>
-          </button>
-          <button onClick={() => onNavigate("logs")} className="btn-up btn-up-ghost w-full justify-between">
+          </a>
+          <a href="/logs" className="btn-up btn-up-ghost w-full justify-between">
             <span className="flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Order history</span>
             <span>→</span>
-          </button>
+          </a>
         </div>
       </div>
     </ContentPage>
@@ -108,7 +112,7 @@ export function TransactionsPage({ onNavigate, user }: PageProps & { user: any }
     <ContentPage
       kicker="Account"
       title="Deposit History"
-      subtitle="Every UPI top-up with its UTR reference and clearing status."
+      subtitle="Every Direct UPI and Razorpay wallet deposit with its reference and settlement status."
       crumbs={[{ label: "Home", tab: "home" }, { label: "Account", tab: "account" }, { label: "Transactions" }]}
       onNavigate={onNavigate}
       wide
@@ -119,7 +123,8 @@ export function TransactionsPage({ onNavigate, user }: PageProps & { user: any }
       ) : txns.length === 0 ? (
         <div className="p-10 text-center border border-white/10 rounded-none">
           <p className="text-sm text-zinc-400 mb-1">No deposits yet{user ? "" : " — or you're not signed in"}.</p>
-          <p className="text-xs text-zinc-600">Top up from the Wallet button; your UTR receipts will appear here.</p>
+          <p className="text-xs text-zinc-600 mb-5">Direct UPI and Razorpay payment records will appear here.</p>
+          <a href="/add-funds" className="btn-up btn-up-solid btn-up-sm">Add funds</a>
         </div>
       ) : (
         <div className="overflow-x-auto border border-white/10 rounded-none">
@@ -127,7 +132,7 @@ export function TransactionsPage({ onNavigate, user }: PageProps & { user: any }
             <thead className="bg-black/80 border-b border-white/10 text-zinc-400 uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">UTR</th>
+                <th className="px-4 py-3">Method / Reference</th>
                 <th className="px-4 py-3 text-right">Amount</th>
                 <th className="px-4 py-3">Status</th>
               </tr>
@@ -135,10 +140,13 @@ export function TransactionsPage({ onNavigate, user }: PageProps & { user: any }
             <tbody className="divide-y divide-white/[0.06]">
               {txns.map((t: any, i: number) => (
                 <tr key={i} className="hover:bg-white/[0.02]">
-                  <td className="px-4 py-3 text-zinc-400">{t.created_at ? new Date(t.created_at).toLocaleString("en-IN") : "—"}</td>
-                  <td className="px-4 py-3 font-mono text-zinc-300">{t.utr || t.memo || "—"}</td>
+                  <td className="px-4 py-3 text-zinc-400">{t.createdAt || t.created_at ? new Date(t.createdAt || t.created_at).toLocaleString("en-IN") : "—"}</td>
+                  <td className="px-4 py-3 text-zinc-300">
+                    <span className="block text-[10px] uppercase tracking-wider text-zinc-500">{t.method === "RAZORPAY" ? "Razorpay" : "Direct UPI"}</span>
+                    <span className="font-mono">{t.utr || t.transactionId || t.memo || "—"}</span>
+                  </td>
                   <td className="px-4 py-3 text-right text-white font-semibold">{formatINR(t.amount || 0)}</td>
-                  <td className="px-4 py-3 text-zinc-300">{t.status || "Credited"}</td>
+                  <td className="px-4 py-3 text-zinc-300">{t.status === "paid" ? "Completed" : t.status === "test_paid" ? "Test verified" : t.status || "Pending"}</td>
                 </tr>
               ))}
             </tbody>
@@ -188,6 +196,7 @@ export function SitemapPage({ onNavigate }: PageProps) {
         { path: "/logs", label: "Order History" },
         { path: "/auth", label: "Sign In / Create Account" },
         { path: "/account", label: "My Account" },
+        { path: "/add-funds", label: "Add Funds" },
         { path: "/transactions", label: "Deposit History" },
       ],
     },

@@ -12,7 +12,6 @@ interface MassOrderProps {
   services: Service[];
   user: any;
   onOpenAuth: () => void;
-  onOpenWallet: () => void;
   onOrderSuccess: (order: any) => void;
 }
 
@@ -20,7 +19,6 @@ export default function MassOrder({
   services,
   user,
   onOpenAuth,
-  onOpenWallet,
   onOrderSuccess,
 }: MassOrderProps) {
   const [content, setContent] = React.useState("");
@@ -173,13 +171,12 @@ export default function MassOrder({
               <div className="flex-1">
                 <span>{errorMsg}</span>
                 {/insufficient/i.test(errorMsg) && (
-                  <button
-                    type="button"
-                    onClick={onOpenWallet}
+                  <a
+                    href="/add-funds"
                     className="mt-2 inline-flex items-center gap-1.5 text-[#E4E4E7] hover:text-white font-semibold underline underline-offset-4 text-xs cursor-pointer"
                   >
-                    Open 0% UPI Wallet Top-Up
-                  </button>
+                    Open Add Funds
+                  </a>
                 )}
               </div>
             </div>
