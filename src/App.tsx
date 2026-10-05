@@ -14,6 +14,7 @@ import SupportModal from "./components/SupportModal";
 import LandingHero from "./components/LandingHero";
 import GuaranteesBento from "./components/GuaranteesBento";
 import TestimonialsTicker from "./components/TestimonialsTicker";
+import ReviewsSection from "./components/ReviewsSection";
 import Footer from "./components/Footer";
 import ApiDocs from "./components/ApiDocs";
 import Reveal from "./components/Reveal";
@@ -209,6 +210,7 @@ export default function App() {
             <Reveal>
               <TestimonialsTicker />
             </Reveal>
+            <ReviewsSection />
             <Reveal>
               <FaqSection />
             </Reveal>
