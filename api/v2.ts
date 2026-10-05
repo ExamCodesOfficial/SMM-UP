@@ -1,6 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { ObjectId } from "mongodb";
-import { getDb } from "../server/lib/db.js";
+import { ensureApiKeyIndexes, getDb } from "../server/lib/db.js";
+import {
+  ApiKeyError,
+  authenticateApiKey,
+  recordApiKeyActivity,
+  requireApiKeyScope,
+  reserveApiKeyOrderSpend,
+} from "../server/lib/apiKeys.js";
 import {
   fetchAllServices,
   calculateOrderTotal,
@@ -14,11 +21,7 @@ import {
 import { sendFailedOrderAlert } from "../server/lib/telegram.js";
 import { checkRateLimit } from "../server/lib/rateLimit.js";
 import crypto from "crypto";
-import { sanitizeBrandText, sanitizeProviderError } from "../server/lib/smm.js";
-
-function hashApiKey(raw: string): string {
-  return crypto.createHash("sha256").update(raw).digest("hex");
-}
+import { sanitizeProviderError } from "../server/lib/smm.js";
 
 // Standard SMM v2 API Specification for Resellers & Developers — smmup.co.in
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -34,27 +37,88 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "API key is required. Generate one at https://smmup.co.in/api" });
     }
 
-    const keyHash = hashApiKey(key);
     const db = await getDb();
-    const user: any = await db.collection("users").findOne({
-      $or: [{ api_key_hash: keyHash }, { api_key: key }],
-    });
-
-    if (!user) {
-      return res.status(401).json({ error: "Invalid API key" });
+    await ensureApiKeyIndexes();
+    let apiAuth;
+    try {
+      apiAuth = await authenticateApiKey(db, key);
+    } catch (error: any) {
+      if (error instanceof ApiKeyError) {
+        return res.status(error.statusCode).json({ error: error.message, code: error.code });
+      }
+      throw error;
     }
-    // Touch last-used timestamp (best-effort, non-blocking)
-    db.collection("users").updateOne({ _id: user._id }, { $set: { api_key_last_used_at: new Date() } }).catch(() => {});
+    const user: any = apiAuth.user;
+    const startedAt = new Date();
+    const requestId = crypto.randomUUID();
+    const forwarded = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+    const ipHashSecret = process.env.API_ACTIVITY_HASH_SECRET || process.env.JWT_SECRET;
+    const ipHash = forwarded && ipHashSecret
+      ? crypto.createHmac("sha256", ipHashSecret).update(forwarded).digest("hex")
+      : null;
 
-    // Rate limit per API key so one leaked key cannot be brute-forced or abused
-    const rl = checkRateLimit(`v2_${user._id}`, 120, 60);
+    let requiredScope: string;
+    try {
+      requiredScope = requireApiKeyScope(apiAuth.key, action);
+    } catch (error: any) {
+      if (error instanceof ApiKeyError) {
+        try {
+          await recordApiKeyActivity(db, apiAuth, {
+            action: String(action || "unknown"),
+            scope: "none",
+            httpStatus: error.statusCode,
+            result: error.code,
+            requestId,
+            ipHash,
+            startedAt,
+          });
+        } catch (activityError) {
+          console.error("API activity write failed:", activityError);
+        }
+        return res.status(error.statusCode).json({ error: error.message, code: error.code });
+      }
+      throw error;
+    }
+
+    const respond = async (
+      status: number,
+      payload: any,
+      meta: { orderId?: ObjectId | string | null; chargeInr?: number | null } = {},
+    ) => {
+      const message = payload && !Array.isArray(payload) && payload.error
+        ? String(payload.error).slice(0, 160)
+        : status < 400
+          ? "success"
+          : "request_failed";
+      try {
+        await recordApiKeyActivity(db, apiAuth, {
+          action: String(action),
+          scope: requiredScope,
+          httpStatus: status,
+          result: message,
+          requestId,
+          orderId: meta.orderId,
+          chargeInr: meta.chargeInr,
+          ipHash,
+          startedAt,
+        });
+      } catch (activityError) {
+        // Order records and wallet ledger still retain critical attribution. Never
+        // turn a completed provider operation into a retryable 500 here.
+        console.error("API activity write failed:", activityError);
+      }
+      return res.status(status).json(payload);
+    };
+
+    // Rate limit per API-key identity so one leaked key cannot affect sibling keys
+    const rl = checkRateLimit(`v2_${apiAuth.key._id.toString()}`, 120, 60);
     if (!rl.allowed) {
-      return res.status(429).json({ error: `Rate limit exceeded. Retry in ${rl.remainingSec}s.` });
+      return respond(429, { error: `Rate limit exceeded. Retry in ${rl.remainingSec}s.` });
     }
 
     // ── 1. ACTION: BALANCE ─────────────────────────────────────────
     if (action === "balance") {
-      return res.status(200).json({
+      return respond(200, {
         balance: (user.balance || 0).toFixed(2),
         currency: "INR",
       });
@@ -79,9 +143,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           refill_type: s.refill_label,
           cancel: s.cancel,
         }));
-        return res.status(200).json(formatted);
+        return respond(200, formatted);
       } catch (err: any) {
-        return res.status(500).json({ error: sanitizeProviderError(err.message) || "Failed to fetch services" });
+        return respond(500, { error: sanitizeProviderError(err.message) || "Failed to fetch services" });
       }
     }
 
@@ -89,14 +153,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === "add") {
       const { service, link, quantity, comments, runs, interval } = body;
       if (!service || !link) {
-        return res.status(400).json({ error: "service and link are required" });
+        return respond(400, { error: "service and link are required" });
       }
 
       try {
         const services = await fetchAllServices();
         const matched = services.find((s) => Number(s.service) === Number(service));
         if (!matched) {
-          return res.status(404).json({ error: "Service not found" });
+          return respond(404, { error: "Service not found" });
         }
 
         let effQuantity = parseInt(String(quantity || "0"), 10);
@@ -107,53 +171,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         if (effQuantity < matched.min || effQuantity > matched.max) {
-          return res.status(400).json({
+          return respond(400, {
             error: `Quantity must be between ${matched.min} and ${matched.max}`,
           });
         }
 
         const { totalCharge } = calculateOrderTotal(matched.wholesale_rate, effQuantity);
 
-        // Atomic balance deduction BEFORE calling upstream provider
-        const debitResult: any = await db.collection("users").findOneAndUpdate(
-          { _id: user._id, balance: { $gte: totalCharge }, payment_hold: { $ne: true } },
-          {
-            $inc: {
-              balance: -totalCharge,
-              total_spent: totalCharge,
-              total_orders: 1,
-            },
-          },
-          { returnDocument: "after" }
-        );
-
-        if (!debitResult) {
-          if (user.payment_hold) {
-            return res.status(403).json({
-              error: "Ordering is paused while a payment refund or dispute is reviewed",
-            });
+        // Limits, wallet debit and ledger attribution commit atomically before provider execution.
+        const operationId = crypto.randomUUID();
+        let spendReservation;
+        try {
+          spendReservation = await reserveApiKeyOrderSpend(db, apiAuth, totalCharge, operationId);
+        } catch (error: any) {
+          if (error instanceof ApiKeyError) {
+            return respond(error.statusCode, { error: error.message, code: error.code }, { chargeInr: totalCharge });
           }
-          // Re-read because a webhook can place the account on hold after API authentication.
-          const currentUser = await db.collection("users").findOne(
-            { _id: user._id },
-            { projection: { payment_hold: 1 } },
-          );
-          if (currentUser?.payment_hold) {
-            return res.status(403).json({
-              error: "Ordering is paused while a payment refund or dispute is reviewed",
-            });
-          }
-          return res.status(400).json({ error: "Insufficient balance" });
+          throw error;
         }
 
-        const providerRes = await addProviderOrder({
-          serviceId: matched.service,
-          link: String(link).trim(),
-          quantity: effQuantity,
-          comments: comments ? String(comments) : undefined,
-          runs: runs ? parseInt(String(runs), 10) : undefined,
-          interval: interval ? parseInt(String(interval), 10) : undefined,
-        });
+        let providerRes: any;
+        try {
+          providerRes = await addProviderOrder({
+            serviceId: matched.service,
+            link: String(link).trim(),
+            quantity: effQuantity,
+            comments: comments ? String(comments) : undefined,
+            runs: runs ? parseInt(String(runs), 10) : undefined,
+            interval: interval ? parseInt(String(interval), 10) : undefined,
+          });
+        } catch (providerError: any) {
+          // The wallet charge has committed, so a provider transport failure must
+          // still produce a durable, key-attributed order for owner review.
+          providerRes = {
+            error: sanitizeProviderError(providerError?.message) || "Provider request failed",
+          };
+        }
 
         if (providerRes.error || !providerRes.orderId) {
           // STRICT DIRECTIVE: Zero automatic refunds!
@@ -173,6 +226,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             status: "Failed",
             refund_status: "requires_admin_review",
             source: "v2_api",
+            api_key_id: apiAuth.key._id,
+            api_key_version: apiAuth.version.version,
+            api_request_id: requestId,
+            api_operation_id: operationId,
+            wallet_ledger_id: spendReservation.ledgerId,
             created_at: new Date(),
           };
 
@@ -187,10 +245,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             error: providerRes.error || "Provider rejected order",
           }).catch((e) => console.error("v2 failed order alert error:", e));
 
-          return res.status(400).json({
+          return respond(400, {
             error: sanitizeProviderError(providerRes.error || "Provider rejected order. Order flagged for administrative review."),
             order: failedInsert.insertedId.toString(),
-          });
+          }, { orderId: failedInsert.insertedId, chargeInr: totalCharge });
         }
 
         // Record order (same flags the site order path sets, so refill/cancel work via API too)
@@ -208,23 +266,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           refill_available: Boolean(matched.refill),
           cancel_available: Boolean(matched.cancel),
           status: "Pending",
+          source: "v2_api",
+          api_key_id: apiAuth.key._id,
+          api_key_version: apiAuth.version.version,
+          api_request_id: requestId,
+          api_operation_id: operationId,
+          wallet_ledger_id: spendReservation.ledgerId,
           created_at: new Date(),
         };
 
         const orderInsert = await db.collection("orders").insertOne(newOrder);
 
-        return res.status(200).json({
+        return respond(200, {
           order: providerRes.orderId || orderInsert.insertedId.toString(),
-        });
+        }, { orderId: orderInsert.insertedId, chargeInr: totalCharge });
       } catch (err: any) {
-        return res.status(500).json({ error: sanitizeProviderError(err.message) || "Order execution failed" });
+        return respond(500, { error: sanitizeProviderError(err.message) || "Order execution failed" });
       }
     }
 
     // ── 4. ACTION: CANCEL ──────────────────────────────────────────
     if (action === "cancel") {
       const orderId = body.order;
-      if (!orderId) return res.status(400).json({ error: "order parameter is required" });
+      if (!orderId) return respond(400, { error: "order parameter is required" });
       try {
         const order = await db.collection("orders").findOne({
           user_id: user._id,
@@ -233,21 +297,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             { _id: ObjectId.isValid(orderId) ? new ObjectId(orderId) : null },
           ],
         });
-        if (!order || !order.provider_order_id) return res.status(404).json({ error: "Order not found" });
-        if (!order.cancel_available) return res.status(400).json({ error: "Cancel not available for this order" });
+        if (!order || !order.provider_order_id) return respond(404, { error: "Order not found" });
+        if (!order.cancel_available) return respond(400, { error: "Cancel not available for this order" }, { orderId: order._id });
         const result = await cancelProviderOrder(order.provider_order_id);
-        if (result.error) return res.status(400).json({ error: sanitizeProviderError(result.error) });
-        await db.collection("orders").updateOne({ _id: order._id }, { $set: { status: "Cancelled", updated_at: new Date() } });
-        return res.status(200).json({ success: true, message: "Cancel requested", result });
+        if (result.error) return respond(400, { error: sanitizeProviderError(result.error) }, { orderId: order._id });
+        await db.collection("orders").updateOne(
+          { _id: order._id },
+          {
+            $set: {
+              status: "Cancelled",
+              last_api_action_key_id: apiAuth.key._id,
+              last_api_action_key_version: apiAuth.version.version,
+              updated_at: new Date(),
+            },
+          },
+        );
+        return respond(200, { success: true, message: "Cancel requested", result }, { orderId: order._id });
       } catch (e: any) {
-        return res.status(500).json({ error: sanitizeProviderError(e.message) || "Cancel failed" });
+        return respond(500, { error: sanitizeProviderError(e.message) || "Cancel failed" });
       }
     }
 
     // ── 5. ACTION: REFILL ──────────────────────────────────────────
     if (action === "refill") {
       const orderId = body.order;
-      if (!orderId) return res.status(400).json({ error: "order parameter is required" });
+      if (!orderId) return respond(400, { error: "order parameter is required" });
       try {
         const order = await db.collection("orders").findOne({
           user_id: user._id,
@@ -256,41 +330,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             { _id: ObjectId.isValid(orderId) ? new ObjectId(orderId) : null },
           ],
         });
-        if (!order || !order.provider_order_id) return res.status(404).json({ error: "Order not found" });
-        if (!order.refill_available) return res.status(400).json({ error: "Refill not available for this order" });
+        if (!order || !order.provider_order_id) return respond(404, { error: "Order not found" });
+        if (!order.refill_available) return respond(400, { error: "Refill not available for this order" }, { orderId: order._id });
         const result = await requestOrderRefill(order.provider_order_id);
-        if (result.error) return res.status(400).json({ error: sanitizeProviderError(result.error) });
-        await db.collection("orders").updateOne({ _id: order._id }, { $set: { refill_id: result.refill, last_refill_at: new Date() } });
-        return res.status(200).json({ success: true, refill: result.refill });
+        if (result.error) return respond(400, { error: sanitizeProviderError(result.error) }, { orderId: order._id });
+        await db.collection("orders").updateOne(
+          { _id: order._id },
+          {
+            $set: {
+              refill_id: result.refill,
+              last_refill_at: new Date(),
+              last_api_action_key_id: apiAuth.key._id,
+              last_api_action_key_version: apiAuth.version.version,
+            },
+          },
+        );
+        return respond(200, { success: true, refill: result.refill }, { orderId: order._id });
       } catch (e: any) {
-        return res.status(500).json({ error: sanitizeProviderError(e.message) || "Refill failed" });
+        return respond(500, { error: sanitizeProviderError(e.message) || "Refill failed" });
       }
     }
 
     // ── 7. ACTION: REFILL STATUS ───────────────────────────────────
     if (action === "refill_status") {
       const refillId = body.refill;
-      if (!refillId) return res.status(400).json({ error: "refill parameter required" });
+      if (!refillId) return respond(400, { error: "refill parameter required" });
       try {
-        const live = await checkRefillStatus(refillId);
-        if (live?.error) return res.status(400).json({ error: sanitizeProviderError(live.error) });
-        return res.status(200).json({ status: live?.status || "Pending" });
+        const order = await db.collection("orders").findOne({
+          user_id: user._id,
+          $or: [
+            { refill_id: String(refillId) },
+            { refill_id: Number(refillId) || String(refillId) },
+          ],
+        });
+        if (!order?.refill_id) return respond(404, { error: "Refill not found" });
+        const live = await checkRefillStatus(order.refill_id);
+        if (live?.error) return respond(400, { error: sanitizeProviderError(live.error) }, { orderId: order._id });
+        return respond(200, { status: live?.status || "Pending" }, { orderId: order._id });
       } catch (e: any) {
-        return res.status(500).json({ error: sanitizeProviderError(e.message) || "Refill status check failed" });
+        return respond(500, { error: sanitizeProviderError(e.message) || "Refill status check failed" });
       }
     }
 
     // ── 6. ACTION: STATUS (single + multi-order) ───────────────────
     if (action === "status") {
       const orderParam = body.order;
-      if (!orderParam) return res.status(400).json({ error: "order parameter required" });
+      if (!orderParam) return respond(400, { error: "order parameter required" });
       const orderId = orderParam;
 
       // ── 6b. MULTI-ORDER STATUS: comma-separated list, max 100 ────
       if (typeof orderId === "string" && orderId.includes(",")) {
         const ids = orderId.split(",").map((s) => s.trim()).filter(Boolean);
-        if (ids.length === 0) return res.status(400).json({ error: "order parameter required" });
-        if (ids.length > 100) return res.status(400).json({ error: "Maximum 100 orders per request" });
+        if (ids.length === 0) return respond(400, { error: "order parameter required" });
+        if (ids.length > 100) return respond(400, { error: "Maximum 100 orders per request" });
         try {
           // Only this user's orders are resolvable — never leak someone else's
           const objectIds = ids.filter((i) => ObjectId.isValid(i)).map((i) => new ObjectId(i));
@@ -304,16 +396,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             })
             .toArray();
           if (!orders || orders.length === 0) {
-            return res.status(404).json({ error: "No matching orders found" });
+            return respond(404, { error: "No matching orders found" });
           }
           const providerIds = orders
             .map((o: any) => o.provider_order_id)
             .filter(Boolean)
             .join(",");
-          if (!providerIds) return res.status(404).json({ error: "No orders with live tracking found" });
+          if (!providerIds) return respond(404, { error: "No orders with live tracking found" });
 
           const live = await checkOrderStatusMulti(providerIds);
-          if (live?.error) return res.status(400).json({ error: sanitizeProviderError(live.error) });
+          if (live?.error) return respond(400, { error: sanitizeProviderError(live.error) });
 
           // Normalise to the v2 multi-status format keyed by order id
           const out: Record<string, any> = {};
@@ -328,9 +420,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               currency: "INR",
             };
           });
-          return res.status(200).json(out);
+          return respond(200, out);
         } catch (e: any) {
-          return res.status(500).json({ error: sanitizeProviderError(e.message) || "Multi-order status check failed" });
+          return respond(500, { error: sanitizeProviderError(e.message) || "Multi-order status check failed" });
         }
       }
 
@@ -344,23 +436,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
 
         if (!order || !order.provider_order_id) {
-          return res.status(404).json({ error: "Order not found" });
+          return respond(404, { error: "Order not found" });
         }
 
         const live = await checkOrderStatus(order.provider_order_id);
-        return res.status(200).json({
+        return respond(200, {
           charge: order.charge.toFixed(2),
           start_count: live.start_count || "0",
           status: live.status || order.status,
           remains: live.remains || "0",
           currency: "INR",
-        });
+        }, { orderId: order._id });
       } catch {
-        return res.status(500).json({ error: "Failed to check status" });
+        return respond(500, { error: "Failed to check status" });
       }
     }
 
-    return res.status(400).json({ error: "Invalid action parameter" });
+    return respond(400, { error: "Invalid action parameter" });
   } catch (globalErr: any) {
     console.error("api/v2 uncaught error:", globalErr);
     return res.status(500).json({ error: "Internal server error. Please try again or contact support." });

@@ -1,10 +1,148 @@
 # SMM UP — Later-On Website Upgradations
 
-> **Status:** Approved planning material, not an instruction to deploy every item immediately.
+> **Status:** Final green light received on 2026-10-06. Implement incrementally in the dependency order below; every phase must pass security, TypeScript and production-build checks before deployment.
 >
-> **Created:** 2026-10-05
+> **Created:** 2026-10-05 · **Expanded:** 2026-10-06
 >
-> **Purpose:** Preserve every website-security, authentication and payment upgrade discussed before implementation begins. The Telegram admin-bot implementation has its own specification at `admin-bot/ADMIN_BOT_DEVELOPMENT_PLAN.md`.
+> **Purpose:** Master implementation roadmap for website security, payments, multi-key API access, account recovery, revocable sessions and the future Telegram owner control plane. Detailed bot implementation remains coordinated with `admin-bot/ADMIN_BOT_DEVELOPMENT_PLAN.md`.
+
+---
+
+## 0. Final green-light master roadmap
+
+### Status legend
+
+- `[x]` implemented in the current codebase
+- `[~]` implementation in progress
+- `[ ]` approved and queued
+- `[BOT]` belongs to the Telegram owner-bot phase and must not be exposed through an unfinished public endpoint
+
+### Phase 0 — page and payment foundations
+
+- [x] Permanent `/account` page; remove the profile popup.
+- [x] Permanent `/add-funds` page; remove the wallet popup.
+- [x] Real account, wallet, support and history links.
+- [x] `/profile` permanently redirects to canonical `/account`.
+- [x] Separate Direct UPI and Razorpay payment rails.
+- [x] Razorpay server-created Orders in paise.
+- [x] Checkout and raw-body webhook HMAC verification.
+- [x] Captured-payment-only, atomic, idempotent wallet settlement.
+- [x] Test-mode non-spendable protection.
+- [x] Refund/dispute holds and order blocking.
+- [x] Narrow Razorpay CSP and updated legal/payment copy.
+
+### Phase 1 — multiple paid API keys (code complete; database integration gate pending)
+
+- [x] Dedicated hash-only `api_keys` and hash-only `api_key_versions` collections.
+- [x] Multiple named keys per user; default maximum 10 non-archived identities.
+- [x] Mandatory case-insensitively unique 3–40-character key names.
+- [x] Stable public key ID/prefix plus one-time secret reveal.
+- [x] Idempotent lazy legacy-key migration without integration breakage or fee.
+- [x] Configurable creation fee: `API_KEY_CREATION_FEE_INR` (default ₹29).
+- [x] Atomic key creation, wallet debit and wallet-ledger entry.
+- [x] Idempotent creation operation to prevent duplicate charges.
+- [x] Explicit permission scopes and synchronized Full Access / Select All UI.
+- [x] Optional daily and monthly spending limits in integer paise.
+- [x] IST daily/monthly spending buckets and atomic enforcement.
+- [x] Optional expiration; Never is the default.
+- [x] Pause/resume, free rotate/reissue and permanent archive lifecycle.
+- [x] Exact-name destructive confirmation and no-refund disclosure.
+- [x] Key-version history; old secrets can never be restored.
+- [x] Per-key request, order, wallet-charge and refund attribution foundations.
+- [x] New secrets never persist in `users.api_key`; legacy fields are unset atomically when migrated.
+- [x] No IP allowlisting in this phase.
+- [x] Static validation: root TypeScript, production build, diff check, admin-bot TypeScript and production dependency audit.
+- [x] Reproducible `npm run test:api-keys` replica-set gate: transaction rollback, one-time secret storage, serial and concurrent duplicate-request idempotency, single fee ledger, daily-limit rollback, concurrent-limit enforcement, pause/resume, permanent rotation, exact-name archive and lazy legacy migration.
+
+### Phase 2 — API activity and financial reporting
+
+- [ ] Dedicated bounded `api_key_activity` collection.
+- [ ] Request timestamp, action, result, HTTP status and latency.
+- [ ] Order ID, service, target, quantity, gross charge, refund and net charge.
+- [ ] Per-key totals, error rate and last-used metadata.
+- [ ] Lifetime financial/order history and aggregates.
+- [ ] Ninety-day detailed non-financial telemetry retention.
+- [ ] Filter by key, date, action, service, order, result and amount.
+- [ ] Archived keys retain complete audit attribution.
+- [ ] Never store API secrets, authorization headers, passwords, cookies, OTPs or UPI PINs.
+
+### Phase 3 — account recovery and temporary passwords
+
+- [ ] Store permanent passwords only as bcrypt hashes.
+- [ ] Server-generated temporary password (recommended default).
+- [ ] Optional owner-selected temporary password.
+- [ ] Store temporary credential only as a hash.
+- [ ] Default temporary lifetime: 3 hours.
+- [ ] Environment override: `TEMP_PASSWORD_TTL_MINUTES`.
+- [ ] Default temporary maximum uses: 2.
+- [ ] Environment override: `TEMP_PASSWORD_MAX_USES` (bounded to 1–2).
+- [ ] Every successful temporary-password login increments an atomic use counter.
+- [ ] Telegram reset message is edited with ✅, usage count, time and remaining uses.
+- [ ] Reaching the use limit or expiry invalidates the temporary credential.
+- [ ] Temporary login receives only a restricted password-change session.
+- [ ] User must create a new permanent password before normal access.
+- [ ] Permanent-password completion invalidates the temporary credential immediately.
+- [ ] Existing sessions are revoked when the owner initiates reset.
+- [ ] Full email and recovery evidence are visible in the owner-only Telegram bot.
+- [ ] Manual identity-verification checklist and admin reason.
+- [ ] Five-minute Telegram confirmation for initiating reset.
+- [ ] Website “Forgot password? Contact support” route/copy until verified email recovery exists.
+
+### Phase 4 — MongoDB sessions and owner support access
+
+- [ ] Hash-only, server-side revocable login sessions.
+- [ ] Session ID, user ID, username snapshot, creation, activity, expiry, device and purpose.
+- [ ] Revoke one session or all sessions.
+- [ ] `[BOT]` Owner can inspect session metadata; raw session tokens are never shown.
+- [ ] `[BOT]` One-time Support Access code; five-minute exchange window.
+- [ ] Dedicated `/support-access` website route.
+- [ ] Fifteen-minute read-only support/impersonation session.
+- [ ] Preserve actor admin ID separately from subject user ID.
+- [ ] Persistent “Support Session” banner and countdown.
+- [ ] Manual exit and automatic expiry.
+- [ ] Read account, orders, deposits, targets, key metadata and security state.
+- [ ] Block spending, deposits, key mutation and password mutation by default.
+- [ ] Page/view audit trail; no existing API secret or user password access.
+
+### Phase 5 — Telegram owner control plane
+
+- [ ] `[BOT]` Authorize by immutable Telegram numeric owner ID.
+- [ ] `[BOT]` Verify Telegram webhook secret token.
+- [ ] `[BOT]` Use inline buttons for confirmations and workflows.
+- [ ] `[BOT]` Five-minute financial and sensitive-action confirmations.
+- [ ] `[BOT]` Full user lookup with full email and account metadata.
+- [ ] `[BOT]` Complete order, deposit, wallet, refund and dispute inspection.
+- [ ] `[BOT]` Suspend/reactivate users; place ordering/payment holds.
+- [ ] `[BOT]` Audited wallet corrections with exact reason.
+- [ ] `[BOT]` Pause, rotate/reissue and archive API keys.
+- [ ] `[BOT]` Initiate temporary-password resets and receive usage notifications.
+- [ ] `[BOT]` Revoke user sessions and create Support Access sessions.
+- [ ] `[BOT]` Administrative notes and bounded security events.
+- [ ] No website admin panel.
+- [ ] No raw password, password hash, API secret, cookie, authorization header, OTP or UPI PIN in Telegram.
+
+### Phase 6 — platform-wide hardening
+
+- [ ] Replace process-memory rate limits with a shared persistent limiter.
+- [ ] Fail-closed cron authentication.
+- [ ] Owner-authorized supplier catalog refresh.
+- [ ] Persistent security-event records.
+- [ ] Login, reset, key-management and API abuse throttling.
+- [ ] Await and validate critical MongoDB indexes.
+- [ ] Canonical-domain normalization and verification.
+- [ ] Verified-email registration/recovery phase later.
+- [ ] Password rules apply to registration/change/reset, never the login form.
+- [ ] Do not impose a 10-character maximum; permit strong long passwords/passphrases.
+
+### Non-negotiable secret boundaries
+
+- Never collect a UPI PIN, OTP, card CVV or banking password.
+- Never store a readable permanent user password.
+- Never store an active raw session/cookie for administrative use.
+- Never persist a raw API-key secret after its one-time response.
+- Never store authorization headers.
+- Never place GitHub, Razorpay or supplier secrets in source, MongoDB records, analytics, Telegram or support messages.
+- Complete operational order/payment data may be retained with owner/user authorization controls and auditability.
 
 ---
 
@@ -682,33 +820,34 @@ Begin `admin-bot/ADMIN_BOT_DEVELOPMENT_PLAN.md` Phase 1.
 
 ---
 
-## 14. Explicit non-goals for the current round
+## 14. Standing non-goals and security boundaries
 
-The current documentation/function-count round will not:
+The final green light does not authorize shortcuts across these boundaries:
 
-- alter existing customer balances;
-- migrate keys automatically;
-- revoke existing keys;
-- change payment verification;
-- add Razorpay;
-- change password validation;
-- create login sessions;
-- send emails;
-- change Vercel domain settings;
-- implement Telegram inline menus;
-- expose any browser admin panel.
+- no browser-based admin panel;
+- no API-key IP allowlisting;
+- no readable permanent or temporary password storage;
+- no API-secret, session-token, authorization-header or cookie logging;
+- no UPI PIN, OTP, CVV or banking-password collection;
+- no fake session/device controls before revocable MongoDB sessions exist;
+- no unrestricted mutation through the default Support Access session;
+- no automatic failed-order refund outside the audited owner workflow;
+- no public disclosure of provider markup multipliers;
+- no deployment until the active dependency phase passes its validation gate.
 
 ---
 
-## 15. Decisions still requiring final approval
+## 15. Approved defaults and implementation choices
 
-1. Password maximum: exactly 10 or recommended 128?
-2. API-key old-key grace period: immediate revoke or short overlap?
-3. API-key rotation recent-auth requirement: password re-entry or session age?
-4. Persistent rate limiter: Upstash Redis or MongoDB?
-5. Unverified-account permissions.
-6. Transactional email provider.
-7. Razorpay fee presentation/business policy.
-8. Razorpay launch timing.
-9. Apex versus `www` final confirmation, although apex is recommended.
-10. Session retention and privacy treatment for IP/device data.
+These decisions no longer require another approval prompt:
+
+1. New/change/reset password policy may support up to 128 characters; login only verifies the supplied credential.
+2. API-key rotation revokes the old secret immediately, with no grace overlap.
+3. Rotation, settings, pause/resume and legacy migration are free; a new named identity uses the configured creation fee.
+4. Persistent rate limiting will be implemented behind a provider-neutral adapter; select MongoDB or managed Redis using security and operational fit without changing endpoint contracts.
+5. Temporary passwords default to three hours and two successful uses, bounded to one or two.
+6. Support Access code exchange lasts five minutes; read-only support sessions last 15 minutes.
+7. Owner Telegram screens may show full email and operational records but never raw secrets or password hashes.
+8. Canonical-domain, verified-email and transactional-email work remains dependency-gated in the later phases above.
+9. Device/IP data must be minimized, pseudonymized where practical and governed by explicit retention.
+10. Razorpay remains captured-payment-only and is reconciled through the idempotent wallet ledger.

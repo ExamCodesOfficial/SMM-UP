@@ -31,6 +31,7 @@ export async function getMongoClient(): Promise<MongoClient> {
 
 let indexesCreated = false;
 let razorpayIndexesPromise: Promise<void> | null = null;
+let apiKeyIndexesPromise: Promise<void> | null = null;
 
 /** Financial uniqueness indexes are awaited by Razorpay writes (fail closed). */
 export async function ensureRazorpayIndexes(): Promise<void> {
@@ -65,6 +66,65 @@ export async function ensureRazorpayIndexes(): Promise<void> {
     });
   }
   return razorpayIndexesPromise;
+}
+
+/** Critical API-key lifecycle indexes are awaited before key writes/authentication. */
+export async function ensureApiKeyIndexes(): Promise<void> {
+  if (!apiKeyIndexesPromise) {
+    apiKeyIndexesPromise = clientPromise.then(async (client) => {
+      const db = client.db(dbName);
+      await Promise.all([
+        db.collection("api_keys").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("api_keys").createIndex(
+          { user_id: 1, active_name_normalized: 1 },
+          {
+            unique: true,
+            partialFilterExpression: { active_name_normalized: { $type: "string" } },
+          },
+        ),
+        db.collection("api_keys").createIndex(
+          { user_id: 1, creation_idempotency_key: 1 },
+          {
+            unique: true,
+            partialFilterExpression: { creation_idempotency_key: { $type: "string" } },
+          },
+        ),
+        db.collection("api_keys").createIndex(
+          { user_id: 1, legacy_migrated: 1 },
+          {
+            unique: true,
+            partialFilterExpression: { legacy_migrated: true },
+          },
+        ),
+        db.collection("api_key_versions").createIndex({ secret_hash: 1 }, { unique: true }),
+        db.collection("api_key_versions").createIndex({ key_id: 1, version: 1 }, { unique: true }),
+        db.collection("api_key_activity").createIndex({ user_id: 1, completed_at: -1 }),
+        db.collection("api_key_activity").createIndex({ api_key_id: 1, completed_at: -1 }),
+        db.collection("api_key_activity").createIndex(
+          { completed_at: 1 },
+          { expireAfterSeconds: 60 * 60 * 24 * 90 },
+        ),
+        db.collection("api_key_audit").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("api_key_audit").createIndex({ api_key_id: 1, created_at: -1 }),
+        db.collection("api_key_spend_buckets").createIndex(
+          { key_id: 1, period_type: 1, period_key: 1 },
+          { unique: true },
+        ),
+        db.collection("wallet_ledger").createIndex(
+          { settlement_key: 1 },
+          {
+            unique: true,
+            partialFilterExpression: { settlement_key: { $type: "string" } },
+          },
+        ),
+        db.collection("orders").createIndex({ api_key_id: 1, created_at: -1 }),
+      ]);
+    }).catch((error) => {
+      apiKeyIndexesPromise = null;
+      throw error;
+    });
+  }
+  return apiKeyIndexesPromise;
 }
 
 export async function getDb(): Promise<Db> {

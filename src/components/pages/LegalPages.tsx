@@ -162,7 +162,7 @@ export function PrivacyPage({ onNavigate }: PageProps) {
       <H2>Storage and protection</H2>
       <UL>
         <li>Passwords are hashed with bcrypt (cost 12) — we cannot read them ourselves.</li>
-        <li>Sessions use signed, httpOnly cookies; API keys are stored hashed.</li>
+        <li>Sign-in uses signed, httpOnly cookies; API-key secrets are stored only as hashes.</li>
         <li>Database access is restricted to the application; no public exposure.</li>
         <li>UTR references and Razorpay provider IDs/events are retained for payment reconciliation, dispute resolution and accounting.</li>
       </UL>
@@ -170,7 +170,7 @@ export function PrivacyPage({ onNavigate }: PageProps) {
       <H2>Your controls</H2>
       <UL>
         <li>View your data anytime on the account page.</li>
-        <li>Regenerate your API key instantly if it leaks.</li>
+        <li>Pause, rotate or permanently archive named API keys from Account; rotation immediately revokes the old secret.</li>
         <li>Request account deletion via the support desk — orders and accounting records are anonymized then removed as far as law allows.</li>
       </UL>
 

@@ -213,7 +213,10 @@ Verify the live deployment at `https://smmup.vercel.app`.
 ### Key Files:
 - `.env` & `.env.local`:
   - `MONGODB_URI`: Live MongoDB connection string.
-  - `JWT_SECRET`: Secret key for session tokens.
+  - `JWT_SECRET`: Secret key for signed authentication tokens and default activity-IP pseudonymization.
+  - `API_ACTIVITY_HASH_SECRET`: Optional dedicated HMAC key for API-activity IP pseudonyms.
+  - `API_KEY_CREATION_FEE_INR`: New named-key identity fee; defaults to `29`.
+  - `API_KEY_MAX_IDENTITIES`: Maximum non-archived key identities per user; defaults to `10`.
   - `SMM_API_KEY`: Wholesale SMM provider key.
   - `PANEL_URL`: Wholesale SMM API endpoint (supplied via environment variable, never hardcoded).
   - `IMAP_USER`: Gmail address for automated UTR payment verification.
