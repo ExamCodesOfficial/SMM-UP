@@ -159,7 +159,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white relative flex flex-col font-sans selection:bg-white selection:text-black">
+    <div className="min-h-screen bg-[#050505] text-white relative flex flex-col font-sans selection:bg-white selection:text-black">
       {/* 40px grid pattern from ExamCodes */}
       <div className="absolute inset-0 bg-grid-pattern opacity-100 pointer-events-none z-0" />
 

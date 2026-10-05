@@ -50,10 +50,10 @@ export default function Footer({
             <div className="flex items-center gap-3">
               <SmmUpLogo size={36} />
               <div>
-                <span className="text-base sm:text-lg font-light tracking-[0.2em] text-[#FAF7F2] block leading-none">
+                <span className="text-base sm:text-lg font-light tracking-[0.2em] text-[#FAF9F7] block leading-none">
                   SMM UP
                 </span>
-                <span className="text-[9px] tracking-[0.25em] text-[#8E877B] uppercase font-mono mt-1 block">
+                <span className="text-[9px] tracking-[0.25em] text-[#71717A] uppercase font-mono mt-1 block">
                   Wholesale Infrastructure
                 </span>
               </div>
@@ -64,10 +64,10 @@ export default function Footer({
             </p>
 
             {/* Realtime Live Operational Status Pill */}
-            <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-white/[0.1] bg-[#0E0D0B] text-[#F5E8D0] text-[11px] font-mono">
+            <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-white/[0.1] bg-[#0A0A0A] text-[#E4E4E7] text-[11px] font-mono">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F5E8D0] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F5E8D0]" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E4E4E7] opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#E4E4E7]" />
               </span>
               <span>All Delivery Nodes Operational &bull; 99.98% SLA</span>
             </div>
@@ -91,14 +91,14 @@ export default function Footer({
                     className="flex items-center justify-between text-xs text-zinc-400 hover:text-white transition-colors group cursor-pointer text-left"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-md bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
-                        <Icon size={12} className="text-[#F5E8D0]" />
+                      <div className="w-5 h-5 rounded-sm bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+                        <Icon size={12} className="text-[#E4E4E7]" />
                       </div>
                       <span className="group-hover:translate-x-0.5 transition-transform">
                         {p.name}
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-[#F5E8D0]/80">
+                    <span className="text-[10px] font-mono text-[#E4E4E7]/80">
                       {p.rate}
                     </span>
                   </button>
@@ -154,25 +154,25 @@ export default function Footer({
                   onNavigateTab("api");
                   scrollToTop();
                 }}
-                className="text-left text-[#F5E8D0] hover:text-white transition-colors cursor-pointer font-medium flex items-center gap-1.5"
+                className="text-left text-[#E4E4E7] hover:text-white transition-colors cursor-pointer font-medium flex items-center gap-1.5"
               >
-                <Terminal className="w-3.5 h-3.5 text-[#F5E8D0]" />
+                <Terminal className="w-3.5 h-3.5 text-[#E4E4E7]" />
                 <span>Developer API</span>
               </button>
               <button
                 onClick={() => {
                   onOpenWallet();
                 }}
-                className="text-left text-[#F5E8D0] hover:text-white transition-colors cursor-pointer font-medium"
+                className="text-left text-[#E4E4E7] hover:text-white transition-colors cursor-pointer font-medium"
               >
                 Wallet Top-Up (0% UPI)
               </button>
               {onOpenSupport && (
                 <button
                   onClick={onOpenSupport}
-                  className="text-left text-[#F5E8D0] hover:text-white transition-colors cursor-pointer font-medium flex items-center gap-1.5"
+                  className="text-left text-[#E4E4E7] hover:text-white transition-colors cursor-pointer font-medium flex items-center gap-1.5"
                 >
-                  <MessageCircle className="w-3.5 h-3.5 text-[#F5E8D0]" />
+                  <MessageCircle className="w-3.5 h-3.5 text-[#E4E4E7]" />
                   <span>24/7 Telegram Support</span>
                 </button>
               )}
@@ -196,10 +196,10 @@ export default function Footer({
             <div className="space-y-3 text-xs">
               <button
                 onClick={onOpenTerms}
-                className="w-full text-left p-3 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20 transition-all flex items-center justify-between cursor-pointer group"
+                className="w-full text-left p-3 rounded-none border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20 transition-all flex items-center justify-between cursor-pointer group"
               >
                 <div className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#F5E8D0]" />
+                  <FileText className="w-4 h-4 text-[#E4E4E7]" />
                   <span className="text-white font-medium">Terms of Service &amp; SLA</span>
                 </div>
                 <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-white transition-colors" />
@@ -208,10 +208,10 @@ export default function Footer({
               {onOpenSupport && (
                 <button
                   onClick={onOpenSupport}
-                  className="w-full text-left p-3 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20 transition-all flex items-center justify-between cursor-pointer group"
+                  className="w-full text-left p-3 rounded-none border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-white/20 transition-all flex items-center justify-between cursor-pointer group"
                 >
                   <div className="flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4 text-emerald-400" />
+                    <MessageCircle className="w-4 h-4 text-zinc-100" />
                     <span className="text-white font-medium">Chat on Telegram Desk</span>
                   </div>
                   <ArrowUpRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-white transition-colors" />
@@ -220,19 +220,19 @@ export default function Footer({
 
               <div className="space-y-2 pt-1 text-[11px] text-zinc-400 font-light">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[#F5E8D0] shrink-0" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#E4E4E7] shrink-0" />
                   <span>Direct 0% UPI Clearing Policy</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <RotateCcw className="w-3.5 h-3.5 text-[#F5E8D0] shrink-0" />
+                  <RotateCcw className="w-3.5 h-3.5 text-[#E4E4E7] shrink-0" />
                   <span>Automated Node Refill SLA (7D to Lifetime)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Lock className="w-3.5 h-3.5 text-[#F5E8D0] shrink-0" />
+                  <Lock className="w-3.5 h-3.5 text-[#E4E4E7] shrink-0" />
                   <span>Zero Social Passwords Required</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Zap className="w-3.5 h-3.5 text-[#F5E8D0] shrink-0" />
+                  <Zap className="w-3.5 h-3.5 text-[#E4E4E7] shrink-0" />
                   <span>Standard SMM v2 API Protocol</span>
                 </div>
               </div>
@@ -243,7 +243,7 @@ export default function Footer({
         {/* Bottom Bar (ExamCodes & thatonearyan-sh style) */}
         <div className="pt-8 flex flex-col items-center gap-3 text-xs">
           <div className="text-[10px] sm:text-[11px] tracking-[0.18em] text-zinc-400 font-mono uppercase text-center">
-            Founded &amp; Operated by <a href="mailto:examcodesofficial@gmail.com" className="text-[#F5E8D0] hover:text-white transition-colors">Aryan</a> &bull; CEO &amp; Owner &bull; <a href="mailto:examcodesofficial@gmail.com" className="text-zinc-300 hover:text-white transition-colors">examcodesofficial@gmail.com</a>
+            Founded &amp; Operated by <a href="mailto:examcodesofficial@gmail.com" className="text-[#E4E4E7] hover:text-white transition-colors">Aryan</a> &bull; CEO &amp; Owner &bull; <a href="mailto:examcodesofficial@gmail.com" className="text-zinc-300 hover:text-white transition-colors">examcodesofficial@gmail.com</a>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-4 pt-2">
@@ -253,7 +253,7 @@ export default function Footer({
 
             <button
               onClick={scrollToTop}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 text-zinc-400 hover:text-white text-[11px] font-mono tracking-wider transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm border border-white/10 hover:border-white/30 text-zinc-400 hover:text-white text-[11px] font-mono tracking-wider transition-colors cursor-pointer"
             >
               <span>BACK TO TOP</span>
               <ChevronUp className="w-3.5 h-3.5" />

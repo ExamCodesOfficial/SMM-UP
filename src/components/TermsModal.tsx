@@ -59,11 +59,11 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-fadeIn">
-      <div className="relative w-full max-w-2xl border border-white/10 bg-[#0E0D0B] rounded-2xl shadow-[0_10px_50px_rgba(0,0,0,0.9)] p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-2xl border border-white/10 bg-[#0A0A0A] rounded-none shadow-[0_10px_50px_rgba(0,0,0,0.9)] p-6 sm:p-8 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-5 border-b border-white/[0.08] mb-6 sticky top-0 bg-[#0E0D0B] z-10">
+        <div className="flex items-center justify-between pb-5 border-b border-white/[0.08] mb-6 sticky top-0 bg-[#0A0A0A] z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center text-[#F5E8D0]">
+            <div className="w-10 h-10 rounded-none bg-white/[0.04] border border-white/10 flex items-center justify-center text-[#E4E4E7]">
               <FileText className="w-5 h-5" />
             </div>
             <div>
@@ -76,7 +76,7 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
 
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg border border-white/10 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-sm border border-white/10 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -85,8 +85,8 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
         {/* Content Sections */}
         <div className="space-y-6">
           {SECTIONS.map((sec, idx) => (
-            <div key={idx} className="p-4 sm:p-5 rounded-xl border border-white/[0.06] bg-black/40">
-              <h3 className="text-xs sm:text-sm font-bold tracking-wider text-[#FAF7F2] uppercase mb-2">
+            <div key={idx} className="p-4 sm:p-5 rounded-none border border-white/[0.06] bg-black/40">
+              <h3 className="text-xs sm:text-sm font-bold tracking-wider text-[#FAF9F7] uppercase mb-2">
                 {sec.title}
               </h3>
               <p className="text-xs sm:text-[13px] text-zinc-400 leading-relaxed font-light">
@@ -99,13 +99,13 @@ export default function TermsModal({ isOpen, onClose }: TermsModalProps) {
         {/* Footer */}
         <div className="mt-8 pt-5 border-t border-white/[0.08] flex items-center justify-between">
           <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <Shield className="w-4 h-4 text-[#F5E8D0]" />
+            <Shield className="w-4 h-4 text-[#E4E4E7]" />
             <span>Cryptographically Verified SLA</span>
           </div>
 
           <button
             onClick={onClose}
-            className="px-6 py-2.5 rounded-xl bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-zinc-200 transition-colors cursor-pointer"
+            className="px-6 py-2.5 rounded-none bg-white text-black font-bold text-xs tracking-wider uppercase hover:bg-zinc-200 transition-colors cursor-pointer"
           >
             Acknowledge &amp; Close
           </button>

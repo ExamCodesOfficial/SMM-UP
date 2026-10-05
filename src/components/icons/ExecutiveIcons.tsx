@@ -6,72 +6,37 @@ interface IconProps {
 }
 
 /**
- * SMM UP Primary Emblem Logo
- * Inspired by valence-logo-concept-c and examcodes-logo from thatonearyan-sh
+ * SMM UP Mark — Minimal Apex Glyph.
+ * A single upward chevron cut over a baseline: "UP" in pure geometry.
+ * Zero chrome, zero orbits — classic architectural minimalism.
  */
 export function SmmUpLogo({ size = 32, className = "" }: IconProps) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 128 128"
+      viewBox="0 0 64 64"
       width={size}
       height={size}
       className={className}
       role="img"
-      aria-label="SMM UP Emblem"
+      aria-label="SMM UP Mark"
     >
-      <rect width="128" height="128" rx="20" fill="#000000" />
-      <rect
-        x="4"
-        y="4"
-        width="120"
-        height="120"
-        rx="16"
-        fill="none"
-        stroke="rgba(255, 255, 255, 0.18)"
-        strokeWidth="2"
+      <rect width="64" height="64" rx="12" fill="#050505" />
+      {/* Apex chevron band — the ascent */}
+      <path
+        d="M 17 40 L 32 15 L 47 40 L 40.5 40 L 32 25.5 L 23.5 40 Z"
+        fill="#FAF9F7"
       />
-      <defs>
-        <filter id="logoGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-
-      <g fill="#FFFFFF" filter="url(#logoGlow)">
-        {/* 'U' Channel */}
-        <path d="M 28 36 L 40 36 L 40 64 C 40 68 43 71 47 71 C 51 71 54 68 54 64 L 54 36 L 66 36 L 66 65 C 66 76 58 83 47 83 C 36 83 28 76 28 65 Z" />
-        {/* 'P' Pillar & Loop */}
-        <path d="M 74 36 L 94 36 C 103 36 109 41 109 49 C 109 57 103 62 94 62 L 86 62 L 86 83 L 74 83 Z M 86 46 L 86 52 L 93 52 C 96 52 98 51 98 49 C 98 47 96 46 93 46 Z" />
-        {/* Apex Arrow Beacon */}
-        <polygon points="47,20 54,28 40,28" />
-      </g>
-
-      <circle cx="86" cy="49" r="2.5" fill="#000000" />
-
-      {/* Signature Telemetry Lines */}
+      {/* Launch baseline */}
       <line
-        x1="30"
-        y1="102"
-        x2="98"
-        y2="102"
-        stroke="#FFFFFF"
-        strokeWidth="2.5"
-        opacity="0.8"
-        strokeLinecap="round"
-      />
-      <line
-        x1="42"
-        y1="110"
-        x2="86"
-        y2="110"
-        stroke="#FFFFFF"
-        strokeWidth="1.8"
-        opacity="0.4"
-        strokeLinecap="round"
+        x1="19"
+        y1="48"
+        x2="45"
+        y2="48"
+        stroke="#FAF9F7"
+        strokeWidth="3"
+        strokeLinecap="butt"
+        opacity="0.9"
       />
     </svg>
   );

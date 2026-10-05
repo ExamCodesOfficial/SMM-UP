@@ -66,11 +66,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-md border border-white/10 bg-[#0E0D0B] rounded-2xl shadow-[0_10px_50px_rgba(0,0,0,0.8)] p-6 sm:p-8 animate-fadeInScale">
+      <div className="relative w-full max-w-md border border-white/10 bg-[#0A0A0A] rounded-none shadow-[0_10px_50px_rgba(0,0,0,0.8)] p-6 sm:p-8 animate-fadeInScale">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-white/[0.05] transition-colors cursor-pointer"
+          className="absolute top-5 right-5 p-2 text-zinc-400 hover:text-white rounded-none hover:bg-white/[0.05] transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -104,7 +104,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="e.g. aryan_smm"
                   required
-                  className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
+                  className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
                 />
               </div>
             </div>
@@ -122,7 +122,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@domain.com"
                 required
-                className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
+                className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
               />
             </div>
           </div>
@@ -140,14 +140,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
                 placeholder="••••••••••••"
                 required
                 minLength={6}
-                className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500"
+                className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-11 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
               />
             </div>
           </div>
 
           {errorMsg && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+            <div className="p-3.5 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 text-zinc-100 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -155,7 +155,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 px-6 rounded-xl bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-6"
+            className="w-full py-3.5 px-6 rounded-none bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer mt-6"
           >
             {loading ? (
               <>

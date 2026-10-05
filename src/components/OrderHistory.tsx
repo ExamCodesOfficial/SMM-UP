@@ -116,7 +116,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
     const s = (status || "").toLowerCase();
     if (s.includes("completed")) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white text-black border border-white">
           <CheckCircle2 className="w-3.5 h-3.5" />
           <span>Completed</span>
         </span>
@@ -124,7 +124,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
     }
     if (s.includes("in progress") || s.includes("processing")) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/[0.10] text-zinc-200 border border-white/25">
           <Clock className="w-3.5 h-3.5 animate-spin" />
           <span>Processing</span>
         </span>
@@ -132,7 +132,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
     }
     if (s.includes("pending")) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/[0.04] text-zinc-400 border border-white/15">
           <Clock className="w-3.5 h-3.5" />
           <span>Pending</span>
         </span>
@@ -140,15 +140,15 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
     }
     if (s.includes("fail") || s.includes("review")) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20" title="Flagged for manual administrative review">
-          <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/[0.08] text-zinc-300 border border-white/20" title="Flagged for manual administrative review">
+          <AlertTriangle className="w-3.5 h-3.5 text-zinc-300" />
           <span>Under Review</span>
         </span>
       );
     }
     if (s.includes("refund")) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/[0.08] text-zinc-300 border border-white/20">
           <RotateCcw className="w-3.5 h-3.5" />
           <span>Refunded</span>
         </span>
@@ -156,7 +156,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
     }
     if (s.includes("cancel")) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-white/[0.02] text-zinc-500 border border-white/10">
           <XCircle className="w-3.5 h-3.5" />
           <span>Canceled</span>
         </span>
@@ -184,7 +184,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-6 p-4 rounded-2xl border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-6 p-4 rounded-none border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
         {/* Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
           {["All", "Active", "Completed", "Canceled"].map((tab) => {
@@ -193,7 +193,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
               <button
                 key={tab}
                 onClick={() => setFilterTab(tab)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold tracking-wider transition-all duration-200 cursor-pointer ${
+                className={`px-4 py-2 rounded-none text-xs font-semibold tracking-wider transition-all duration-200 cursor-pointer ${
                   isActive
                     ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.25)]"
                     : "text-zinc-400 hover:text-white hover:bg-white/[0.05]"
@@ -214,14 +214,14 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by ID or target link..."
-              className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-10 pr-4 py-2 rounded-xl text-xs outline-none transition-all placeholder:text-zinc-500"
+              className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-10 pr-4 py-2 rounded-none text-xs outline-none transition-all placeholder:text-zinc-500"
             />
           </div>
 
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="p-2.5 rounded-xl border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white transition-all bg-white/[0.02] cursor-pointer"
+            className="p-2.5 rounded-none border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white transition-all bg-white/[0.02] cursor-pointer"
             title="Refresh order statuses"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -230,7 +230,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
       </div>
 
       {/* Orders Table Container */}
-      <div className="rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+      <div className="rounded-none border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-black/90 border-b border-white/10 text-zinc-400 uppercase tracking-wider text-[11px] font-semibold">
@@ -271,7 +271,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                             title="Copy ID"
                           >
                             {copiedId === ord.id ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <Check className="w-3.5 h-3.5 text-zinc-100" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
                             )}
@@ -301,7 +301,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                               refill_days: ord.refillDays,
                             });
                             return policy.hasRefill ? (
-                              <span className="text-[10px] text-[#F5E8D0] font-medium flex items-center gap-1">
+                              <span className="text-[10px] text-[#E4E4E7] font-medium flex items-center gap-1">
                                 <RotateCcw className="w-2.5 h-2.5" />
                                 {policy.label}
                               </span>
@@ -322,7 +322,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                             title="Copy link"
                           >
                             {copiedId === ord.id + "_link" ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              <Check className="w-3.5 h-3.5 text-zinc-100" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
                             )}
@@ -336,7 +336,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                       </td>
 
                       {/* Charge */}
-                      <td className="py-4 px-5 font-bold text-[#F5E8D0] whitespace-nowrap text-sm">
+                      <td className="py-4 px-5 font-bold text-[#E4E4E7] whitespace-nowrap text-sm">
                         {formatINR(ord.charge)}
                       </td>
 
@@ -351,7 +351,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                           <button
                             onClick={() => handleCheckStatus(ord.id)}
                             disabled={actionLoadingId === ord.id}
-                            className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
+                            className="px-3 py-1.5 rounded-sm border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
                           >
                             Status
                           </button>
@@ -360,7 +360,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                             <button
                               onClick={() => handleRefill(ord.id)}
                               disabled={actionLoadingId === ord.id}
-                              className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-xs font-medium transition-all cursor-pointer flex items-center gap-1"
+                              className="px-3 py-1.5 rounded-sm border border-white/15 bg-white/[0.06] text-zinc-100 hover:bg-white/[0.06] text-xs font-medium transition-all cursor-pointer flex items-center gap-1"
                             >
                               <RotateCcw className="w-3 h-3" />
                               <span>Refill</span>
@@ -371,7 +371,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                         {actionMsg?.id === ord.id && (
                           <div
                             className={`text-[10px] mt-1 ${
-                              actionMsg.err ? "text-rose-400" : "text-emerald-400"
+                              actionMsg.err ? "text-zinc-100" : "text-zinc-100"
                             }`}
                           >
                             {actionMsg.msg}

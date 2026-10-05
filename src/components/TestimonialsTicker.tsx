@@ -99,26 +99,26 @@ export default function TestimonialsTicker() {
     switch (status) {
       case "Completed":
       case "Verified":
-        return "text-[#FAF7F2] border-white/20 bg-white/[0.04]";
+        return "text-[#FAF9F7] border-white/20 bg-white/[0.04]";
       case "In Progress":
       case "Processing":
-        return "text-[#F5E8D0] border-[#F5E8D0]/30 bg-[#F5E8D0]/10";
+        return "text-[#E4E4E7] border-[#E4E4E7]/30 bg-[#E4E4E7]/10";
       case "Refilled":
-        return "text-[#FAF7F2] border-white/20 bg-white/[0.04]";
+        return "text-[#FAF9F7] border-white/20 bg-white/[0.04]";
       default:
         return "text-zinc-400 border-white/10 bg-white/[0.02]";
     }
   };
 
   return (
-    <section className="border-y border-white/[0.08] bg-[#0E0D0B]/60 py-6 sm:py-8 overflow-hidden">
+    <section className="border-y border-white/[0.08] bg-[#0A0A0A]/60 py-6 sm:py-8 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="p-3.5 sm:p-4 rounded-2xl border border-white/[0.08] bg-black/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
+        <div className="p-3.5 sm:p-4 rounded-none border border-white/[0.08] bg-black/60 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.5)]">
           {/* Header Label */}
-          <div className="flex items-center gap-2.5 text-xs text-[#F5E8D0] font-semibold tracking-wider uppercase shrink-0">
+          <div className="flex items-center gap-2.5 text-xs text-[#E4E4E7] font-semibold tracking-wider uppercase shrink-0">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F5E8D0] opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F5E8D0]" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#E4E4E7] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#E4E4E7]" />
             </span>
             <Activity className="w-3.5 h-3.5" />
             <span>Live Activity Stream</span>
@@ -135,7 +135,7 @@ export default function TestimonialsTicker() {
                 {event.service}
               </span>
               <span className="text-zinc-500 hidden sm:inline">&bull;</span>
-              <span className="text-[#FFFDF9] font-bold">
+              <span className="text-[#FFFFFF] font-bold">
                 {event.quantity}
               </span>
               <span className="text-zinc-500 hidden sm:inline">&bull;</span>

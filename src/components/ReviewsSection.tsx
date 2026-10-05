@@ -89,7 +89,7 @@ function StarRow({ rating }: { rating: number }) {
         <Star
           key={i}
           className={`w-3.5 h-3.5 ${
-            i < rating ? "fill-[#F5E8D0] text-[#F5E8D0]" : "text-zinc-700"
+            i < rating ? "fill-[#E4E4E7] text-[#E4E4E7]" : "text-zinc-700"
           }`}
         />
       ))}
@@ -104,16 +104,16 @@ export default function ReviewsSection() {
         {/* Section Header */}
         <Reveal>
           <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#F5E8D0]/20 bg-[#F5E8D0]/[0.05] text-[#F5E8D0] text-[11px] font-semibold tracking-wider uppercase mb-4">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#E4E4E7]/20 bg-[#E4E4E7]/[0.05] text-[#E4E4E7] text-[11px] font-semibold tracking-wider uppercase mb-4">
               <BadgeCheck className="w-3.5 h-3.5" />
               <span>Verified Client Reviews</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.08em] text-[#FAF7F2]">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.08em] text-[#FAF9F7]">
               TRUSTED BY AGENCIES &amp; CREATORS
             </h2>
             <div className="w-16 h-0.5 bg-white/20 mx-auto mt-4" />
             {/* Crawlable aggregate proof */}
-            <div className="mt-5 inline-flex items-center gap-3 px-5 py-2.5 rounded-xl border border-white/[0.08] bg-black/40">
+            <div className="mt-5 inline-flex items-center gap-3 px-5 py-2.5 rounded-none border border-white/[0.08] bg-black/40">
               <StarRow rating={5} />
               <span className="text-sm text-white font-semibold">
                 4.9 / 5
@@ -129,12 +129,12 @@ export default function ReviewsSection() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {REVIEWS.map((r, idx) => (
             <Reveal key={idx} delay={idx * 70}>
-              <figure className="card-lift h-full p-6 rounded-2xl border border-white/[0.08] bg-[#0E0D0B]/85 flex flex-col justify-between">
+              <figure className="card-lift h-full p-6 rounded-none border border-white/[0.08] bg-[#0A0A0A]/85 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <StarRow rating={r.rating} />
                     <div className="text-right">
-                      <span className="text-lg font-bold text-[#FFFDF9] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] block leading-none">
+                      <span className="text-lg font-bold text-[#FFFFFF] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] block leading-none">
                         {r.metric}
                       </span>
                       <span className="text-[9px] text-zinc-500 uppercase tracking-wider">
@@ -152,7 +152,7 @@ export default function ReviewsSection() {
                 </div>
 
                 <figcaption className="pt-4 border-t border-white/[0.06] flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#F5E8D0]/10 border border-[#F5E8D0]/25 flex items-center justify-center text-[#F5E8D0] text-xs font-bold shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[#E4E4E7]/10 border border-[#E4E4E7]/25 flex items-center justify-center text-[#E4E4E7] text-xs font-bold shrink-0">
                     {r.name
                       .split(" ")
                       .map((w) => w[0])
@@ -161,7 +161,7 @@ export default function ReviewsSection() {
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white flex items-center gap-1.5 truncate">
                       {r.name}
-                      <BadgeCheck className="w-3.5 h-3.5 text-[#F5E8D0] shrink-0" />
+                      <BadgeCheck className="w-3.5 h-3.5 text-[#E4E4E7] shrink-0" />
                     </div>
                     <div className="text-[10px] text-zinc-500 flex items-center gap-1 truncate">
                       <span>{r.role}</span>

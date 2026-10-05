@@ -54,7 +54,7 @@ export default function HeroStats({ totalServices = 2174 }: { totalServices?: nu
             <div
               key={idx}
               ref={item.ref as any}
-              className="flex flex-col items-center justify-center py-5 sm:py-6 px-4 rounded-2xl border border-white/[0.08] bg-white/[0.015] hover:bg-white/[0.035] hover:border-white/20 transition-all duration-500 shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
+              className="flex flex-col items-center justify-center py-5 sm:py-6 px-4 rounded-none border border-white/[0.08] bg-white/[0.015] hover:bg-white/[0.035] hover:border-white/20 transition-all duration-500 shadow-[0_4px_20px_rgba(0,0,0,0.5)]"
             >
               <span
                 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-wider text-white"

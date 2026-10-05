@@ -78,7 +78,7 @@ function FaqItem({ faq }: { faq: FAQ }) {
           {faq.question}
         </span>
         <div
-          className={`w-7 h-7 rounded-lg border border-white/10 flex items-center justify-center shrink-0 transition-transform duration-200 ${
+          className={`w-7 h-7 rounded-sm border border-white/10 flex items-center justify-center shrink-0 transition-transform duration-200 ${
             open ? "rotate-180 bg-white/10 text-white" : "text-zinc-400 group-hover:text-white"
           }`}
         >
@@ -100,11 +100,11 @@ export default function FaqSection() {
     <section className="py-16 sm:py-24 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Section Header */}
       <div className="text-center mb-12 sm:mb-16">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.02] text-[#F5E8D0] text-[11px] font-semibold tracking-wider uppercase mb-4">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.02] text-[#E4E4E7] text-[11px] font-semibold tracking-wider uppercase mb-4">
           <HelpCircle className="w-3.5 h-3.5" />
           <span>Institutional Knowledge Base</span>
         </div>
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.08em] text-[#FAF7F2]">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-light tracking-[0.08em] text-[#FAF9F7]">
           FREQUENTLY ASKED QUESTIONS
         </h2>
         <div className="w-16 h-0.5 bg-white/20 mx-auto mt-4" />
@@ -115,7 +115,7 @@ export default function FaqSection() {
 
       {/* Accordion Container */}
       <Reveal>
-        <div className="border border-white/10 bg-[#0E0D0B]/80 backdrop-blur-xl rounded-2xl px-6 sm:px-8 py-2 divide-y divide-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+        <div className="border border-white/10 bg-[#0A0A0A]/80 backdrop-blur-xl rounded-none px-6 sm:px-8 py-2 divide-y divide-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
           {FAQS.map((faq) => (
             <FaqItem key={faq.id} faq={faq} />
           ))}

@@ -132,13 +132,13 @@ export default function MassOrder({
         </p>
       </div>
 
-      <div className="p-6 sm:p-8 rounded-2xl border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
+      <div className="p-6 sm:p-8 rounded-none border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
               Enter one order per line:
             </label>
-            <div className="p-3.5 bg-black/50 border border-white/10 rounded-xl text-xs text-zinc-400 mb-3 space-y-1">
+            <div className="p-3.5 bg-black/50 border border-white/10 rounded-none text-xs text-zinc-400 mb-3 space-y-1">
               <span className="font-semibold text-white">Format:</span> <code>service_id | target_link | quantity</code>
               <div className="text-zinc-500">Example: 2664 | https://instagram.com/p/test1234 | 1000</div>
             </div>
@@ -147,16 +147,16 @@ export default function MassOrder({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="2664 | https://instagram.com/p/reel1 | 1000&#10;508 | https://t.me/channel | 500"
-              className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white p-4 text-sm rounded-xl outline-none transition-all placeholder:text-zinc-500 font-mono"
+              className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white p-4 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500 font-mono"
               required
             />
           </div>
 
           {/* Validation stats */}
-          <div className="flex flex-wrap justify-between items-center text-xs p-4 border border-white/10 bg-black/40 rounded-xl">
+          <div className="flex flex-wrap justify-between items-center text-xs p-4 border border-white/10 bg-black/40 rounded-none">
             <div className="text-zinc-300">
               Total Lines: <strong className="text-white">{parsedOrders.length}</strong> (
-              <span className="text-emerald-400 font-semibold">
+              <span className="text-zinc-100 font-semibold">
                 {parsedOrders.filter((p) => p.valid).length} valid
               </span>
               )
@@ -168,15 +168,15 @@ export default function MassOrder({
 
           {/* Inline error surface (replaces native alert popups) */}
           {errorMsg && (
-            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs sm:text-sm flex items-start gap-3 animate-fadeIn">
-              <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
+            <div className="p-4 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs sm:text-sm flex items-start gap-3 animate-fadeIn">
+              <AlertCircle className="w-5 h-5 shrink-0 text-zinc-100" />
               <div className="flex-1">
                 <span>{errorMsg}</span>
                 {/insufficient/i.test(errorMsg) && (
                   <button
                     type="button"
                     onClick={onOpenWallet}
-                    className="mt-2 inline-flex items-center gap-1.5 text-[#F5E8D0] hover:text-white font-semibold underline underline-offset-4 text-xs cursor-pointer"
+                    className="mt-2 inline-flex items-center gap-1.5 text-[#E4E4E7] hover:text-white font-semibold underline underline-offset-4 text-xs cursor-pointer"
                   >
                     Open 0% UPI Wallet Top-Up
                   </button>
@@ -186,12 +186,12 @@ export default function MassOrder({
           )}
 
           {results.length > 0 && (
-            <div className="space-y-2 max-h-48 overflow-y-auto p-4 border border-white/10 bg-black/60 rounded-xl text-xs">
+            <div className="space-y-2 max-h-48 overflow-y-auto p-4 border border-white/10 bg-black/60 rounded-none text-xs">
               {results.map((r, i) => (
                 <div
                   key={i}
                   className={`flex items-center gap-2 ${
-                    r.success ? "text-emerald-400" : "text-rose-400"
+                    r.success ? "text-zinc-100" : "text-zinc-100"
                   }`}
                 >
                   {r.success ? (
@@ -210,7 +210,7 @@ export default function MassOrder({
           <button
             type="submit"
             disabled={submitting || parsedOrders.length === 0}
-            className="w-full py-3.5 px-6 rounded-xl bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 px-6 rounded-none bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
             <Send className="w-4 h-4" />
             <span>

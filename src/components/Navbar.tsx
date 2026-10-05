@@ -114,7 +114,7 @@ export default function Navbar({
       {/* Champagne reading-progress line */}
       <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-transparent pointer-events-none" aria-hidden="true">
         <div
-          className="h-full bg-gradient-to-r from-[#F5E8D0]/40 via-[#F5E8D0] to-[#F5E8D0]/40 shadow-[0_0_8px_rgba(245,232,208,0.5)]"
+          className="h-full bg-gradient-to-r from-[#E4E4E7]/40 via-[#E4E4E7] to-[#E4E4E7]/40 shadow-[0_0_8px_rgba(255,255,255,0.5)]"
           style={{ width: `${(scrollProgress * 100).toFixed(2)}%`, transition: "width 120ms linear" }}
         />
       </div>
@@ -127,15 +127,10 @@ export default function Navbar({
           }}
           className="flex items-center gap-3 cursor-pointer group text-left"
         >
-          <SmmUpLogo size={36} className="shadow-[0_0_20px_rgba(245,232,208,0.15)] transition-transform duration-300 group-hover:scale-105" />
-          <div className="flex flex-col">
-            <span className="text-base sm:text-lg font-light tracking-[0.2em] text-[#FAF7F2] drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] leading-none">
-              SMM UP
-            </span>
-            <span className="text-[9px] tracking-[0.25em] text-[#8E877B] uppercase font-mono mt-1">
-              Wholesale Node
-            </span>
-          </div>
+          <SmmUpLogo size={36} className="shadow-[0_0_20px_rgba(255,255,255,0.15)] transition-transform duration-300 group-hover:scale-105" />
+          <span className="text-base sm:text-lg font-light tracking-[0.3em] text-[#FAF9F7] drop-shadow-[0_0_12px_rgba(255,255,255,0.7)] leading-none">
+            SMM UP
+          </span>
         </button>
 
         {/* Desktop Nav Links */}
@@ -148,9 +143,9 @@ export default function Navbar({
                 key={link.id}
                 onClick={() => setCurrentTab(link.id)}
                 aria-current={isActive ? "page" : undefined}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold tracking-wider flex items-center gap-2 transition-all duration-200 cursor-pointer ${
+                className={`px-4 py-2 rounded-none text-xs font-semibold tracking-wider flex items-center gap-2 transition-all duration-200 cursor-pointer ${
                   isActive
-                    ? "bg-[#FAF7F2] text-black shadow-[0_0_20px_rgba(255,255,255,0.25)]"
+                    ? "bg-[#FAF9F7] text-black shadow-[0_0_20px_rgba(255,255,255,0.25)]"
                     : "text-zinc-300 hover:text-white hover:bg-white/[0.05]"
                 }`}
               >
@@ -168,14 +163,14 @@ export default function Navbar({
               {/* Luxury Champagne Platinum Wallet Button */}
               <button
                 onClick={onOpenWallet}
-                className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl border border-white/10 bg-[#0E0D0B]/90 hover:bg-[#151310] hover:border-[#F5E8D0]/40 transition-all cursor-pointer shadow-[0_0_20px_rgba(0,0,0,0.6)] group"
+                className="flex items-center gap-2.5 px-3.5 py-2 rounded-none border border-white/10 bg-[#0A0A0A]/90 hover:bg-[#151310] hover:border-[#E4E4E7]/40 transition-all cursor-pointer shadow-[0_0_20px_rgba(0,0,0,0.6)] group"
                 title="Deposit Funds via Direct 0% UPI"
               >
-                <ExecutiveWalletIcon size={16} className="text-[#F5E8D0] group-hover:scale-110 transition-transform" />
-                <span className="text-xs sm:text-sm font-semibold text-[#FFFDF9] tracking-wide drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">
+                <ExecutiveWalletIcon size={16} className="text-[#E4E4E7] group-hover:scale-110 transition-transform" />
+                <span className="text-xs sm:text-sm font-semibold text-[#FFFFFF] tracking-wide drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">
                   {formatINR(user.balance)}
                 </span>
-                <span className="text-[11px] font-semibold text-[#F5E8D0] border-l border-white/10 pl-2 flex items-center gap-1">
+                <span className="text-[11px] font-semibold text-[#E4E4E7] border-l border-white/10 pl-2 flex items-center gap-1">
                   <Plus className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Add</span>
                 </span>
@@ -184,7 +179,7 @@ export default function Navbar({
               {/* Profile Button */}
               <button
                 onClick={onOpenProfile}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-200 hover:text-white text-xs font-medium transition-all cursor-pointer"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-none border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-200 hover:text-white text-xs font-medium transition-all cursor-pointer"
                 title="Account Settings & API Key"
               >
                 <User className="w-3.5 h-3.5 text-zinc-400" />
@@ -194,7 +189,7 @@ export default function Navbar({
           ) : (
             <button
               onClick={onOpenAuth}
-              className="px-5 py-2.5 rounded-xl bg-white text-black font-semibold text-xs tracking-wider hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] cursor-pointer"
+              className="px-5 py-2.5 rounded-none bg-white text-black font-semibold text-xs tracking-wider hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] cursor-pointer"
             >
               SIGN IN
             </button>
@@ -204,10 +199,10 @@ export default function Navbar({
           {onOpenSupport && (
             <button
               onClick={onOpenSupport}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-none border border-white/10 bg-white/[0.02] hover:bg-white/[0.06] text-zinc-300 hover:text-white text-xs font-medium transition-all cursor-pointer"
               title="24/7 Telegram Customer Support"
             >
-              <MessageCircle className="w-3.5 h-3.5 text-[#F5E8D0]" />
+              <MessageCircle className="w-3.5 h-3.5 text-[#E4E4E7]" />
               <span className="hidden md:inline">Support</span>
             </button>
           )}
@@ -215,7 +210,7 @@ export default function Navbar({
           {/* Mobile Hamburger Button */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="md:hidden p-2.5 rounded-xl border border-white/10 text-zinc-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
+            className="md:hidden p-2.5 rounded-none border border-white/10 text-zinc-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
             aria-label="Open navigation menu"
           >
             <Menu className="w-5 h-5" />
@@ -243,19 +238,14 @@ export default function Navbar({
               className="flex items-center gap-3 cursor-pointer text-left"
             >
               <SmmUpLogo size={32} />
-              <div className="flex flex-col">
-                <span className="text-base font-light tracking-[0.2em] text-[#FAF7F2]">
-                  SMM UP
-                </span>
-                <span className="text-[9px] tracking-[0.2em] text-[#8E877B] uppercase font-mono">
-                  Wholesale Node
-                </span>
-              </div>
+              <span className="text-base font-light tracking-[0.3em] text-[#FAF9F7]">
+                SMM UP
+              </span>
             </button>
 
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="p-2.5 rounded-xl border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="p-2.5 rounded-none border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Close menu"
             >
               <X className="w-5 h-5" />
@@ -267,10 +257,10 @@ export default function Navbar({
             <div className="space-y-6">
               {/* User Operative Section OR Quick Friendly Auth Buttons */}
               {user ? (
-                <div className="p-4 rounded-2xl border border-white/10 bg-[#0E0D0B] space-y-3">
+                <div className="p-4 rounded-none border border-white/10 bg-[#0A0A0A] space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-[#F5E8D0]">
+                      <div className="w-9 h-9 rounded-none bg-white/[0.05] border border-white/10 flex items-center justify-center text-[#E4E4E7]">
                         <User className="w-4 h-4" />
                       </div>
                       <div>
@@ -287,7 +277,7 @@ export default function Navbar({
                       <span className="text-[9px] text-zinc-500 uppercase tracking-wider block">
                         Balance
                       </span>
-                      <span className="text-sm font-bold text-[#FFFDF9]">
+                      <span className="text-sm font-bold text-[#FFFFFF]">
                         {formatINR(user.balance)}
                       </span>
                     </div>
@@ -299,7 +289,7 @@ export default function Navbar({
                         setMobileMenuOpen(false);
                         onOpenWallet();
                       }}
-                      className="py-2.5 px-3 rounded-xl border border-[#F5E8D0]/30 bg-[#F5E8D0]/10 text-[#F5E8D0] font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="py-2.5 px-3 rounded-none border border-[#E4E4E7]/30 bg-[#E4E4E7]/10 text-[#E4E4E7] font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <ExecutiveWalletIcon size={14} />
                       <span>Deposit 0%</span>
@@ -310,7 +300,7 @@ export default function Navbar({
                         setMobileMenuOpen(false);
                         onOpenProfile();
                       }}
-                      className="py-2.5 px-3 rounded-xl border border-white/10 bg-white/[0.03] text-zinc-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="py-2.5 px-3 rounded-none border border-white/10 bg-white/[0.03] text-zinc-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Key className="w-3.5 h-3.5 text-zinc-400" />
                       <span>API Key</span>
@@ -318,7 +308,7 @@ export default function Navbar({
                   </div>
                 </div>
               ) : (
-                <div className="p-4 rounded-2xl border border-white/10 bg-[#0E0D0B] space-y-3">
+                <div className="p-4 rounded-none border border-white/10 bg-[#0A0A0A] space-y-3">
                   <span className="text-[10px] text-zinc-400 font-mono tracking-widest uppercase block text-center">
                     CLIENT ACCESS
                   </span>
@@ -328,7 +318,7 @@ export default function Navbar({
                         setMobileMenuOpen(false);
                         onOpenAuth();
                       }}
-                      className="py-3 px-4 rounded-xl bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(255,255,255,0.2)]"
+                      className="py-3 px-4 rounded-none bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all flex items-center justify-center cursor-pointer shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                     >
                       Sign In
                     </button>
@@ -338,7 +328,7 @@ export default function Navbar({
                         setMobileMenuOpen(false);
                         onOpenAuth();
                       }}
-                      className="py-3 px-4 rounded-xl border border-white/20 bg-white/[0.03] hover:bg-white/[0.08] text-white font-semibold tracking-wider text-xs uppercase transition-all flex items-center justify-center cursor-pointer"
+                      className="py-3 px-4 rounded-none border border-white/20 bg-white/[0.03] hover:bg-white/[0.08] text-white font-semibold tracking-wider text-xs uppercase transition-all flex items-center justify-center cursor-pointer"
                     >
                       Sign Up
                     </button>
@@ -359,7 +349,7 @@ export default function Navbar({
                         setMobileMenuOpen(false);
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
-                      className={`w-full py-4 px-4 rounded-xl text-xs font-semibold tracking-[0.16em] uppercase flex items-center justify-between border-b border-white/[0.04] transition-all cursor-pointer min-h-[48px] ${
+                      className={`w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center justify-between border-b border-white/[0.04] transition-all cursor-pointer min-h-[48px] ${
                         isActive
                           ? "bg-white text-black font-bold shadow-[0_0_15px_rgba(255,255,255,0.25)]"
                           : "text-zinc-300 hover:text-white hover:bg-white/[0.04]"
@@ -381,7 +371,7 @@ export default function Navbar({
                       setMobileMenuOpen(false);
                       onOpenTerms();
                     }}
-                    className="w-full py-4 px-4 rounded-xl text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-zinc-400 hover:text-white transition-all cursor-pointer min-h-[48px]"
+                    className="w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-zinc-400 hover:text-white transition-all cursor-pointer min-h-[48px]"
                   >
                     <FileText className="w-4 h-4 text-zinc-500" />
                     <span>Terms &amp; SLA Policy</span>
@@ -395,9 +385,9 @@ export default function Navbar({
                       setMobileMenuOpen(false);
                       onOpenSupport();
                     }}
-                    className="w-full py-4 px-4 rounded-xl text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-[#F5E8D0] hover:text-white transition-all cursor-pointer min-h-[48px]"
+                    className="w-full py-4 px-4 rounded-none text-xs font-semibold tracking-[0.16em] uppercase flex items-center gap-3 border-b border-white/[0.04] text-[#E4E4E7] hover:text-white transition-all cursor-pointer min-h-[48px]"
                   >
-                    <MessageCircle className="w-4 h-4 text-[#F5E8D0]" />
+                    <MessageCircle className="w-4 h-4 text-[#E4E4E7]" />
                     <span>Customer Support (Telegram)</span>
                   </button>
                 )}
@@ -412,7 +402,7 @@ export default function Navbar({
                     setMobileMenuOpen(false);
                     onLogout();
                   }}
-                  className="w-full py-3.5 rounded-xl border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 font-bold tracking-wider text-xs uppercase transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3.5 rounded-none border border-white/15 text-zinc-100 hover:bg-white/[0.06] font-bold tracking-wider text-xs uppercase transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Log Out</span>
