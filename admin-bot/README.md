@@ -27,6 +27,7 @@ A dedicated Telegram administrative bot and 24/7 background payment settlement w
 | `/orders [limit]` | View recent provider orders and their live execution status |
 | `/checkmemo <memo>` | Inspect the database record of any specific payment memo |
 | `/scan` | Trigger an immediate manual IMAP scan across Gmail inbox |
+| `/reviews [limit]` | List buyer-submitted reviews with owner-only inline **Hide / Show** controls |
 
 ---
 
@@ -44,7 +45,7 @@ A dedicated Telegram administrative bot and 24/7 background payment settlement w
 TELEGRAM_BOT_TOKEN="your_bot_token_from_botfather"
 TELEGRAM_OWNER_ID="your_numeric_telegram_user_id"
 MONGODB_URI="your_mongodb_connection_string"
-MONGODB_DB_NAME="smm_up"
+MONGODB_DB_NAME="smm_up_db"  # must match the website's DATABASE_NAME
 IMAP_USER="your_email@gmail.com"
 IMAP_PASSWORD="your_gmail_app_password"
 FAMPAY_SENDER_FILTER="no-reply@famapp.in"

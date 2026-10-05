@@ -47,6 +47,10 @@ export const PAGE_META: Record<string, PageMeta> = {
     title: "API Playground — Test Live Calls | SMM UP",
     description: "Test the SMM UP API right from your browser: balance, services, order status and more, with live JSON responses.",
   },
+  reviews: {
+    title: "Leave a Verified Buyer Review | SMM UP",
+    description: "Purchased from SMM UP? Sign in and share one verified, editable review. Only accounts with a valid past order can publish feedback.",
+  },
   account: {
     title: "My Account | SMM UP",
     description: "Manage your SMM UP account: profile details, API key generation and rotation, wallet balance, session security and sign-out.",

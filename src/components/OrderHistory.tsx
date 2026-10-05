@@ -14,6 +14,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { formatINR, formatNumber, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
+import { pathFor } from "../lib/routes";
 import { getPlatformInfo } from "./icons/PlatformIcons";
 
 interface Order {
@@ -182,6 +183,21 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
           Review real-time provisioning progress, automated refills, and delivery logs.
         </p>
       </div>
+
+      {/* Post-purchase nudge — any completed order unlocks a review */}
+      {orders.some((o) => /completed/i.test(o.status)) && (
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 border border-white/10 bg-white/[0.03]">
+          <span className="text-xs sm:text-sm text-zinc-300 font-light flex-1">
+            Orders completed — how did it go? Verified buyers can leave a public review.
+          </span>
+          <a
+            href={pathFor("reviews")}
+            className="text-xs font-mono tracking-[0.18em] uppercase text-white underline decoration-zinc-600 underline-offset-4 hover:decoration-white transition shrink-0"
+          >
+            Write a review
+          </a>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-6 p-4 rounded-none border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">

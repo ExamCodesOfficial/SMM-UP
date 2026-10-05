@@ -47,6 +47,9 @@ export async function getDb(): Promise<Db> {
       db.collection("orders").createIndex({ user_id: 1, created_at: -1 }),
       db.collection("transactions").createIndex({ user_id: 1, created_at: -1 }),
       db.collection("transactions").createIndex({ memo: 1 }, { sparse: true }),
+      db.collection("reviews").createIndex({ user_id: 1 }, { unique: true, sparse: true }),
+      db.collection("reviews").createIndex({ seed_key: 1 }, { unique: true, sparse: true }),
+      db.collection("reviews").createIndex({ status: 1, created_at: -1 }),
     ]).catch(() => {});
   }
 

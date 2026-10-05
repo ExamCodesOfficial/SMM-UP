@@ -36,19 +36,30 @@ const DEFAULT_HEADERS = {
   "Accept-Language": "en-US,en;q=0.9",
 };
 
-// Markup multipliers (Tier 1: < 20 INR -> 7.5x; Tier 2: >= 20 INR -> 2.0x)
-export const TIER1_MARKUP = parseFloat(process.env.TIER1_MARKUP || "7.5");
-export const TIER2_MARKUP = parseFloat(process.env.TIER2_MARKUP || "2.0");
+// Markup multipliers are private configuration, never source-controlled.
+// Retail prices are derived from these two env vars ONLY — deliberately no
+// in-source defaults, so the repo never discloses our margins. Both must be
+// set in every environment (Vercel → Project Settings → Environment Variables).
+const TIER1_RAW = process.env.TIER1_MARKUP;
+const TIER2_RAW = process.env.TIER2_MARKUP;
+if (!TIER1_RAW || !TIER2_RAW) {
+  throw new Error("TIER1_MARKUP and TIER2_MARKUP environment variables are required.");
+}
+export const TIER1_MARKUP = parseFloat(TIER1_RAW);
+export const TIER2_MARKUP = parseFloat(TIER2_RAW);
+if (isNaN(TIER1_MARKUP) || isNaN(TIER2_MARKUP)) {
+  throw new Error("TIER1_MARKUP and TIER2_MARKUP must be valid numbers.");
+}
 
 export function calculateRetailRate(wholesaleRate1k: number, t1 = TIER1_MARKUP, t2 = TIER2_MARKUP): number {
-  const wRate = Number(wholesaleRate1k) || 1.0;
-  if (wRate < 20.0) {
-    const retail = wRate * t1;
-    return Math.max(1.0, Math.round(retail * 100) / 100);
-  } else {
-    const retail = wRate * t2;
-    return Math.round(retail * 100) / 100;
+  const wRate = Number(wholesaleRate1k);
+  if (!Number.isFinite(wRate) || wRate <= 0) {
+    throw new Error("Wholesale rate must be a positive number.");
   }
+  const retail = wRate * (wRate < 20.0 ? t1 : t2);
+  // Rates are INR per 1,000. Keep the catalog truthful below ₹1; only guard
+  // against a zero-price SKU after two-decimal currency rounding.
+  return Math.max(0.01, Math.round(retail * 100) / 100);
 }
 
 export function calculateOrderTotal(wholesaleRate1k: number, quantity: number, t1 = TIER1_MARKUP, t2 = TIER2_MARKUP): { totalCharge: number; wholesaleCost: number; profit: number } {
@@ -228,9 +239,11 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
     throw new Error("Invalid provider response format");
   }
 
-  const sanitized: SMMService[] = data.map((s: any) => {
-    const wRate = parseFloat(s.rate) || 0;
-    const retailRate = calculateRetailRate(wRate);
+  const sanitized: SMMService[] = data
+    .filter((s: any) => Number.isFinite(parseFloat(s?.rate)) && parseFloat(s.rate) > 0)
+    .map((s: any) => {
+      const wRate = parseFloat(s.rate);
+      const retailRate = calculateRetailRate(wRate);
     const category = sanitizeBrandText(decodeHtmlEntities(String(s.category || "General")).trim());
     const name = sanitizeBrandText(decodeHtmlEntities(String(s.name || "Service")).trim());
     const description = cleanServiceDescription(s.description || s.desc);

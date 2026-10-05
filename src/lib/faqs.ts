@@ -62,6 +62,14 @@ export const FAQS: Faq[] = [
     a: "We deliver gradually from real-looking sources and never touch your login, which is the primary risk factor. That said, no third-party service can guarantee zero risk against a platform's own rules — keep your quantities sensible and your account will be fine.",
   },
   {
+    q: "Is using an SMM panel legal in India?",
+    a: "Buying social-media marketing services is not illegal in India. What it can conflict with is each social platform's own terms of service, so delivery speed and volumes matter. We keep starts gradual and sources compliant, but every account owner makes their own call — that's why we ship small-batch ordering and transparent refill terms instead of wild promises.",
+  },
+  {
+    q: "Are SMM panels legit? How do I choose a trustworthy one?",
+    a: "A legitimate panel shows the exact service, live rate, minimum quantity, refill window and support route before you pay. It should need only a public profile or post link — never your social password. Test a small order first, check whether delivery matches the listing, and avoid panels promising guaranteed platform verification or guaranteed monetization approval.",
+  },
+  {
     q: "Do prices change?",
     a: "Rates are wholesale and can move slightly with supply. The catalog, rate board and order form always show the current live rate — you're charged exactly what you saw when placing the order.",
   },
