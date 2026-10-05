@@ -16,6 +16,16 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
   const [loading, setLoading] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState("");
 
+  // Keyboard: Escape dismisses the modal
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,8 +60,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl">
-      <div className="relative w-full max-w-md border border-white/10 bg-[#0E0D0B] rounded-2xl shadow-[0_10px_50px_rgba(0,0,0,0.8)] p-6 sm:p-8">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-fadeIn"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="relative w-full max-w-md border border-white/10 bg-[#0E0D0B] rounded-2xl shadow-[0_10px_50px_rgba(0,0,0,0.8)] p-6 sm:p-8 animate-fadeInScale">
         {/* Close Button */}
         <button
           onClick={onClose}

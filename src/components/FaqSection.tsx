@@ -1,5 +1,6 @@
 import React from "react";
-import { ChevronDown, HelpCircle, ShieldCheck, Zap, RotateCcw, AlertTriangle, RefreshCw } from "lucide-react";
+import { ChevronDown, HelpCircle } from "lucide-react";
+import Reveal from "./Reveal";
 
 interface FAQ {
   id: string;
@@ -113,11 +114,13 @@ export default function FaqSection() {
       </div>
 
       {/* Accordion Container */}
-      <div className="border border-white/10 bg-[#0E0D0B]/80 backdrop-blur-xl rounded-2xl px-6 sm:px-8 py-2 divide-y divide-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
-        {FAQS.map((faq) => (
-          <FaqItem key={faq.id} faq={faq} />
-        ))}
-      </div>
+      <Reveal>
+        <div className="border border-white/10 bg-[#0E0D0B]/80 backdrop-blur-xl rounded-2xl px-6 sm:px-8 py-2 divide-y divide-white/[0.06] shadow-[0_4px_30px_rgba(0,0,0,0.5)]">
+          {FAQS.map((faq) => (
+            <FaqItem key={faq.id} faq={faq} />
+          ))}
+        </div>
+      </Reveal>
     </section>
   );
 }
