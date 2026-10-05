@@ -39,7 +39,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: "How do I add money to my wallet?",
-    a: "Open Wallet from the top bar or the bottom navigation. Enter the amount, pay the QR with any UPI app (GPay, PhonePe, Paytm), then submit the 12-digit UTR number from your payment receipt. The system verifies the UTR against bank credit alerts and credits your wallet automatically — usually within a few minutes, with 0% gateway fee.",
+    a: "Open Wallet, enter the amount, then choose a method. Direct UPI remains the 0% option: pay its QR or UPI intent and use the 12-digit UTR if automatic confirmation is delayed. Razorpay Secure Checkout is a separate option when activated; it creates and verifies its own provider order without using the Direct UPI or Paytm verification flow.",
   },
   {
     q: "What is a UTR number and where do I find it?",
@@ -47,7 +47,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: "Why is there 0% deposit fee? What's the catch?",
-    a: "No catch. Payment gateways charge 2–5% per transaction; instead of a gateway, deposits are confirmed directly against bank credit alerts using your UTR. So 100% of what you pay lands in your wallet, and the savings are real for every user.",
+    a: "The 0% promise applies to Direct UPI, which is confirmed through the existing UTR and bank-alert flow rather than Razorpay. Razorpay is a separate hosted-checkout choice; any payable amount and wallet credit are shown before you confirm. Direct UPI stays available if you prefer the 0% route.",
   },
   {
     q: "How fast do orders start?",
@@ -99,7 +99,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: "Which payment methods do you support?",
-    a: "UPI only — GPay, PhonePe, Paytm, BHIM and every UPI app work. Deposits clear automatically via UTR verification with 0% fee.",
+    a: "Direct UPI supports GPay, PhonePe, Paytm, BHIM and other UPI apps with a 0% deposit fee. Razorpay Secure Checkout is a distinct second option when activated and can show the payment methods enabled on our Razorpay account, such as UPI, cards, netbanking or wallets. Availability appears inside Checkout.",
   },
   {
     q: "How do I contact support?",

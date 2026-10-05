@@ -9,13 +9,14 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  ExternalLink,
   History,
   Lock,
   ArrowLeft,
-  Sparkles,
   Clock,
   MessageCircle,
+  CreditCard,
+  ChevronRight,
+  Loader2,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { formatINR } from "../lib/utils";
@@ -30,6 +31,52 @@ interface AddFundsModalProps {
 
 const PRESET_AMOUNTS = [50, 100, 250, 500, 1000, 2500];
 
+interface RazorpayCheckoutInstance {
+  open: () => void;
+  on: (event: string, handler: (response: any) => void) => void;
+}
+
+interface RazorpayConstructor {
+  new (options: Record<string, any>): RazorpayCheckoutInstance;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: RazorpayConstructor;
+  }
+}
+
+let razorpayScriptPromise: Promise<void> | null = null;
+
+function loadRazorpayCheckout(): Promise<void> {
+  if (window.Razorpay) return Promise.resolve();
+  if (razorpayScriptPromise) return razorpayScriptPromise;
+
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
+    );
+    const script = existing || document.createElement("script");
+    const onLoad = () => window.Razorpay
+      ? resolve()
+      : reject(new Error("Razorpay Checkout did not initialize."));
+    const onError = () => {
+      razorpayScriptPromise = null;
+      reject(new Error("Unable to load Razorpay Checkout."));
+    };
+
+    script.addEventListener("load", onLoad, { once: true });
+    script.addEventListener("error", onError, { once: true });
+    if (!existing) {
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      document.head.appendChild(script);
+    }
+  });
+
+  return razorpayScriptPromise;
+}
+
 export default function AddFundsModal({
   isOpen,
   onClose,
@@ -38,8 +85,19 @@ export default function AddFundsModal({
   onOpenSupport,
 }: AddFundsModalProps) {
   const [amount, setAmount] = React.useState<number | string>(250);
-  const [activeStep, setActiveStep] = React.useState<"select" | "pay">("select");
+  const [activeStep, setActiveStep] = React.useState<"select" | "method" | "upi-pay">("select");
   const [loading, setLoading] = React.useState(false);
+  const [razorpayLoading, setRazorpayLoading] = React.useState(false);
+  const [razorpayVerifying, setRazorpayVerifying] = React.useState(false);
+  const [razorpayError, setRazorpayError] = React.useState("");
+  const [razorpaySuccess, setRazorpaySuccess] = React.useState("");
+  const [razorpayConfig, setRazorpayConfig] = React.useState<{
+    loaded: boolean;
+    enabled: boolean;
+    mode: "test" | "live";
+    testWalletCreditEnabled: boolean;
+    message?: string;
+  }>({ loaded: false, enabled: false, mode: "test", testWalletCreditEnabled: false });
   const [qrData, setQrData] = React.useState<{
     qrUrl: string;
     upiUrl: string;
@@ -67,11 +125,16 @@ export default function AddFundsModal({
   React.useEffect(() => {
     if (isOpen) {
       loadHistory();
+      loadRazorpayConfig();
     } else {
       stopPolling();
       setActiveStep("select");
       setVerifyError("");
       setVerifySuccess("");
+      setRazorpayError("");
+      setRazorpaySuccess("");
+      setRazorpayLoading(false);
+      setRazorpayVerifying(false);
       setUtrNumber("");
       setElapsedSeconds(0);
     }
@@ -92,7 +155,7 @@ export default function AddFundsModal({
 
   // Start live polling loop when QR is presented
   React.useEffect(() => {
-    if (activeStep === "pay" && qrData?.memo && !verifySuccess) {
+    if (activeStep === "upi-pay" && qrData?.memo && !verifySuccess) {
       setElapsedSeconds(0);
 
       // 1. Elapsed timer tick every second
@@ -133,6 +196,29 @@ export default function AddFundsModal({
     }
   }, [activeStep, qrData?.memo, verifySuccess]);
 
+  const loadRazorpayConfig = async () => {
+    setRazorpayConfig((current) => ({ ...current, loaded: false }));
+    try {
+      const res = await fetch("/api/razorpay/config", { cache: "no-store" });
+      const data = await res.json();
+      setRazorpayConfig({
+        loaded: true,
+        enabled: Boolean(res.ok && data.enabled),
+        mode: data.mode === "live" ? "live" : "test",
+        testWalletCreditEnabled: Boolean(data.testWalletCreditEnabled),
+        message: data.message || data.error,
+      });
+    } catch {
+      setRazorpayConfig({
+        loaded: true,
+        enabled: false,
+        mode: "test",
+        testWalletCreditEnabled: false,
+        message: "Razorpay availability could not be checked.",
+      });
+    }
+  };
+
   const loadHistory = async () => {
     setLoadingHistory(true);
     try {
@@ -147,10 +233,28 @@ export default function AddFundsModal({
 
   if (!isOpen) return null;
 
+  const getValidAmount = (): number | null => {
+    const num = Number(amount);
+    if (!Number.isFinite(num) || num < 10 || Math.abs(num * 100 - Math.round(num * 100)) > 0.0001) {
+      return null;
+    }
+    return num;
+  };
+
+  const handleContinueToMethod = () => {
+    if (getValidAmount() === null) {
+      alert("Enter a valid deposit amount of at least ₹10 with no more than 2 decimal places.");
+      return;
+    }
+    setRazorpayError("");
+    setRazorpaySuccess("");
+    setActiveStep("method");
+  };
+
   const handleGenerateQR = async () => {
-    const num = parseFloat(String(amount));
-    if (isNaN(num) || num < 10) {
-      alert("Minimum deposit is ₹10.00");
+    const num = getValidAmount();
+    if (num === null) {
+      alert("Enter a valid deposit amount of at least ₹10 with no more than 2 decimal places.");
       return;
     }
 
@@ -167,7 +271,7 @@ export default function AddFundsModal({
       const data = await res.json();
       if (res.ok && data.success) {
         setQrData(data);
-        setActiveStep("pay");
+        setActiveStep("upi-pay");
       } else {
         alert(data.error || "Failed to generate payment QR");
       }
@@ -175,6 +279,137 @@ export default function AddFundsModal({
       alert("Network error. Try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyRazorpayResult = (data: any) => {
+    setRazorpayVerifying(false);
+    setRazorpayError("");
+    setRazorpaySuccess(data.message || "Razorpay payment verified successfully.");
+    confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+    if (data.walletCredited && data.newBalance !== undefined) {
+      onDepositSuccess(data.newBalance);
+    }
+    loadHistory();
+  };
+
+  const pollRazorpayStatus = async (internalTransactionId: string) => {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const res = await fetch(
+        `/api/razorpay/status?transactionId=${encodeURIComponent(internalTransactionId)}`,
+        { cache: "no-store" },
+      );
+      const data = await res.json();
+      if (res.ok && (data.status === "paid" || data.status === "test_paid")) {
+        applyRazorpayResult(data);
+        return;
+      }
+      if (!res.ok && res.status !== 409) {
+        throw new Error(data.error || "Unable to confirm Razorpay payment.");
+      }
+    }
+    throw new Error(
+      "Razorpay is still confirming the payment. It will be reconciled automatically; check Recent Deposits shortly.",
+    );
+  };
+
+  const handleRazorpayPayment = async () => {
+    const num = getValidAmount();
+    if (num === null) {
+      setRazorpayError("Enter a valid deposit amount of at least ₹10.");
+      return;
+    }
+    if (!razorpayConfig.enabled) {
+      setRazorpayError(razorpayConfig.message || "Razorpay Checkout is awaiting activation.");
+      return;
+    }
+
+    setRazorpayLoading(true);
+    setRazorpayError("");
+    setRazorpaySuccess("");
+    try {
+      await loadRazorpayCheckout();
+      const orderRes = await fetch("/api/razorpay/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: num }),
+      });
+      const order = await orderRes.json();
+      if (!orderRes.ok || !order.success) {
+        throw new Error(order.error || "Unable to create Razorpay order.");
+      }
+      if (!window.Razorpay) throw new Error("Razorpay Checkout is unavailable.");
+
+      const checkout = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amountPaise,
+        currency: order.currency,
+        name: "SMM UP",
+        description: `Wallet top-up • ${formatINR(order.amount)}`,
+        image: "https://smmup.co.in/favicon.svg",
+        order_id: order.orderId,
+        prefill: order.prefill,
+        notes: {
+          transaction: order.internalTransactionId,
+        },
+        theme: {
+          color: "#090909",
+          backdrop_color: "rgba(0, 0, 0, 0.88)",
+        },
+        modal: {
+          escape: true,
+          backdropclose: false,
+          confirm_close: true,
+          ondismiss: () => {
+            setRazorpayLoading(false);
+            setRazorpayVerifying(false);
+          },
+        },
+        handler: async (response: any) => {
+          setRazorpayVerifying(true);
+          setRazorpayError("");
+          try {
+            const verifyRes = await fetch("/api/razorpay/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                internalTransactionId: order.internalTransactionId,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              }),
+            });
+            const verified = await verifyRes.json();
+            if (verifyRes.ok && verifyRes.status !== 202) {
+              applyRazorpayResult(verified);
+            } else if (verifyRes.status === 202) {
+              await pollRazorpayStatus(order.internalTransactionId);
+            } else {
+              throw new Error(verified.error || "Razorpay verification failed.");
+            }
+          } catch (error: any) {
+            setRazorpayVerifying(false);
+            setRazorpayError(
+              error?.message || "Payment confirmation is delayed. Check Recent Deposits shortly.",
+            );
+          }
+        },
+      });
+
+      checkout.on("payment.failed", (response: any) => {
+        setRazorpayVerifying(false);
+        setRazorpayError(
+          response?.error?.description
+            ? `Payment was not completed: ${response.error.description}`
+            : "Payment was not completed. No wallet balance was added.",
+        );
+      });
+      checkout.open();
+    } catch (error: any) {
+      setRazorpayError(error?.message || "Unable to open Razorpay Checkout.");
+    } finally {
+      setRazorpayLoading(false);
     }
   };
 
@@ -248,7 +483,7 @@ export default function AddFundsModal({
                 Deposit Funds
               </h2>
               <p className="text-xs text-zinc-400">
-                Direct UPI Instant Clearing &bull; 0% Processing Fees
+                Direct UPI or Razorpay Secure Checkout
               </p>
             </div>
           </div>
@@ -295,6 +530,7 @@ export default function AddFundsModal({
                 <input
                   type="number"
                   min="10"
+                  step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="Or enter custom INR amount"
@@ -303,29 +539,143 @@ export default function AddFundsModal({
               </div>
             </div>
 
-            {/* Fee Guarantee */}
-            <div className="p-4 rounded-none border border-white/[0.06] bg-black/40 space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-zinc-400">Gateway Surcharge:</span>
-                <span className="text-[#E4E4E7] font-bold">0.00% FREE</span>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3.5 border border-white/[0.08] bg-black/40">
+                <span className="text-zinc-500 block mb-1">Direct UPI</span>
+                <span className="text-white font-semibold">0% deposit fee</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-zinc-400">Settlement Speed:</span>
-                <span className="text-white font-medium">Auto-Detection (~15–30 sec)</span>
+              <div className="p-3.5 border border-white/[0.08] bg-black/40">
+                <span className="text-zinc-500 block mb-1">Razorpay</span>
+                <span className="text-white font-semibold">Secure Checkout</span>
               </div>
             </div>
 
             <button
-              onClick={handleGenerateQR}
-              disabled={loading}
-              className="w-full py-3.5 px-6 rounded-none bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              onClick={handleContinueToMethod}
+              className="w-full py-3.5 px-6 rounded-none bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2 cursor-pointer"
             >
-              <QrCode className="w-4 h-4" />
-              <span>{loading ? "Generating Dynamic QR..." : "Proceed to Payment QR"}</span>
+              <span>Choose Payment Method</span>
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+        ) : activeStep === "method" ? (
+          /* Step 2: Choose an entirely separate payment rail */
+          <div className="space-y-5">
+            <div className="flex items-center justify-between gap-4 p-4 border border-white/[0.08] bg-black/40">
+              <div>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 block mb-1">Deposit amount</span>
+                <span className="text-xl font-bold text-white">{formatINR(Number(amount))}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveStep("select")}
+                className="text-xs text-zinc-400 hover:text-white underline underline-offset-4 cursor-pointer"
+              >
+                Change amount
+              </button>
+            </div>
+
+            <div>
+              <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300 block mb-3">
+                Choose Payment Method
+              </span>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={handleGenerateQR}
+                  disabled={loading || razorpayVerifying}
+                  className="w-full p-4 border border-white/12 bg-white/[0.025] hover:bg-white/[0.06] hover:border-white/25 transition-all text-left cursor-pointer disabled:opacity-50 group"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-11 h-11 border border-white/10 bg-black flex items-center justify-center shrink-0">
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <QrCode className="w-5 h-5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-bold text-white">Direct UPI</span>
+                        <span className="text-[9px] font-mono tracking-wider text-zinc-200 border border-white/15 px-2 py-1">0% FEE</span>
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                        Dedicated QR and UPI intent for GPay, PhonePe, Paytm and other UPI apps. Confirmed through the existing UTR system.
+                      </p>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-white mt-3 shrink-0" />
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRazorpayPayment}
+                  disabled={!razorpayConfig.loaded || !razorpayConfig.enabled || razorpayLoading || razorpayVerifying}
+                  className="w-full p-4 border border-white/12 bg-white/[0.025] hover:bg-white/[0.06] hover:border-white/25 transition-all text-left cursor-pointer disabled:cursor-not-allowed disabled:opacity-55 group"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-11 h-11 border border-white/10 bg-black flex items-center justify-center shrink-0">
+                      {razorpayLoading || razorpayVerifying
+                        ? <Loader2 className="w-5 h-5 animate-spin" />
+                        : <CreditCard className="w-5 h-5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-white">Razorpay Secure Checkout</span>
+                        <span className="text-[9px] font-mono tracking-wider text-zinc-200 border border-white/15 px-2 py-1">
+                          {!razorpayConfig.loaded
+                            ? "CHECKING"
+                            : !razorpayConfig.enabled
+                              ? "AWAITING ACTIVATION"
+                              : razorpayConfig.mode === "test"
+                                ? "TEST MODE"
+                                : "AVAILABLE"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                        A separate Razorpay-hosted payment flow for enabled UPI, cards, netbanking and wallet methods. Card and banking credentials never enter SMM UP.
+                      </p>
+                      {razorpayConfig.loaded && !razorpayConfig.enabled && (
+                        <p className="text-[10px] text-zinc-500 mt-2">
+                          UI is ready. Checkout activates automatically after the Razorpay keys and webhook are configured.
+                        </p>
+                      )}
+                      {razorpayConfig.enabled && razorpayConfig.mode === "test" && (
+                        <p className="text-[10px] text-zinc-400 mt-2">
+                          {razorpayConfig.testWalletCreditEnabled
+                            ? "Isolated staging credit is enabled for this Test Mode environment."
+                            : "Test Mode is simulated and will not add spendable wallet balance."}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-white mt-3 shrink-0" />
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {razorpayVerifying && (
+              <div className="p-3.5 border border-white/12 bg-white/[0.04] text-xs text-zinc-300 flex items-center gap-3">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                <span>Verifying Razorpay signature, captured amount and wallet settlement…</span>
+              </div>
+            )}
+            {razorpayError && (
+              <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{razorpayError}</span>
+              </div>
+            )}
+            {razorpaySuccess && (
+              <div className="p-3.5 border border-white/15 bg-white/[0.06] text-xs text-zinc-100 flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{razorpaySuccess}</span>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 text-[10px] leading-relaxed text-zinc-500">
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+              <span>Both methods create separate payment records. Razorpay confirmation never depends on the Direct UPI or Paytm verification flow.</span>
+            </div>
+          </div>
         ) : (
-          /* Step 2: Pay & Auto-Detect / Manual Submit */
+          /* Step 3: Direct UPI Pay & Auto-Detect / Manual Submit */
           <div className="space-y-6">
             {qrData && (
               <div className="flex flex-col items-center justify-center p-5 rounded-none border border-white/10 bg-white/[0.015] text-center">
@@ -476,7 +826,7 @@ export default function AddFundsModal({
                   type="button"
                   onClick={() => {
                     stopPolling();
-                    setActiveStep("select");
+                    setActiveStep("method");
                     setVerifyError("");
                     setVerifySuccess("");
                     setElapsedSeconds(0);
@@ -531,11 +881,17 @@ export default function AddFundsModal({
                       {formatINR(t.amount)}
                     </span>
                     <span className="text-[10px] text-zinc-500">
-                      Ref: {t.utr || t.transactionId || t.memo || "Direct"} &bull; {new Date(t.createdAt || t.created_at || Date.now()).toLocaleDateString()}
+                      {t.method === "RAZORPAY" ? "Razorpay" : "Direct UPI"} &bull; Ref: {t.utr || t.transactionId || t.memo || "—"} &bull; {new Date(t.createdAt || t.created_at || Date.now()).toLocaleDateString()}
                     </span>
                   </div>
                   <span className="text-[10px] text-zinc-100 font-semibold bg-white/[0.06] px-2 py-0.5 rounded-full">
-                    {t.status === "paid" ? "Completed" : t.status || "Completed"}
+                    {t.status === "paid"
+                      ? "Completed"
+                      : t.status === "test_paid"
+                        ? "Test verified"
+                        : t.status === "creating" || t.status === "processing" || t.status === "authorized"
+                          ? "Pending"
+                          : t.status || "Pending"}
                   </span>
                 </div>
               ))}

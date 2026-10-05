@@ -76,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const users = db.collection("users");
       const debitResult: any = await users.findOneAndUpdate(
-        { _id: userObjectId, balance: { $gte: totalCharge } },
+        { _id: userObjectId, balance: { $gte: totalCharge }, payment_hold: { $ne: true } },
         {
           $inc: {
             balance: -totalCharge,
@@ -88,6 +88,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
 
       if (!debitResult) {
+        const currentUser = await users.findOne(
+          { _id: userObjectId },
+          { projection: { payment_hold: 1 } },
+        );
+        if (currentUser?.payment_hold) {
+          return res.status(403).json({
+            error: "Ordering is temporarily paused while a payment refund or dispute is reviewed. Please contact support.",
+          });
+        }
         return res.status(400).json({
           error: "Insufficient funds. Please add money to your wallet.",
           required: totalCharge,

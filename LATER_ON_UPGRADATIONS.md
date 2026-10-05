@@ -173,20 +173,22 @@ Update the exact pending transaction by `_id`. Do not update an arbitrary pendin
 
 ### 3.6 Razorpay relationship
 
-Razorpay will become a later second payment method, but both methods must produce the same internal wallet ledger outcome. The payment source changes; wallet integrity rules do not.
+Razorpay is now implemented as a separate second payment method. Its wallet settlement is transactional and idempotent. The existing Direct UPI flow remains independent and still needs the additional hardening described in sections 3.3–3.5.
 
 ---
 
-## 4. Future two-method payment UI
+## 4. Razorpay activation and post-launch validation
+
+> Implementation status (October 5, 2026): the two-method UI, dedicated Razorpay API, raw-body webhook, captured-payment verification, test-mode safety and wallet settlement are implemented. Account approval, credentials, deployed Checkout validation and real payment testing remain pending.
 
 ### 4.1 Payment methods
 
-The Add Funds experience will later offer:
+The Add Funds experience now offers:
 
 1. **Direct UPI / existing verification method**
 2. **Razorpay Checkout**
 
-### 4.2 Proposed UI
+### 4.2 Implemented UI
 
 ```text
 Choose payment method
@@ -206,7 +208,7 @@ After a method is selected, show only that method's form and instructions. The u
 
 ### 4.3 Razorpay does not eliminate every failure state
 
-Razorpay greatly improves automated payment confirmation, but the website must still handle:
+Razorpay greatly improves automated payment confirmation. The implementation covers these states, and staging must validate each one before Live Mode:
 
 - customer closes checkout;
 - payment fails;
@@ -218,9 +220,9 @@ Razorpay greatly improves automated payment confirmation, but the website must s
 - successful payment response reaches the browser before webhook;
 - webhook reaches server before browser returns.
 
-### 4.4 Razorpay backend design
+### 4.4 Implemented Razorpay backend baseline
 
-Later implementation should include:
+The current implementation includes:
 
 - server-side Razorpay order creation;
 - authenticated user and exact internal pending transaction;
@@ -236,9 +238,9 @@ Later implementation should include:
 - webhook retry tolerance;
 - no card data stored by SMM UP.
 
-### 4.5 Razorpay secrets
+### 4.5 Razorpay activation secrets
 
-Future environment variables may include:
+Activation requires these server-side environment variables:
 
 ```env
 RAZORPAY_KEY_ID=
@@ -248,9 +250,9 @@ RAZORPAY_WEBHOOK_SECRET=
 
 Secrets remain server-side. Only the publishable key ID may be sent to Checkout where Razorpay requires it.
 
-### 4.6 Function-count consideration
+### 4.6 Function-count and launch validation
 
-Razorpay should use existing payment routing where practical. A dedicated webhook endpoint is acceptable after the shared-library move reduces Vercel's function count, but it must be designed for raw-body signature verification.
+Razorpay intentionally uses two dedicated Vercel functions: authenticated actions at `/api/razorpay/[action]` and an unauthenticated, HMAC-protected raw-body webhook at `/api/razorpay-webhook`. This separation prevents Razorpay from being coupled to Direct UPI/Paytm. Before Live Mode, validate the resulting function count/plan limits and observe the deployed browser's CSP console so only required Razorpay origins remain allowlisted.
 
 ---
 
