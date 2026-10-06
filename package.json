@@ -7,9 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
     "test:api-keys": "tsx tests/apiKeys.integration.ts",
     "test:recovery": "tsx tests/recovery.integration.ts",
     "test:support-access": "tsx tests/supportAccess.integration.ts",
+    "test:rate-limit": "tsx tests/rateLimit.integration.ts",
+    "test:direct-upi": "tsx tests/directUpiSettlement.integration.ts",
+    "test:email-delivery": "tsx tests/emailDelivery.integration.ts",
+    "test:email-auth": "tsx tests/emailAuthFlows.integration.ts",
+    "test:core-indexes": "tsx tests/coreIndexes.integration.ts",
     "test:search-appearance": "node tests/searchAppearance.mjs"
   },
   "dependencies": {

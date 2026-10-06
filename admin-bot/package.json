@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx bot.ts",
-    "dev": "tsx watch bot.ts"
+    "dev": "tsx watch bot.ts",
+    "test:admin-actions": "tsx tests/adminActions.integration.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.13.1",
+    "mongodb-memory-server-core": "^10.4.3",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }

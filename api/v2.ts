@@ -128,7 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     // Rate limit per API-key identity so one leaked key cannot affect sibling keys
-    const rl = checkRateLimit(`v2_${apiAuth.key._id.toString()}`, 120, 60);
+    const rl = await checkRateLimit(`v2_${apiAuth.key._id.toString()}`, 120, 60, db);
     if (!rl.allowed) {
       return respond(429, { error: `Rate limit exceeded. Retry in ${rl.remainingSec}s.` });
     }

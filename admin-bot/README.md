@@ -16,21 +16,29 @@ A dedicated Telegram administrative bot and 24/7 background payment settlement w
 
 ## ⚡ Bot Commands
 
+The inline main menu is the preferred entry point. Sensitive mutations rebuild current state at confirmation time and require an actor-bound, one-time confirmation that expires after five minutes.
+
 | Command | Description |
 | :--- | :--- |
-| `/stats` | View live platform metrics: registered users, balances, order count, revenue |
-| `/user <email>` | Inspect a full user profile and open inline active-session, revoke-all and Support Access controls |
-| `/resetpassword <email> <auto-or-custom> \| <reason>` | Create a five-minute confirmed, hash-only temporary credential and revoke sessions |
-| `/supportaccess <email> \| <reason>` | Issue an 80-bit hash-only code: five-minute one-time exchange, then 15-minute read-only website access |
-| `/credit <email> <amount> [reason]` | Atomically credit a user's wallet balance with an audit log |
-| `/debit <email> <amount> [reason]` | Atomically debit balance (safeguarded against negative balances) |
-| `/failed` | View failed orders requiring manual administrative review |
-| `/refund <orderId> [reason]` | Manually refund debited order funds directly to user's wallet |
-| `/pending` | List the last 10 pending deposits awaiting settlement |
-| `/orders [limit]` | View recent provider orders and their live execution status |
-| `/checkmemo <memo>` | Inspect the database record of any specific payment memo |
-| `/scan` | Trigger an immediate manual IMAP scan across Gmail inbox |
-| `/reviews [limit]` | List buyer-submitted reviews with owner-only inline **Hide / Show** controls |
+| `/stats` | View live platform metrics and worker health |
+| `/user <email>` | Inspect full user/account state and open inline security controls |
+| `/userorders <email> [limit]` | Inspect a user’s recent orders and targets |
+| `/deposits <email> [limit]` | Inspect Direct UPI/Razorpay deposit records |
+| `/wallet <email> [limit]` | Inspect wallet-ledger records |
+| `/events <email> [limit]` | Inspect bounded security events |
+| `/note <email> \| <reason>` | Add an owner-only administrative note |
+| `/credit <email> <amount> \| <reason>` | Queue a transactional wallet credit |
+| `/debit <email> <amount> \| <reason>` | Queue a transactional, non-negative wallet debit |
+| `/refund <orderId> \| <reason>` | Queue an idempotent full order refund |
+| `/lock`, `/unlock`, `/orderinghold`, `/orderingrelease` | Queue account/order controls with a mandatory reason |
+| `/paymenthold`, `/paymentrelease` | Queue deposit controls with a mandatory reason |
+| `/apikeys <email>` | Inspect key metadata; pause/resume/archive/reissue without revealing secrets |
+| `/resetpassword <email> <auto-or-custom> \| <reason>` | Queue a five-minute protected temporary-credential reset and revoke sessions |
+| `/supportaccess <email> \| <reason>` | Issue a hash-only five-minute Support Access exchange code |
+| `/sessions <email>` | Inspect/revoke revocable website sessions |
+| `/orders [limit]`, `/failed`, `/pending`, `/checkmemo <memo>` | Inspect platform operations |
+| `/scan` | Trigger an owner-requested IMAP scan (the normal worker remains lease-protected) |
+| `/reviews [limit]` | Moderate purchase-verified reviews with inline Hide/Show controls |
 
 ---
 
@@ -47,6 +55,7 @@ A dedicated Telegram administrative bot and 24/7 background payment settlement w
 ```env
 TELEGRAM_BOT_TOKEN="your_bot_token_from_botfather"
 TELEGRAM_OWNER_ID="your_numeric_telegram_user_id"
+ADMIN_BOT_STATE_SECRET="at_least_32_random_characters"
 MONGODB_URI="your_mongodb_connection_string"
 MONGODB_DB_NAME="smm_up_db"  # must match the website's DATABASE_NAME
 IMAP_USER="your_email@gmail.com"

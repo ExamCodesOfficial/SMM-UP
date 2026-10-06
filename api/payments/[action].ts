@@ -1,9 +1,10 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import crypto from "crypto";
 import { ObjectId } from "mongodb";
-import { getDb } from "../../server/lib/db.js";
+import { getDb, getMongoClient } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
+import { settleDirectUpiPayment } from "../../server/lib/directUpiSettlement.js";
 import { searchFamPayPayment } from "../../server/lib/imap.js";
 import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../../server/lib/telegram.js";
 
@@ -30,15 +31,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   if (denySupportMutation(authUser, res, action === "history" && req.method === "GET")) return;
   const userObjectId = new ObjectId(authUser.userId);
+  if (["create-order", "verify-identifier", "verify-utr"].includes(String(action))) {
+    const hold = await db.collection("users").findOne(
+      { _id: userObjectId },
+      { projection: { payment_hold: 1 } },
+    );
+    if (hold?.payment_hold) {
+      return res.status(403).json({ error: "Deposits are temporarily paused on this account. Please contact support." });
+    }
+  }
 
   // ── 1. CREATE PAYMENT ORDER (DYNAMIC QR WITH SUP + 5-CHAR ALPHANUMERIC MEMO) ──
   if (action === "create-order") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const createRate = await checkRateLimit(`payment_create_${authUser.userId}`, 8, 300, db);
+    if (!createRate.allowed) return res.status(429).json({ error: `Too many payment requests. Try again in ${createRate.remainingSec}s.` });
     const { amount } = req.body || {};
     const numAmount = parseFloat(amount);
 
-    if (isNaN(numAmount) || numAmount < 10) {
-      return res.status(400).json({ error: "Minimum deposit is ₹10.00 INR" });
+    const maxDirectUpiAmount = Math.max(10, Math.min(Number(process.env.DIRECT_UPI_MAX_AMOUNT_INR || 100_000), 1_000_000));
+    if (!Number.isFinite(numAmount) || numAmount < 10 || numAmount > maxDirectUpiAmount || Math.abs(numAmount - Math.round(numAmount * 100) / 100) > 0.000001) {
+      return res.status(400).json({ error: `Deposit amount must be between ₹10 and ₹${maxDirectUpiAmount.toLocaleString("en-IN")} with at most two decimals.` });
     }
 
     const upiVpa = process.env.UPI_VPA;
@@ -59,6 +72,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=15&data=${encodeURIComponent(upiUrl)}`;
 
     try {
+      const pendingTtlMinutes = Math.max(5, Math.min(Number.parseInt(String(process.env.DIRECT_UPI_PENDING_TTL_MINUTES || "30"), 10) || 30, 180));
+      const createdAt = new Date();
       const newTx = {
         user_id: userObjectId,
         user_email: authUser.email,
@@ -68,7 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         memo: memo,
         status: "pending",
         delay_alert_sent: false,
-        created_at: new Date(),
+        created_at: createdAt,
+        expires_at: new Date(createdAt.getTime() + pendingTtlMinutes * 60_000),
       };
 
       const insertRes = await db.collection("transactions").insertOne(newTx);
@@ -127,6 +143,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
+      if (tx.status === "expired" || (tx.expires_at && new Date(tx.expires_at) <= new Date())) {
+        if (tx.status === "pending") {
+          await db.collection("transactions").updateOne(
+            { _id: tx._id, status: "pending" },
+            { $set: { status: "expired", expired_at: new Date() } },
+          );
+        }
+        return res.status(200).json({ status: "expired", message: "This payment request expired. Generate a fresh QR." });
+      }
+
       // Calculate elapsed waiting time
       const createdAt = new Date(tx.created_at).getTime();
       const elapsedSeconds = Math.max(0, (Date.now() - createdAt) / 1000);
@@ -165,14 +191,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Rate limit: max 5 verification attempts per 3 minutes (cooldown guard)
     const rateLimitKey = `payment_verify_${authUser.userId}`;
-    const { allowed, remainingSec } = checkRateLimit(rateLimitKey, 5, 180);
+    const { allowed, remainingSec } = await checkRateLimit(rateLimitKey, 5, 180, db);
     if (!allowed) {
       return res.status(429).json({
         error: `Too many verification requests. Please wait ${remainingSec} seconds before submitting again.`,
       });
     }
 
-    const { identifier, utr, amount } = req.body || {};
+    const { identifier, utr, amount, transactionId, memo } = req.body || {};
+    const pendingTransactionId = String(transactionId || "").trim();
+    const expectedMemo = String(memo || "").trim().toUpperCase();
     const rawInput = String(identifier || utr || "").trim();
     // Sanitize strictly to alphanumeric characters
     const cleanInput = rawInput.replace(/[^A-Za-z0-9]/g, "");
@@ -188,133 +216,88 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Invalid deposit amount specified." });
     }
 
+    if (!ObjectId.isValid(pendingTransactionId)) {
+      return res.status(400).json({ error: "The pending deposit reference is missing or invalid. Please create a fresh payment request." });
+    }
+
     try {
-      // Direct UPI verification must never bind to a separate Razorpay order.
-      const pendingDeposit = await db.collection("transactions").findOne(
-        {
-          user_id: userObjectId,
-          method: "FAMPAY_UPI",
-          amount: requestedAmount,
-          status: "pending",
-        },
-        { sort: { created_at: -1 } },
-      );
+      const pendingId = new ObjectId(pendingTransactionId);
+      const pendingDeposit = await db.collection("transactions").findOne({
+        _id: pendingId,
+        user_id: userObjectId,
+        method: "FAMPAY_UPI",
+        amount: requestedAmount,
+        status: "pending",
+        expires_at: { $gt: new Date() },
+      });
       if (!pendingDeposit) {
         return res.status(400).json({
-          error: "No matching pending Direct UPI deposit was found. Generate its QR before submitting a UTR.",
+          error: "This exact pending Direct UPI deposit is missing, expired, or already settled. Please generate a fresh QR.",
         });
       }
-
-      // Check Anti-Replay in MongoDB
-      const alreadyProcessed = await db.collection("processed_transactions").findOne({
-        $or: [
-          { utr: cleanInput },
-          { transaction_id: cleanInput },
-          { memo: cleanInput.toUpperCase() },
-        ],
-      });
-
-      if (alreadyProcessed) {
-        return res.status(400).json({
-          error: "This Transaction ID / UTR has already been claimed and credited.",
-        });
+      const storedMemo = String(pendingDeposit.memo || "").trim().toUpperCase();
+      if (!expectedMemo || expectedMemo !== storedMemo) {
+        return res.status(400).json({ error: "The payment memo does not match this pending deposit." });
       }
 
-      // Search Gmail Inbox via Hardened IMAP
       const parsedPayment = await searchFamPayPayment({
         identifier: cleanInput,
         expectedAmount: requestedAmount,
       });
-
       if (!parsedPayment) {
         return res.status(404).json({
-          error:
-            "Record not found in bank records yet. If you completed payment within the last 60 seconds, please wait 15–30 seconds and retry.",
+          error: "Record not found in bank records yet. If you just paid, wait 15–30 seconds and retry.",
         });
       }
-
-      // Verify Amount
-      if (Math.abs(parsedPayment.amount - requestedAmount) > 0.05) {
+      if (Math.round(parsedPayment.amount * 100) !== Math.round(requestedAmount * 100)) {
         return res.status(400).json({
           error: `Amount mismatch: Receipt indicates ₹${parsedPayment.amount.toFixed(2)}, but ₹${requestedAmount.toFixed(2)} was selected. Contact support with proof.`,
         });
       }
+      if (!parsedPayment.purpose) {
+        await db.collection("payment_reconciliation").updateOne(
+          { memo: storedMemo, status: "open", reason: "receipt_memo_missing" },
+          {
+            $set: { pending_transaction_id: pendingId, user_id: userObjectId, identifier: cleanInput, last_seen_at: new Date() },
+            $inc: { attempts: 1 },
+            $setOnInsert: { created_at: new Date(), status: "open" },
+          },
+          { upsert: true },
+        );
+        return res.status(409).json({ error: "The bank receipt did not include the exact payment memo, so it was not credited automatically. Support has been notified for reconciliation." });
+      }
+      const receiptMemo = String(parsedPayment.purpose).trim().toUpperCase();
+      if (receiptMemo !== storedMemo) {
+        return res.status(400).json({ error: "The bank receipt memo does not match this pending deposit." });
+      }
 
-      const finalUtr = parsedPayment.utr || rawInput;
-      const finalTxId = parsedPayment.transactionId || rawInput;
-
-      // Double-check Anti-Replay with resolved parsed identifiers
-      const secondCheck = await db.collection("processed_transactions").findOne({
-        $or: [
-          { utr: finalUtr },
-          { transaction_id: finalTxId },
-          ...(parsedPayment.purpose ? [{ memo: parsedPayment.purpose }] : []),
-        ],
+      const finalUtr = String(parsedPayment.utr || rawInput).replace(/[^A-Za-z0-9]/g, "");
+      const finalTxId = String(parsedPayment.transactionId || rawInput).replace(/[^A-Za-z0-9]/g, "");
+      const client = await getMongoClient();
+      const { newBalance } = await settleDirectUpiPayment({
+        db,
+        client,
+        userId: userObjectId,
+        userEmail: authUser.email,
+        pendingId,
+        expectedAmount: requestedAmount,
+        expectedMemo: storedMemo,
+        receivedAmount: parsedPayment.amount,
+        receiptMemo: parsedPayment.purpose,
+        utr: finalUtr,
+        transactionId: finalTxId,
+        sender: parsedPayment.sender,
+        source: "manual_identifier_verify",
       });
 
-      if (secondCheck) {
-        return res.status(400).json({
-          error: "This payment has already been credited to an account.",
-        });
-      }
-
-      // Record into processed_transactions
-      try {
-        await db.collection("processed_transactions").insertOne({
-          utr: finalUtr,
-          transaction_id: finalTxId,
-          memo: parsedPayment.purpose || "",
-          amount: parsedPayment.amount,
-          user_id: userObjectId,
-          user_email: authUser.email,
-          sender: parsedPayment.sender || "",
-          method: "MANUAL_IDENTIFIER_VERIFY",
-          processed_at: new Date(),
-        });
-      } catch (dupErr: any) {
-        if (dupErr.code === 11000) {
-          return res.status(400).json({
-            error: "This transaction was already processed in another concurrent request.",
-          });
-        }
-        throw dupErr;
-      }
-
-      // Credit User Wallet Atomically
-      const updateResult: any = await db.collection("users").findOneAndUpdate(
-        { _id: userObjectId },
-        {
-          $inc: { balance: parsedPayment.amount },
-          $set: { updated_at: new Date() },
-        },
-        { returnDocument: "after" }
-      );
-
-      // Update Ledger
-      await db.collection("transactions").updateOne(
-        { _id: pendingDeposit._id, method: "FAMPAY_UPI", status: "pending" },
-        {
-          $set: {
-            status: "paid",
-            utr: finalUtr,
-            transaction_id: finalTxId,
-            sender: parsedPayment.sender,
-            paid_at: new Date(),
-          },
-        }
-      );
-
-      const newBalance = updateResult?.balance ?? parsedPayment.amount;
-
-      // Dispatch Payment Success Audit Log to Telegram Admin Group
       sendPaymentSuccessAlert({
         userEmail: authUser.email,
         amount: parsedPayment.amount,
         method: "Manual UTR/TxID Submission",
         utr: finalUtr,
         transactionId: finalTxId,
-        memo: parsedPayment.purpose,
-        newBalance: newBalance,
+        memo: parsedPayment.purpose || storedMemo,
+        newBalance,
       }).catch((e) => console.error("Telegram log error:", e));
 
       return res.status(200).json({
@@ -322,14 +305,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         amount: parsedPayment.amount,
         utr: finalUtr,
         transactionId: finalTxId,
-        newBalance: newBalance,
+        newBalance,
         message: `Payment verified! ₹${parsedPayment.amount.toFixed(2)} added to your wallet balance.`,
       });
     } catch (err: any) {
+      if (err?.code === 11000) {
+        return res.status(409).json({ error: "This payment has already been claimed or settled." });
+      }
+      if (err?.code === "PENDING_DEPOSIT_STALE") {
+        return res.status(409).json({ error: "This pending deposit expired or was settled by another request." });
+      }
+      if (err?.code === "PAYMENT_HOLD_ACTIVE") {
+        return res.status(403).json({ error: "Deposits are temporarily disabled for this account." });
+      }
+      if (err?.code === "RECEIPT_MISMATCH") {
+        return res.status(400).json({ error: "The receipt does not match this pending deposit." });
+      }
       console.error("Manual verify error:", err);
-      return res.status(500).json({
-        error: "Internal error checking bank records. Please try again in a few moments.",
-      });
+      return res.status(500).json({ error: "Internal error checking bank records. Please try again in a few moments." });
     }
   }
 

@@ -6,6 +6,12 @@
     }
   ],
   "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.smmup.co.in" }],
+      "destination": "https://smmup.co.in/:path*",
+      "permanent": true
+    },
     { "source": "/profile", "destination": "/account", "permanent": true }
   ],
   "rewrites": [

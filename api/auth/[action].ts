@@ -32,8 +32,9 @@ import {
   getRecoveryContext,
   tryTemporaryPasswordLogin,
 } from "../../server/lib/recovery.js";
-import { sanitizeBrandText } from "../../server/lib/smm.js";
+import { sanitizeBrandText } from "../../server/lib/sanitize.js";
 import { editTelegramMessage } from "../../server/lib/telegram.js";
+import { hashEmailToken, issueEmailToken } from "../../server/lib/email.js";
 
 function apiKeyError(res: VercelResponse, error: any) {
   if (error instanceof ApiKeyError) {
@@ -63,6 +64,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const existingAuth = await getUserFromRequest(req, db);
     if (denySupportMutation(existingAuth, res, false)) return;
+    const registrationRate = await checkRateLimit(`register_${clientIp(req)}`, 5, 3600, db);
+    if (!registrationRate.allowed) {
+      return res.status(429).json({ error: `Too many registration attempts. Try again in ${registrationRate.remainingSec}s.` });
+    }
     const { username, email, password } = req.body || {};
     if (typeof username !== "string" || typeof email !== "string" || typeof password !== "string") {
       return res.status(400).json({ error: "All fields are required" });
@@ -101,28 +106,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         total_orders: 0,
         role: "user",
         api_key_count: 0,
+        email_verification_required: true,
+        email_verified_at: null,
         created_at: now,
         updated_at: now,
       };
 
       const insertResult = await users.insertOne(newUser);
-      await createUserSession(db, req, res, {
-        ...newUser,
-        _id: insertResult.insertedId,
-      });
+      try {
+        await issueEmailToken(db, {
+          userId: insertResult.insertedId,
+          email: cleanEmail,
+          purpose: "registration",
+        });
+      } catch (deliveryError) {
+        console.error("Registration verification delivery failed:", deliveryError);
+        return res.status(503).json({
+          error: "Your account was reserved, but the verification email could not be sent. Use Resend verification shortly.",
+          verificationRequired: true,
+        });
+      }
       return res.status(201).json({
         success: true,
-        user: {
-          userId: insertResult.insertedId.toString(),
-          username: cleanUsername,
-          email: cleanEmail,
-          balance: 0.0,
-          role: newUser.role,
-          hasApiKey: false,
-          apiKeyCount: 0,
-          apiKey: null,
-          apiKeyMasked: null,
-        },
+        verificationRequired: true,
+        message: "Check your email and verify your address before signing in.",
       });
     } catch (err: any) {
       if (err?.code === 11000) {
@@ -135,13 +142,238 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // ── EMAIL VERIFICATION, RECOVERY, AND EMAIL CHANGE ───────────
+  if (action === "resend-verification") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const cleanEmail = String(req.body?.email || "").trim().toLowerCase();
+    const rate = await checkRateLimit(`resend_verification_${clientIp(req)}_${cleanEmail}`, 3, 3600, db);
+    if (!rate.allowed) return res.status(429).json({ error: `Please wait ${rate.remainingSec}s before trying again.` });
+    const user: any = cleanEmail ? await users.findOne({ email: cleanEmail }) : null;
+    if (user?.email_verification_required === true && !user.email_verified_at) {
+      try {
+        await issueEmailToken(db, { userId: user._id, email: user.email, purpose: "registration" });
+      } catch (error) {
+        console.error("Verification resend failed:", error);
+      }
+    }
+    return res.status(200).json({ success: true, message: "If that account needs verification, a new email has been sent." });
+  }
+
+  if (action === "verify-email") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const rawToken = String(req.body?.token || "").trim();
+    if (!rawToken.startsWith("sme_") || rawToken.length > 200) {
+      return res.status(400).json({ error: "Verification link is invalid or expired." });
+    }
+    const client = await getMongoClient();
+    const session = client.startSession();
+    let verifiedUser: any = null;
+    let purpose = "";
+    try {
+      await session.withTransaction(async () => {
+        const now = new Date();
+        const token: any = await db.collection("email_verification_tokens").findOne({
+          token_hash: hashEmailToken(rawToken),
+          purpose: { $in: ["registration", "email_change"] },
+          used_at: null,
+          invalidated_at: null,
+          expires_at: { $gt: now },
+        }, { session });
+        if (!token) throw new Error("EMAIL_TOKEN_INVALID");
+        purpose = token.purpose;
+        const user: any = await users.findOne({ _id: token.user_id }, { session });
+        if (!user) throw new Error("EMAIL_TOKEN_INVALID");
+
+        if (token.purpose === "registration") {
+          if (String(user.email).toLowerCase() !== String(token.email).toLowerCase()) throw new Error("EMAIL_TOKEN_INVALID");
+          await users.updateOne(
+            { _id: user._id },
+            { $set: { email_verified_at: now, email_verification_required: false, updated_at: now } },
+            { session },
+          );
+          verifiedUser = { ...user, email_verified_at: now, email_verification_required: false };
+        } else {
+          await users.updateOne(
+            { _id: user._id },
+            {
+              $set: {
+                email: token.email,
+                email_verified_at: now,
+                email_verification_required: false,
+                email_changed_at: now,
+                sessions_revoked_before: now,
+                updated_at: now,
+              },
+            },
+            { session },
+          );
+          await db.collection("sessions").updateMany(
+            { $or: [{ user_id: user._id }, { actor_admin_id: user._id }], revoked_at: null },
+            { $set: { revoked_at: now, revoked_reason: "email_changed" } },
+            { session },
+          );
+          await db.collection("restricted_sessions").updateMany(
+            { user_id: user._id, invalidated_at: null },
+            { $set: { invalidated_at: now, invalidation_reason: "email_changed" } },
+            { session },
+          );
+          verifiedUser = { ...user, email: token.email, email_verified_at: now };
+        }
+        const claimed = await db.collection("email_verification_tokens").updateOne(
+          { _id: token._id, used_at: null, invalidated_at: null },
+          { $set: { used_at: now } },
+          { session },
+        );
+        if (claimed.modifiedCount !== 1) throw new Error("EMAIL_TOKEN_INVALID");
+        await db.collection("security_events").insertOne({
+          user_id: token.user_id,
+          type: token.purpose === "registration" ? "email_verified" : "email_changed",
+          created_at: now,
+        }, { session });
+      }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
+
+      if (purpose === "registration") {
+        try {
+          await createUserSession(db, req, res, verifiedUser);
+          return res.status(200).json({ success: true, signedIn: true, message: "Email verified. Your account is active." });
+        } catch (sessionError) {
+          console.error("Email verified but session creation failed:", sessionError);
+          return res.status(200).json({ success: true, signedIn: false, message: "Email verified. Please sign in." });
+        }
+      }
+      clearAuthCookie(res);
+      clearSupportCookie(res);
+      return res.status(200).json({ success: true, signedIn: false, message: "Email changed. Sign in again with the new address." });
+    } catch (error: any) {
+      if (error?.code === 11000) return res.status(409).json({ error: "That email address is already registered." });
+      if (error?.message === "EMAIL_TOKEN_INVALID") return res.status(400).json({ error: "Verification link is invalid, expired, or already used." });
+      console.error("Email verification failed:", error);
+      return res.status(500).json({ error: "Email verification failed." });
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  if (action === "forgot-password") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const cleanEmail = String(req.body?.email || "").trim().toLowerCase();
+    const rate = await checkRateLimit(`forgot_password_${clientIp(req)}_${cleanEmail}`, 3, 3600, db);
+    if (!rate.allowed) return res.status(429).json({ error: `Please wait ${rate.remainingSec}s before trying again.` });
+    const user: any = cleanEmail ? await users.findOne({ email: cleanEmail }) : null;
+    if (user?.password_hash && user.account_locked !== true) {
+      try {
+        await issueEmailToken(db, { userId: user._id, email: user.email, purpose: "password_reset" });
+        await db.collection("security_events").insertOne({ user_id: user._id, type: "password_reset_email_requested", created_at: new Date() });
+      } catch (error) {
+        console.error("Password-reset delivery failed:", error);
+      }
+    }
+    return res.status(200).json({ success: true, message: "If that account can be recovered, a reset email has been sent." });
+  }
+
+  if (action === "reset-password-email") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const rawToken = String(req.body?.token || "").trim();
+    const password = req.body?.password;
+    const passwordError = validateNewPassword(password);
+    if (!rawToken.startsWith("sme_") || rawToken.length > 200 || passwordError) {
+      return res.status(400).json({ error: passwordError || "Reset link is invalid or expired." });
+    }
+    const passwordHash = await hashPassword(password);
+    const client = await getMongoClient();
+    const session = client.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const now = new Date();
+        const token: any = await db.collection("email_verification_tokens").findOne({
+          token_hash: hashEmailToken(rawToken), purpose: "password_reset",
+          used_at: null, invalidated_at: null, expires_at: { $gt: now },
+        }, { session });
+        if (!token) throw new Error("EMAIL_TOKEN_INVALID");
+        const updated = await users.updateOne(
+          { _id: token.user_id, email: token.email, account_locked: { $ne: true } },
+          {
+            $set: {
+              password_hash: passwordHash,
+              password_changed_at: now,
+              email_verified_at: now,
+              email_verification_required: false,
+              sessions_revoked_before: now,
+              updated_at: now,
+            },
+          },
+          { session },
+        );
+        if (updated.modifiedCount !== 1) throw new Error("EMAIL_TOKEN_INVALID");
+        const claimed = await db.collection("email_verification_tokens").updateOne(
+          { _id: token._id, used_at: null }, { $set: { used_at: now } }, { session },
+        );
+        if (claimed.modifiedCount !== 1) throw new Error("EMAIL_TOKEN_INVALID");
+        await db.collection("sessions").updateMany(
+          { $or: [{ user_id: token.user_id }, { actor_admin_id: token.user_id }], revoked_at: null },
+          { $set: { revoked_at: now, revoked_reason: "email_password_reset" } },
+          { session },
+        );
+        await db.collection("restricted_sessions").updateMany(
+          { user_id: token.user_id, invalidated_at: null },
+          { $set: { invalidated_at: now, invalidation_reason: "email_password_reset" } },
+          { session },
+        );
+        await db.collection("temporary_passwords").updateMany(
+          { user_id: token.user_id, invalidated_at: null },
+          { $set: { status: "completed", invalidated_at: now, invalidation_reason: "email_password_reset" } },
+          { session },
+        );
+        await db.collection("security_events").insertOne({
+          user_id: token.user_id, type: "password_reset_by_verified_email", created_at: now,
+        }, { session });
+      }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
+      clearAuthCookie(res);
+      clearSupportCookie(res);
+      return res.status(200).json({ success: true, message: "Password reset complete. Sign in with your new password." });
+    } catch (error: any) {
+      if (error?.message === "EMAIL_TOKEN_INVALID") return res.status(400).json({ error: "Reset link is invalid, expired, or already used." });
+      console.error("Email password reset failed:", error);
+      return res.status(500).json({ error: "Password reset failed." });
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  if (action === "request-email-change") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const authUser = await getUserFromRequest(req, db);
+    if (!authUser || authUser.purpose !== "normal") return res.status(401).json({ error: "Sign in again to change your email." });
+    const rate = await checkRateLimit(`email_change_${authUser.userId}_${clientIp(req)}`, 3, 3600, db);
+    if (!rate.allowed) return res.status(429).json({ error: `Please wait ${rate.remainingSec}s before trying again.` });
+    const newEmail = String(req.body?.newEmail || "").trim().toLowerCase();
+    const currentPassword = String(req.body?.password || "");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail) || newEmail.length > 320) {
+      return res.status(400).json({ error: "Enter a valid new email address." });
+    }
+    const user: any = await users.findOne({ _id: new ObjectId(authUser.userId) });
+    if (!user || !(await verifyPassword(currentPassword, user.password_hash))) {
+      return res.status(403).json({ error: "Current password is incorrect." });
+    }
+    if (newEmail === String(user.email).toLowerCase()) return res.status(400).json({ error: "Enter a different email address." });
+    if (await users.findOne({ email: newEmail })) return res.status(409).json({ error: "That email address is already registered." });
+    try {
+      await issueEmailToken(db, { userId: user._id, email: newEmail, purpose: "email_change" });
+      await db.collection("security_events").insertOne({ user_id: user._id, type: "email_change_requested", created_at: new Date() });
+      return res.status(200).json({ success: true, message: "A confirmation link was sent to the new email address." });
+    } catch (error) {
+      console.error("Email-change delivery failed:", error);
+      return res.status(503).json({ error: "The confirmation email could not be sent. Your current email was not changed." });
+    }
+  }
+
   // ── 2. LOGIN ─────────────────────────────────────────────────
   if (action === "login") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const existingAuth = await getUserFromRequest(req, db);
     if (denySupportMutation(existingAuth, res, false)) return;
     const ip = clientIp(req);
-    const { allowed, remainingSec } = checkRateLimit(`login_${ip}`, 10, 300);
+    const { allowed, remainingSec } = await checkRateLimit(`login_${ip}`, 10, 300, db);
     if (!allowed) return res.status(429).json({ error: `Too many login attempts. Try again in ${remainingSec}s.` });
 
     const { email, identifier, username, password } = req.body || {};
@@ -171,6 +403,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         clearAuthCookie(res);
         const recovery = await tryTemporaryPasswordLogin(db, req, res, user, rawPassword);
         if (!recovery.accepted) {
+          await db.collection("security_events").insertOne({ user_id: user._id, type: "login_failed", created_at: new Date() });
           return res.status(401).json({ error: "Invalid email or password" });
         }
         return res.status(200).json({
@@ -185,6 +418,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           },
         });
       }
+      if (user.email_verification_required === true && !user.email_verified_at) {
+        return res.status(403).json({
+          error: "Verify your email address before signing in.",
+          verificationRequired: true,
+          email: user.email,
+        });
+      }
 
       await ensureApiKeyIndexes();
       await migrateLegacyApiKey(db, user);
@@ -194,6 +434,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       await createUserSession(db, req, res, user);
+      await db.collection("security_events").insertOne({ user_id: user._id, type: "login_succeeded", created_at: new Date() });
       return res.status(200).json({
         success: true,
         user: {
@@ -233,7 +474,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const actor: any = await users.findOne({ _id: new ObjectId(actorAuth.userId), role: "admin" });
     if (!actor) return res.status(403).json({ error: "Owner account not found." });
-    const exchangeRate = checkRateLimit(`support_exchange_${actorAuth.userId}_${clientIp(req)}`, 10, 300);
+    const exchangeRate = await checkRateLimit(`support_exchange_${actorAuth.userId}_${clientIp(req)}`, 10, 300, db);
     if (!exchangeRate.allowed) {
       return res.status(429).json({ error: `Too many Support Access attempts. Try again in ${exchangeRate.remainingSec}s.` });
     }
@@ -377,6 +618,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           userId: user._id.toString(),
           username: user.username,
           email: user.email,
+          emailVerified: user.email_verification_required !== true || Boolean(user.email_verified_at),
           balance: user.balance || 0.0,
           total_spent: user.total_spent || 0.0,
           total_orders: user.total_orders || 0,
@@ -446,7 +688,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
   if (denySupportMutation(authUser, res, req.method === "GET")) return;
   const userId = new ObjectId(authUser.userId);
-  const rate = checkRateLimit(`keymgmt_${authUser.userId}_${clientIp(req)}`, 60, 600);
+  const rate = await checkRateLimit(`keymgmt_${authUser.userId}_${clientIp(req)}`, 60, 600, db);
   if (!rate.allowed) return res.status(429).json({ error: `Too many requests. Try again in ${rate.remainingSec}s.` });
 
   try {

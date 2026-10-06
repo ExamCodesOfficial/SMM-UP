@@ -29,7 +29,7 @@ export async function getMongoClient(): Promise<MongoClient> {
   return clientPromise;
 }
 
-let indexesCreated = false;
+let coreIndexesPromise: Promise<void> | null = null;
 let razorpayIndexesPromise: Promise<void> | null = null;
 let apiKeyIndexesPromise: Promise<void> | null = null;
 let sessionIndexesPromise: Promise<void> | null = null;
@@ -170,53 +170,60 @@ export async function ensureSessionIndexes(): Promise<void> {
   return sessionIndexesPromise;
 }
 
+export async function ensureCoreIndexes(suppliedDb?: Db): Promise<void> {
+  if (!coreIndexesPromise) {
+    coreIndexesPromise = (async () => {
+      const db = suppliedDb || (await clientPromise).db(dbName);
+      await Promise.all([
+        db.collection("users").createIndex({ email: 1 }, { unique: true }),
+        db.collection("users").createIndex(
+          { username: 1 },
+          { unique: true, collation: { locale: "en", strength: 2 } },
+        ),
+        db.collection("users").createIndex({ api_key: 1 }, { unique: true, sparse: true }),
+        db.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true, sparse: true }),
+        db.collection("processed_transactions").createIndex({ transaction_id: 1 }, { unique: true, sparse: true }),
+        db.collection("processed_transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
+        db.collection("orders").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("transactions").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
+        db.collection("payment_reconciliation").createIndex(
+          { memo: 1, status: 1, reason: 1 },
+          { unique: true, partialFilterExpression: { status: "open" } },
+        ),
+        db.collection("transactions").createIndex(
+          { direct_upi_settlement_key: 1 },
+          { unique: true, partialFilterExpression: { direct_upi_settlement_key: { $type: "string" } } },
+        ),
+        db.collection("transactions").createIndex({ razorpay_order_id: 1 }, { unique: true, sparse: true }),
+        db.collection("transactions").createIndex({ razorpay_payment_id: 1 }, { unique: true, sparse: true }),
+        db.collection("wallet_ledger").createIndex(
+          { settlement_key: 1 },
+          { unique: true, partialFilterExpression: { settlement_key: { $type: "string" } } },
+        ),
+        db.collection("wallet_ledger").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("payment_events").createIndex({ provider: 1, event_id: 1 }, { unique: true }),
+        db.collection("reviews").createIndex({ user_id: 1 }, { unique: true, sparse: true }),
+        db.collection("reviews").createIndex({ seed_key: 1 }, { unique: true, sparse: true }),
+        db.collection("reviews").createIndex({ status: 1, created_at: -1 }),
+        db.collection("security_events").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("security_events").createIndex({ created_at: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 365 }),
+        db.collection("email_verification_tokens").createIndex({ token_hash: 1 }, { unique: true }),
+        db.collection("email_verification_tokens").createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
+        db.collection("rate_limits").createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
+      ]);
+    })().catch((error) => {
+      coreIndexesPromise = null;
+      throw error;
+    });
+  }
+  return coreIndexesPromise;
+}
+
 export async function getDb(): Promise<Db> {
   const client = await clientPromise;
   const db = client.db(dbName);
-
-  // Ensure indexes lazily only once in lifecycle
-  if (!indexesCreated) {
-    indexesCreated = true;
-    Promise.allSettled([
-      db.collection("users").createIndex({ email: 1 }, { unique: true }),
-      // Case-insensitive uniqueness: "Aryan" and "aryan" are the same account
-      db.collection("users").createIndex(
-        { username: 1 },
-        { unique: true, collation: { locale: "en", strength: 2 } },
-      ),
-      db.collection("users").createIndex({ api_key: 1 }, { unique: true, sparse: true }),
-      db.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true, sparse: true }),
-      db.collection("processed_transactions").createIndex({ transaction_id: 1 }, { unique: true, sparse: true }),
-      db.collection("processed_transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
-      db.collection("orders").createIndex({ user_id: 1, created_at: -1 }),
-      db.collection("transactions").createIndex({ user_id: 1, created_at: -1 }),
-      db.collection("transactions").createIndex({ memo: 1 }, { sparse: true }),
-      db.collection("transactions").createIndex(
-        { razorpay_order_id: 1 },
-        { unique: true, sparse: true },
-      ),
-      db.collection("transactions").createIndex(
-        { razorpay_payment_id: 1 },
-        { unique: true, sparse: true },
-      ),
-      db.collection("wallet_ledger").createIndex(
-        { settlement_key: 1 },
-        {
-          unique: true,
-          partialFilterExpression: { settlement_key: { $type: "string" } },
-        },
-      ),
-      db.collection("wallet_ledger").createIndex({ user_id: 1, created_at: -1 }),
-      db.collection("payment_events").createIndex(
-        { provider: 1, event_id: 1 },
-        { unique: true },
-      ),
-      db.collection("reviews").createIndex({ user_id: 1 }, { unique: true, sparse: true }),
-      db.collection("reviews").createIndex({ seed_key: 1 }, { unique: true, sparse: true }),
-      db.collection("reviews").createIndex({ status: 1, created_at: -1 }),
-    ]).catch(() => {});
-  }
-
+  await ensureCoreIndexes(db);
   return db;
 }
 

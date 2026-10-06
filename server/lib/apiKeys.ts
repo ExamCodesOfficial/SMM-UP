@@ -173,6 +173,7 @@ export function serializeApiKey(key: any) {
     lastRotatedAt: key.last_rotated_at || null,
     currentVersion: Number(key.current_version || 1),
     legacyMigrated: Boolean(key.legacy_migrated),
+    ownerReissueRequired: Boolean(key.owner_reissue_required),
   };
 }
 
@@ -557,6 +558,8 @@ export async function rotateApiKey(db: Db, userId: ObjectId, keyId: unknown) {
             prefix: generated.prefix,
             secret_hint: generated.hint,
             last_rotated_at: now,
+            owner_reissue_required: false,
+            owner_reissue_completed_at: now,
             updated_at: now,
           },
         },
@@ -779,6 +782,7 @@ export async function reserveApiKeyOrderSpend(
           _id: auth.user._id,
           balance: { $gte: amountInr },
           payment_hold: { $ne: true },
+          ordering_hold: { $ne: true },
         },
         {
           $inc: { balance: -amountInr, total_spent: amountInr, total_orders: 1 },
@@ -789,10 +793,14 @@ export async function reserveApiKeyOrderSpend(
       if (!user) {
         const current = await db.collection("users").findOne(
           { _id: auth.user._id },
-          { session, projection: { payment_hold: 1 } },
+          { session, projection: { payment_hold: 1, ordering_hold: 1 } },
         );
-        if (current?.payment_hold) {
-          throw new ApiKeyError("Ordering is paused while a payment refund or dispute is reviewed.", 403, "PAYMENT_HOLD");
+        if (current?.payment_hold || current?.ordering_hold) {
+          throw new ApiKeyError(
+            current?.ordering_hold ? "Ordering is paused on this account." : "Ordering is paused while a payment refund or dispute is reviewed.",
+            403,
+            current?.ordering_hold ? "ORDERING_HOLD" : "PAYMENT_HOLD",
+          );
         }
         throw new ApiKeyError("Insufficient balance.", 400, "INSUFFICIENT_BALANCE");
       }

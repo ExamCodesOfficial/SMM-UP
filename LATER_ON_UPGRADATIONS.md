@@ -73,7 +73,7 @@
 
 - [x] Permanent passwords remain bcrypt hashes; registration/change enforce the new-password policy.
 - [x] Server-generated temporary password (recommended default).
-- [x] Optional owner-selected temporary password held only in five-minute process memory until confirmation.
+- [x] Optional owner-selected temporary password held only as five-minute AES-GCM-protected MongoDB action state until confirmation, so Railway restarts do not break the workflow.
 - [x] Persist only the bcrypt hash of every temporary credential.
 - [x] Default temporary lifetime: 3 hours.
 - [x] Environment override: `TEMP_PASSWORD_TTL_MINUTES` with server bounds.
@@ -89,7 +89,7 @@
 - [x] Full email and private recovery checklist are visible only in the owner Telegram flow.
 - [x] Manual identity checklist attestation and mandatory admin reason are audited.
 - [x] Five-minute hash-only Telegram confirmation token for initiating reset.
-- [x] Website “Forgot password? Contact support” copy remains until verified email recovery exists.
+- [x] Temporary-password recovery remains available through owner support; verified-email self-service recovery is now implemented in Phase 6.
 - [x] Reproducible `npm run test:recovery` replica-set gate covers wrong-password non-use, 2-use exhaustion, concurrent one-use enforcement, restricted sessions, permanent completion and hash-only tokens.
 
 ### Phase 4 — MongoDB sessions and owner support access (code complete and validated)
@@ -113,32 +113,36 @@
 ### Phase 5 — Telegram owner control plane
 
 - [x] `[BOT]` Authorize every command and callback by immutable Telegram numeric owner ID.
-- [ ] `[BOT]` Verify Telegram webhook secret token.
-- [ ] `[BOT]` Use inline buttons for confirmations and workflows.
-- [ ] `[BOT]` Five-minute financial and sensitive-action confirmations.
+- [x] `[BOT]` Harden Telegram Bot API long polling with startup identity verification, restricted update types and stale-update dropping; webhook-secret verification is not applicable to this transport.
+- [x] `[BOT]` Use inline buttons for navigation, confirmations and workflows.
+- [x] `[BOT]` Five-minute actor-bound, atomic one-time financial and sensitive-action confirmations with stale/replay rejection.
+- [x] `[BOT]` Persist confirmation and protected wizard/action state in MongoDB.
 - [x] `[BOT]` Full user lookup with full email, account metadata and inline session/Support Access controls.
-- [ ] `[BOT]` Complete order, deposit, wallet, refund and dispute inspection.
-- [ ] `[BOT]` Suspend/reactivate users; place ordering/payment holds.
-- [ ] `[BOT]` Audited wallet corrections with exact reason.
-- [ ] `[BOT]` Pause, rotate/reissue and archive API keys.
+- [x] `[BOT]` Complete order, deposit, wallet, refund, review and operational-record inspection.
+- [x] `[BOT]` Suspend/reactivate users; place ordering/payment holds and enforce them across mutation surfaces.
+- [x] `[BOT]` Transactional, idempotent and audited wallet corrections/refunds with mandatory reasons.
+- [x] `[BOT]` Safely pause/resume/archive API keys and require secure website reissue without exposing secrets.
 - [x] `[BOT]` Initiate temporary-password resets and receive usage notifications.
 - [x] `[BOT]` Inspect/revoke user sessions and create one-time Support Access sessions.
-- [ ] `[BOT]` Administrative notes and bounded security events.
-- [ ] No website admin panel.
-- [ ] No raw password, password hash, API secret, cookie, authorization header, OTP or UPI PIN in Telegram.
+- [x] `[BOT]` Administrative notes and bounded security events.
+- [x] `[BOT]` Railway IMAP lease, heartbeat, exact transactional settlement, retries, reconciliation records and owner alerts.
+- [x] No website admin panel.
+- [x] No raw permanent password, password hash, API secret, cookie, authorization header, OTP, CVV, UPI PIN or banking password in Telegram.
 
 ### Phase 6 — platform-wide hardening
 
-- [ ] Replace process-memory rate limits with a shared persistent limiter.
-- [ ] Fail-closed cron authentication.
-- [ ] Owner-authorized supplier catalog refresh.
-- [ ] Persistent security-event records.
-- [ ] Login, reset, key-management and API abuse throttling.
-- [ ] Await and validate critical MongoDB indexes.
-- [ ] Canonical-domain normalization and verification.
-- [ ] Verified-email registration/recovery phase later.
-- [ ] Password rules apply to registration/change/reset, never the login form.
-- [ ] Do not impose a 10-character maximum; permit strong long passwords/passphrases.
+- [x] Replace process-memory rate limits with an atomic shared MongoDB limiter.
+- [x] Fail-closed cron authentication with constant-time secret comparison.
+- [x] Owner-session-authorized supplier catalog refresh.
+- [x] Persistent bounded security-event records.
+- [x] Login, registration, reset, key-management, payment, order and API abuse throttling.
+- [x] Await and validate critical MongoDB indexes before serving requests.
+- [x] Bind Direct UPI verification to one exact, unexpired pending deposit with memo/amount checks, transactions, idempotent ledger settlement and reconciliation.
+- [~] Canonical apex-domain normalization is coded; Vercel primary-domain verification and production redirect smoke checks remain deployment gates.
+- [x] Resend transactional-email integration with one-time hash-only tokens.
+- [x] Verified-email registration, verified email recovery and verified email-change confirmation.
+- [x] Password rules apply to registration/change/reset, never the login form.
+- [x] Do not impose a 10-character maximum; permit strong long passwords/passphrases.
 
 ### Non-negotiable secret boundaries
 
@@ -162,23 +166,21 @@
 - Change future Telegram financial-confirmation expiry from 60 seconds to 5 minutes in planning documentation.
 - Create this future-upgradations document.
 
-### Next website-security implementation round, after explicit confirmation
+### Completed security implementation rounds
 
-- Harden API-key storage and rotation.
-- Bind payment verification to an exact pending transaction.
-- Replace memory-only rate limiting with a shared persistent limiter.
-- Make cron and supplier-catalog refresh controls fail closed.
-- Implement MongoDB-backed revocable login sessions.
-- Decide final new-password rules without locking out existing users.
-- Normalize the primary/canonical domain.
+- Hardened API-key storage, lifecycle and attribution.
+- Bound payment verification to an exact pending transaction.
+- Replaced memory-only limiting with a shared persistent limiter.
+- Made cron and supplier-catalog refresh controls fail closed.
+- Implemented MongoDB-backed revocable login sessions.
+- Applied the final new-password policy without changing login validation.
+- Implemented apex-domain redirect configuration; provider-side production verification remains a deployment gate.
+- Added verified-email registration, recovery and email changes.
+- Completed the inline Telegram owner control plane and Railway payment worker safeguards.
 
-### Explicitly later, not now
+### Still outside this roadmap
 
-- Razorpay integration and the two-option payment UI.
-- Email verification.
-- Forgot/reset-password email flow.
-- Full inline Telegram admin-bot development.
-- Multi-admin bot permissions.
+- Multi-admin bot roles/permissions.
 - Two-factor authentication for normal customer accounts.
 
 ---

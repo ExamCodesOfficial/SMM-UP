@@ -47,6 +47,7 @@ interface ApiKeyRecord {
   lastRotatedAt: string | null;
   currentVersion: number;
   legacyMigrated: boolean;
+  ownerReissueRequired: boolean;
 }
 
 interface ApiKeyForm {
@@ -131,6 +132,8 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
+  const [newEmail, setNewEmail] = React.useState("");
+  const [emailChangePassword, setEmailChangePassword] = React.useState("");
 
   const formatDate = (value?: string | null) => {
     if (!value) return "Never";
@@ -421,6 +424,29 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
     }
   };
 
+  const requestEmailChange = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy("email-change");
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch("/api/auth/request-email-change", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newEmail, password: emailChangePassword }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Unable to request email change.");
+      setSuccess(data.message || "Confirmation email sent.");
+      setNewEmail("");
+      setEmailChangePassword("");
+    } catch (requestError: any) {
+      setError(requestError.message || "Unable to request email change.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const copySecret = async () => {
     if (!revealed) return;
     await navigator.clipboard.writeText(revealed.secret);
@@ -463,6 +489,18 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
           <section className="p-4 border border-white/20 bg-white text-black text-xs flex items-start gap-2">
             <ShieldCheck className="w-4 h-4 shrink-0" />
             <span><strong>Read-only Support Session.</strong> Account, orders, deposits, key metadata and security state are visible; spending, deposits, password changes and API-key mutations are blocked server-side.</span>
+          </section>
+        )}
+
+        {!readOnlySupport && (
+          <section className="p-5 border border-white/12 bg-white/[0.02]">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1"><ShieldCheck className="w-4 h-4" /> Verified email</div>
+            <p className="text-xs text-zinc-500 mb-4">Your current address is {user?.email}. A change takes effect only after you confirm the link sent to the new address; active sessions are then revoked.</p>
+            <form onSubmit={requestEmailChange} className="grid md:grid-cols-[1fr_1fr_auto] gap-3">
+              <input type="email" required value={newEmail} onChange={(event) => setNewEmail(event.target.value)} placeholder="New email address" className="up-input" />
+              <input type="password" required value={emailChangePassword} onChange={(event) => setEmailChangePassword(event.target.value)} placeholder="Current password" className="up-input" />
+              <button type="submit" disabled={busy === "email-change"} className="btn-up btn-up-solid">{busy === "email-change" ? "Sending…" : "Verify new email"}</button>
+            </form>
           </section>
         )}
 
@@ -541,6 +579,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                         <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-white">{key.name}</h3>{key.legacyMigrated && <span className="text-[9px] px-1.5 py-0.5 border border-white/10 text-zinc-500">MIGRATED FREE</span>}<span className="text-[9px] px-1.5 py-0.5 border border-white/10 text-zinc-400 uppercase">{key.status}</span></div><code className="text-[11px] text-zinc-500 mt-1 block">{key.prefix}…{key.hint}</code></div>
                         <div className="text-right text-[10px] text-zinc-600"><span className="block">Version {key.currentVersion}</span><span>{key.fullAccess ? "Full Access" : `${key.scopes.length} scopes`}</span></div>
                       </div>
+                      {key.ownerReissueRequired && <div className="p-3 border border-white/20 bg-white/[0.06] text-[11px] text-zinc-200"><strong>Owner-requested security reissue:</strong> this secret was revoked. Rotate it here to receive the replacement once, then resume the key.</div>}
                       <div className="flex flex-wrap gap-1.5">{key.scopes.map((scope) => <span key={scope} className="px-2 py-1 bg-white/[0.03] border border-white/[0.07] text-[9px] text-zinc-500">{SCOPE_LABELS[scope] || scope}</span>)}</div>
                       <div className="grid sm:grid-cols-4 gap-2 text-[10px]"><div><span className="text-zinc-600 block">Created</span><span className="text-zinc-400">{formatDate(key.createdAt)}</span></div><div><span className="text-zinc-600 block">Last used</span><span className="text-zinc-400">{formatDate(key.lastUsedAt)}</span></div><div><span className="text-zinc-600 block">Daily limit</span><span className="text-zinc-400">{key.dailyLimitInr === null ? "None" : formatINR(key.dailyLimitInr)}</span></div><div><span className="text-zinc-600 block">Expires</span><span className="text-zinc-400">{formatDate(key.expiresAt)}</span></div></div>
 
@@ -558,7 +597,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                         {key.status !== "archived" && (
                           <>
                             <button type="button" onClick={() => beginEdit(key)} disabled={readOnlySupport} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40"><Settings className="w-3.5 h-3.5" /> Settings</button>
-                            <button type="button" onClick={() => pauseOrResume(key)} disabled={readOnlySupport || busy !== null} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40">{key.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />} {key.status === "active" ? "Pause" : "Resume"}</button>
+                            <button type="button" onClick={() => pauseOrResume(key)} disabled={readOnlySupport || key.ownerReissueRequired || busy !== null} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40">{key.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />} {key.status === "active" ? "Pause" : "Resume"}</button>
                             <button type="button" onClick={() => rotate(key)} disabled={readOnlySupport || busy !== null} className={`btn-up btn-up-ghost btn-up-sm disabled:opacity-40 ${confirmRotateId === key.id ? "border-white/30 bg-white/[0.06]" : ""}`}>{busy === `rotate:${key.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} {confirmRotateId === key.id ? "Confirm permanent rotation" : "Rotate secret"}</button>
                             <button type="button" onClick={() => { setArchive({ id: key.id, name: key.name, value: "" }); setConfirmRotateId(null); }} disabled={readOnlySupport} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40"><Trash2 className="w-3.5 h-3.5" /> Archive</button>
                           </>
