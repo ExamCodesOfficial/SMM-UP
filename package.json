@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test:api-keys": "tsx tests/apiKeys.integration.ts",
     "test:recovery": "tsx tests/recovery.integration.ts",
-    "test:support-access": "tsx tests/supportAccess.integration.ts"
+    "test:support-access": "tsx tests/supportAccess.integration.ts",
+    "test:search-appearance": "node tests/searchAppearance.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

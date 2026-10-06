@@ -16,16 +16,16 @@
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/og-image.png",
-      "sizes": "1200x630",
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "shortcuts": [
@@ -34,21 +34,21 @@
       "short_name": "New Order",
       "description": "Dispatch a wholesale growth order instantly",
       "url": "/?tab=store",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Add Funds (0% UPI)",
       "short_name": "Wallet",
       "description": "Direct bank-to-bank UPI deposit with 0% fees",
       "url": "/?tab=wallet",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Developer API Docs",
       "short_name": "API",
       "description": "Standard SMM v2 protocol documentation",
       "url": "/api",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }
