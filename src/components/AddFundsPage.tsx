@@ -330,7 +330,7 @@ export default function AddFundsPage({
         currency: order.currency,
         name: "SMM UP",
         description: `Wallet top-up • ${formatINR(order.amount)}`,
-        image: "https://smmup.co.in/favicon.svg",
+        image: "https://smmup.co.in/logo-512x512.png",
         order_id: order.orderId,
         prefill: order.prefill,
         notes: {
