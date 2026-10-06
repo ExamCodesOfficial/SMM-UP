@@ -4,8 +4,5 @@ Allow: /
 User-agent: *
 Allow: /
 Disallow: /api/
-Disallow: /admin
-Disallow: /*?key=
-Disallow: /*?action=
 
 Sitemap: https://smmup.co.in/sitemap.xml

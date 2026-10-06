@@ -3,6 +3,7 @@ import { MessageCircle, Clock, ShieldCheck, Download } from "lucide-react";
 import ContentPage, { P, H2, H3, UL, Callout } from "../ContentPage";
 import { SmmUpLogo } from "../icons/ExecutiveIcons";
 import { RESPONSIBLE_GROWTH_FAQS } from "../../lib/faqs";
+import { pathFor } from "../../lib/routes";
 
 interface PageProps {
   onNavigate: (tab: string) => void;
@@ -195,11 +196,11 @@ export function ResponsibleGrowthPage({ onNavigate }: PageProps) {
 
       <Callout>
         Ready to compare the visible terms? Browse the{" "}
-        <a href="/catalog" className="text-white underline underline-offset-4 hover:text-zinc-300">
+        <a href={pathFor("catalog")} className="text-white underline underline-offset-4 hover:text-zinc-300">
           live services and prices
         </a>{" "}
         or read the{" "}
-        <a href="/acceptable-use" className="text-white underline underline-offset-4 hover:text-zinc-300">
+        <a href={pathFor("acceptable-use")} className="text-white underline underline-offset-4 hover:text-zinc-300">
           Acceptable Use Policy
         </a>{" "}
         before ordering.
@@ -296,12 +297,9 @@ export function StatusPage({ onNavigate }: PageProps) {
       crumbs={[{ label: "Home", tab: "home" }, { label: "Operations" }, { label: "Status" }]}
       onNavigate={onNavigate}
     >
-      <div className="p-4 rounded-none border border-white/15 bg-white/[0.03] flex items-center gap-3 mb-8">
-        <span className="relative flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
-        </span>
-        <span className="text-sm text-white font-medium">Live status telemetry is not currently published</span>
+      <div className="p-4 rounded-none border border-white/15 bg-white/[0.03] flex items-center gap-3 mb-8" role="note">
+        <Clock className="w-4 h-4 text-zinc-500 shrink-0" aria-hidden="true" />
+        <span className="text-sm text-zinc-300 font-medium">Live status telemetry is not currently published; no operational claim is being made.</span>
       </div>
 
       <div className="divide-y divide-white/[0.06] border-y border-white/[0.06] mb-10">

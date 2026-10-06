@@ -234,7 +234,7 @@ export default function LandingHero({
             <span>India's own SMM panel</span>
             <span className="text-zinc-700 select-none" aria-hidden="true">&bull;</span>
             <span>
-              {services.length > 0 ? services.length.toLocaleString() : "2,128"}+ services
+              {services.length > 0 ? services.length.toLocaleString() : "2,100+"} services
             </span>
             <span className="text-zinc-700 select-none" aria-hidden="true">&bull;</span>
             <span>Refill options shown per service</span>

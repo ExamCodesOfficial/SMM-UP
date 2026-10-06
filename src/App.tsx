@@ -57,6 +57,12 @@ function tabFromPath(): string {
   return PATH_TABS[p] || "notfound";
 }
 
+function guardedNextTab(): string | null {
+  const nextPath = new URLSearchParams(window.location.search).get("next") || "";
+  const nextTab = PATH_TABS[nextPath];
+  return nextTab && GUARDED.has(nextTab) ? nextTab : null;
+}
+
 function SupportSessionBanner({ user, onExit }: { user: any; onExit: () => void }) {
   const [remaining, setRemaining] = React.useState(0);
   const expired = React.useRef(false);
@@ -88,6 +94,7 @@ function SupportSessionBanner({ user, onExit }: { user: any; onExit: () => void 
 export default function App() {
   const [currentTab, setCurrentTab] = React.useState<string>(tabFromPath());
   const [user, setUser] = React.useState<any>(null);
+  const [authChecked, setAuthChecked] = React.useState(false);
   const [services, setServices] = React.useState<any[]>([]);
   const [orders, setOrders] = React.useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = React.useState<boolean>(false);
@@ -132,14 +139,21 @@ export default function App() {
     const onPop = () => {
       const tab = tabFromPath();
       setCurrentTab(tab);
-      applySeo(tab);
-      applyStructuredData(tab);
+      const seoTab = GUARDED.has(tab) && (!authChecked || !user) ? "checking" : tab;
+      applySeo(seoTab);
+      applyStructuredData(seoTab);
     };
     window.addEventListener("popstate", onPop);
-    applySeo(tabFromPath());
-    applyStructuredData(tabFromPath());
+    const initialTab = tabFromPath();
+    if (GUARDED.has(initialTab) && (!authChecked || !user)) {
+      applySeo("checking");
+      applyStructuredData("checking");
+    } else {
+      applySeo(initialTab);
+      applyStructuredData(initialTab);
+    }
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [authChecked, user]);
 
   const openAuth = React.useCallback(
     (mode: "login" | "register" = "login") => {
@@ -153,6 +167,17 @@ export default function App() {
     checkAuth();
     loadServices();
   }, []);
+
+  React.useEffect(() => {
+    if (!authChecked || user || !GUARDED.has(currentTab)) return;
+    const nextPath = TAB_PATHS[currentTab];
+    const authUrl = `/auth?next=${encodeURIComponent(nextPath)}`;
+    window.history.replaceState({}, "", authUrl);
+    setAuthPageMode("login");
+    setCurrentTab("auth");
+    applySeo("auth");
+    applyStructuredData("auth");
+  }, [authChecked, currentTab, user]);
 
   React.useEffect(() => {
     if (user) {
@@ -171,15 +196,19 @@ export default function App() {
 
   const checkAuth = async () => {
     try {
-      const res = await fetch("/api/auth/me");
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
       const data = await readApiPayload(res);
       if (res.ok && data.authenticated) {
         setUser(data.user);
-      } else {
-        setUser(null);
+        return data.user;
       }
+      setUser(null);
+      return null;
     } catch {
       setUser(null);
+      return null;
+    } finally {
+      setAuthChecked(true);
     }
   };
 
@@ -188,12 +217,13 @@ export default function App() {
       navigate("password-change");
       return;
     }
-    const destination = GUARDED.has(currentTab) ? currentTab : "home";
-    checkAuth().then(() => {
+    const requestedDestination = guardedNextTab();
+    checkAuth().then((authenticatedUser) => {
+      if (!authenticatedUser) return;
       loadOrders();
-      navigate(destination);
+      navigate(requestedDestination || "home");
     });
-  }, [currentTab, navigate]);
+  }, [navigate]);
 
   const handlePasswordRecoveryCompleted = React.useCallback((recoveredUser: any) => {
     setUser(recoveredUser);
@@ -297,7 +327,10 @@ export default function App() {
   };
 
   const platformConfig = PLATFORM_PAGES.find((p) => p.tab === currentTab);
-  const guardedBlocked = GUARDED.has(currentTab) && !user;
+  const authContinueTab = currentTab === "auth" ? guardedNextTab() : null;
+  const guardedPending = GUARDED.has(currentTab) && !authChecked;
+  const guardedBlocked = GUARDED.has(currentTab) && authChecked && !user;
+  const guardedAllowed = !GUARDED.has(currentTab) || Boolean(authChecked && user);
 
   return (
     <div className="min-h-screen bg-[#050505] text-white relative flex flex-col font-sans selection:bg-white selection:text-black">
@@ -315,6 +348,15 @@ export default function App() {
       {user?.supportSession?.active && <SupportSessionBanner user={user} onExit={exitSupportAccess} />}
 
       <main className={`flex-1 ${user?.supportSession?.active ? "pt-28" : "pt-18"} pb-20 md:pb-12 relative z-10`}>
+        {(guardedPending || guardedBlocked) && (
+          <div className="min-h-[55vh] flex items-center justify-center px-4" role="status" aria-live="polite">
+            <div className="flex items-center gap-3 text-sm text-zinc-400 font-mono">
+              <span className="w-4 h-4 border border-zinc-600 border-t-white rounded-full animate-spin" aria-hidden="true" />
+              {guardedPending ? "CHECKING SESSION…" : "OPENING SIGN IN…"}
+            </div>
+          </div>
+        )}
+
         {/* ── Home: landing experience ── */}
         {currentTab === "home" && (
           <>
@@ -375,17 +417,18 @@ export default function App() {
           <ApiPlayground user={user} onNavigate={navigate} />
         )}
 
-        {!guardedBlocked && currentTab === "logs" && (
+        {guardedAllowed && currentTab === "logs" && (
           <div className="pt-6">
             <OrderHistory
               orders={orders}
               onRefresh={loadOrders}
+              onReorder={handleSelectFromCatalog}
               loading={loadingOrders}
             />
           </div>
         )}
 
-        {!guardedBlocked && currentTab === "account" && (
+        {guardedAllowed && currentTab === "account" && (
           <AccountPage
             user={user}
             onNavigate={navigate}
@@ -394,11 +437,11 @@ export default function App() {
           />
         )}
 
-        {!guardedBlocked && currentTab === "transactions" && (
+        {guardedAllowed && currentTab === "transactions" && (
           <TransactionsPage user={user} onNavigate={navigate} />
         )}
 
-        {!guardedBlocked && currentTab === "add-funds" && (
+        {guardedAllowed && currentTab === "add-funds" && (
           <AddFundsPage
             user={user}
             onDepositSuccess={handleDepositSuccess}
@@ -412,7 +455,7 @@ export default function App() {
           />
         )}
 
-        {!guardedBlocked && currentTab === "support-access" && (
+        {guardedAllowed && currentTab === "support-access" && (
           <SupportAccessPage
             user={user}
             onNavigate={navigate}
@@ -421,10 +464,11 @@ export default function App() {
         )}
 
         {/* ── Auth page (also the guard landing) ── */}
-        {(currentTab === "auth" || guardedBlocked) && (
+        {currentTab === "auth" && (
           <AuthPage
             initialMode={authPageMode}
             onAuthSuccess={handleAuthSuccess}
+            continuePath={authContinueTab ? TAB_PATHS[authContinueTab] : null}
           />
         )}
 

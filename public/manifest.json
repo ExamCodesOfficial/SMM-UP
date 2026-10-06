@@ -1,18 +1,26 @@
 {
   "name": "SMM UP — Institutional Social Marketing Infrastructure",
   "short_name": "SMM UP",
-  "description": "India's institutional wholesale SMM growth engine. Direct 0% fee bank UPI clearing, 2,177+ verified delivery nodes, automated 7D-to-Lifetime refill SLA, and reseller SMM v2 API. Founded by Aryan.",
+  "description": "India's wholesale SMM panel with 2,100+ services, 0% platform-fee Direct UPI deposits, service-specific refill terms and a reseller SMM v2 API.",
   "id": "/?source=pwa",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "orientation": "portrait",
   "background_color": "#090807",
   "theme_color": "#090807",
   "lang": "en-IN",
   "dir": "ltr",
-  "categories": ["business", "productivity", "utilities", "social"],
+  "categories": [
+    "business",
+    "productivity",
+    "utilities",
+    "social"
+  ],
   "prefer_related_applications": false,
   "icons": [
     {
@@ -33,22 +41,40 @@
       "name": "Launch Order Desk",
       "short_name": "New Order",
       "description": "Dispatch a wholesale growth order instantly",
-      "url": "/?tab=store",
-      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
+      "url": "/order",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "Add Funds (0% UPI)",
       "short_name": "Wallet",
       "description": "Direct bank-to-bank UPI deposit with 0% fees",
-      "url": "/?tab=wallet",
-      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
+      "url": "/add-funds",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     },
     {
       "name": "Developer API Docs",
       "short_name": "API",
       "description": "Standard SMM v2 protocol documentation",
       "url": "/api",
-      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

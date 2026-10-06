@@ -17,8 +17,18 @@ import {
 import { sendFailedOrderAlert } from "../../server/lib/telegram.js";
 import { OrderReservationError, reserveWebsiteOrder } from "../../server/lib/orderReservations.js";
 
+function sameOriginIfPresent(req: VercelRequest): boolean {
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+  const host = typeof req.headers.host === "string" ? req.headers.host : "";
+  if (!origin) return true;
+  try { return new URL(origin).host === host; } catch { return false; }
+}
+
 async function handleOrdersRequest(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
+  if (!["GET", "HEAD", "OPTIONS"].includes(String(req.method || "GET").toUpperCase()) && !sameOriginIfPresent(req)) {
+    return res.status(403).json({ error: "Invalid request origin." });
+  }
   const db = await getDb();
   const authUser = await getUserFromRequest(req, db);
   if (!authUser) {

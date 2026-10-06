@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
+import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 import { ensureApiKeyIndexes, ensureIdentityIndexes, getDb, getMongoClient } from "../../server/lib/db.js";
 import {
@@ -33,6 +34,17 @@ import {
   tryTemporaryPasswordLogin,
 } from "../../server/lib/recovery.js";
 import { sanitizeBrandText } from "../../server/lib/sanitize.js";
+
+function sameOriginIfPresent(req: VercelRequest): boolean {
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+  const host = typeof req.headers.host === "string" ? req.headers.host : "";
+  if (!origin) return true;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
 import { editTelegramMessage } from "../../server/lib/telegram.js";
 import { hashEmailToken, issueEmailToken } from "../../server/lib/email.js";
 
@@ -56,6 +68,9 @@ function clientIp(req: VercelRequest): string {
 
 async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action || "");
+  if (!["GET", "HEAD", "OPTIONS"].includes(String(req.method || "GET").toUpperCase()) && !sameOriginIfPresent(req)) {
+    return res.status(403).json({ error: "Invalid request origin." });
+  }
   const db = await getDb();
   const users = db.collection("users");
 
@@ -601,6 +616,210 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
     return res.status(204).end();
   }
 
+  // ── PROFILE AND SELF-SERVICE ERASURE ────────────────────────
+  if (action === "update-profile") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const authUser = await getUserFromRequest(req, db);
+    if (!authUser) return res.status(401).json({ error: "Unauthorized" });
+    if (denySupportMutation(authUser, res, false)) return;
+    const rate = await checkRateLimit(`profile_update_${authUser.userId}`, 5, 3600, db);
+    if (!rate.allowed) return res.status(429).json({ error: `Too many profile changes. Try again in ${rate.remainingSec}s.` });
+
+    const current: any = await users.findOne({ _id: new ObjectId(authUser.userId) });
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!current?.password_hash || !password || !(await verifyPassword(password, current.password_hash))) {
+      return res.status(401).json({ error: "Current password is incorrect." });
+    }
+
+    const username = sanitizeBrandText(String(req.body?.username || "").trim()).slice(0, 40);
+    const displayName = sanitizeBrandText(String(req.body?.displayName || "").trim()).slice(0, 60);
+    const avatarColors = new Set(["zinc", "slate", "stone", "blue", "emerald", "violet"]);
+    const avatarColor = avatarColors.has(String(req.body?.avatarColor)) ? String(req.body.avatarColor) : "zinc";
+    if (username.length < 3 || /[\u0000-\u001F\u007F]/.test(username)) {
+      return res.status(400).json({ error: "Username must be at least 3 valid characters." });
+    }
+    const usernameNormalized = username.normalize("NFKC").toLocaleLowerCase("en-IN");
+    await ensureIdentityIndexes(db);
+    const conflicting = await users.findOne(
+      { _id: { $ne: current._id }, username },
+      { collation: { locale: "en", strength: 2 } },
+    );
+    if (conflicting) return res.status(409).json({ error: "Username is already taken." });
+
+    try {
+      const now = new Date();
+      await users.updateOne(
+        { _id: current._id, account_deleted_at: { $exists: false } },
+        {
+          $set: {
+            username,
+            username_normalized: usernameNormalized,
+            display_name: displayName || username,
+            avatar_color: avatarColor,
+            profile_updated_at: now,
+            updated_at: now,
+          },
+        },
+      );
+      await Promise.all([
+        db.collection("sessions").updateMany(
+          { $or: [{ user_id: current._id }, { subject_user_id: current._id }], revoked_at: null },
+          { $set: { username } },
+        ),
+        db.collection("reviews").updateMany(
+          { user_id: current._id, seed: { $ne: true } },
+          { $set: { username, updated_at: now } },
+        ),
+        db.collection("security_events").insertOne({
+          user_id: current._id,
+          type: "profile_updated",
+          username_changed: username !== current.username,
+          created_at: now,
+        }),
+      ]);
+      return res.status(200).json({
+        success: true,
+        message: "Profile updated.",
+        profile: { username, displayName: displayName || username, avatarColor },
+      });
+    } catch (error: any) {
+      if (error?.code === 11000) return res.status(409).json({ error: "Username is already taken." });
+      throw error;
+    }
+  }
+
+  if (action === "delete-account") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const authUser = await getUserFromRequest(req, db);
+    if (!authUser) return res.status(401).json({ error: "Unauthorized" });
+    if (denySupportMutation(authUser, res, false)) return;
+    const rate = await checkRateLimit(`account_delete_${authUser.userId}`, 3, 24 * 60 * 60, db);
+    if (!rate.allowed) return res.status(429).json({ error: `Too many deletion attempts. Try again in ${rate.remainingSec}s.` });
+
+    const userId = new ObjectId(authUser.userId);
+    const current: any = await users.findOne({ _id: userId });
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    const confirmation = String(req.body?.confirmation || "");
+    if (!current?.password_hash || !password || !(await verifyPassword(password, current.password_hash))) {
+      return res.status(401).json({ error: "Current password is incorrect." });
+    }
+    if (confirmation !== `DELETE ${current.username}`) {
+      return res.status(400).json({ error: `Type DELETE ${current.username} exactly to confirm.` });
+    }
+    if (Math.abs(Number(current.balance || 0)) > 0.005) {
+      return res.status(409).json({ error: "Your wallet balance must be ₹0 before deletion. Contact support for account settlement." });
+    }
+    const [activeOrders, pendingDeposits] = await Promise.all([
+      db.collection("orders").countDocuments({
+        user_id: userId,
+        status: { $in: ["Submitting", "Pending", "Processing", "In progress", "Cancel requested", "Submission uncertain"] },
+      }),
+      db.collection("transactions").countDocuments({ user_id: userId, status: { $in: ["pending", "processing", "authorized"] } }),
+    ]);
+    if (activeOrders || pendingDeposits) {
+      return res.status(409).json({ error: "Resolve active orders and pending deposits before deleting the account." });
+    }
+
+    const client = await getMongoClient();
+    const mongoSession = client.startSession();
+    const now = new Date();
+    const suffix = userId.toString().slice(-10);
+    const tombstoneUsername = `deleted_${suffix}`;
+    const tombstoneEmail = `deleted+${suffix}@deleted.invalid`;
+    const unusablePasswordHash = await hashPassword(crypto.randomBytes(48).toString("base64url"));
+    try {
+      await mongoSession.withTransaction(async () => {
+        await users.updateOne(
+          { _id: userId, account_deleted_at: { $exists: false } },
+          {
+            $set: {
+              username: tombstoneUsername,
+              username_normalized: tombstoneUsername,
+              email: tombstoneEmail,
+              password_hash: unusablePasswordHash,
+              display_name: "Deleted account",
+              avatar_color: "zinc",
+              account_deleted_at: now,
+              account_locked: true,
+              account_lock_reason: "self_service_deletion",
+              sessions_revoked_before: now,
+              updated_at: now,
+            },
+            $unset: {
+              api_key: "",
+              api_key_hash: "",
+              api_key_created_at: "",
+              api_key_last_used_at: "",
+            },
+          },
+          { session: mongoSession },
+        );
+        await db.collection("sessions").updateMany(
+          { $or: [{ user_id: userId }, { actor_admin_id: userId }, { subject_user_id: userId }], revoked_at: null },
+          { $set: { revoked_at: now, revoked_reason: "account_deleted" } },
+          { session: mongoSession },
+        );
+        await db.collection("restricted_sessions").updateMany(
+          { user_id: userId, invalidated_at: null },
+          { $set: { invalidated_at: now, invalidation_reason: "account_deleted" } },
+          { session: mongoSession },
+        );
+        await db.collection("api_keys").updateMany(
+          { user_id: userId, status: { $ne: "archived" } },
+          { $set: { status: "archived", archived_at: now, archive_reason: "account_deleted" }, $unset: { active_name_normalized: "" } },
+          { session: mongoSession },
+        );
+        const ownedKeys = await db.collection("api_keys").find({ user_id: userId }, { session: mongoSession }).project({ _id: 1 }).toArray();
+        if (ownedKeys.length) {
+          await db.collection("api_key_versions").updateMany(
+            { key_id: { $in: ownedKeys.map((item) => item._id) }, revoked_at: null },
+            { $set: { revoked_at: now, revoked_reason: "account_deleted" } },
+            { session: mongoSession },
+          );
+        }
+        await db.collection("email_verification_tokens").updateMany(
+          { user_id: userId, used_at: null, invalidated_at: null },
+          { $set: { invalidated_at: now, invalidation_reason: "account_deleted" } },
+          { session: mongoSession },
+        );
+        await db.collection("support_access_codes").updateMany(
+          { subject_user_id: userId, consumed_at: null, invalidated_at: null },
+          { $set: { invalidated_at: now, invalidation_reason: "account_deleted" } },
+          { session: mongoSession },
+        );
+        await Promise.all([
+          db.collection("reviews").deleteMany({ user_id: userId, seed: { $ne: true } }, { session: mongoSession }),
+          db.collection("service_favorites").deleteMany({ user_id: userId }, { session: mongoSession }),
+          db.collection("order_templates").deleteMany({ user_id: userId }, { session: mongoSession }),
+        ]);
+        await db.collection("orders").updateMany(
+          { user_id: userId },
+          {
+            $set: { user_email: tombstoneEmail, personal_target_deleted_at: now },
+            $unset: { link: "", comments: "", usernames: "", hashtags: "", username: "" },
+          },
+          { session: mongoSession },
+        );
+        await db.collection("transactions").updateMany(
+          { user_id: userId },
+          { $set: { user_email: tombstoneEmail } },
+          { session: mongoSession },
+        );
+        await db.collection("processed_transactions").updateMany(
+          { user_id: userId },
+          { $set: { user_email: tombstoneEmail }, $unset: { sender: "" } },
+          { session: mongoSession },
+        );
+        await db.collection("security_events").insertOne({ user_id: userId, type: "account_self_deleted", created_at: now }, { session: mongoSession });
+      }, { readConcern: { level: "snapshot" }, writeConcern: { w: "majority" } });
+    } finally {
+      await mongoSession.endSession();
+    }
+    clearAuthCookie(res);
+    clearSupportCookie(res);
+    return res.status(200).json({ success: true, message: "Account deleted and personal profile data anonymized." });
+  }
+
   // ── 5. ME ────────────────────────────────────────────────────
   if (action === "me") {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
@@ -622,6 +841,8 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
         user: {
           userId: user._id.toString(),
           username: user.username,
+          displayName: user.display_name || user.username,
+          avatarColor: user.avatar_color || "zinc",
           email: user.email,
           emailVerified: user.email_verification_required !== true || Boolean(user.email_verified_at),
           balance: user.balance || 0.0,

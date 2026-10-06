@@ -12,6 +12,22 @@ import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../../server/lib
  * Generates SUP + 5-character uppercase alphanumeric memo
  * Total combinations: 36^5 = 60,466,176
  */
+const MIN_DIRECT_UPI_AMOUNT_INR = 10;
+
+function sameOriginIfPresent(req: VercelRequest): boolean {
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+  const host = typeof req.headers.host === "string" ? req.headers.host : "";
+  if (!origin) return true;
+  try { return new URL(origin).host === host; } catch { return false; }
+}
+
+function maxDirectUpiAmountInr(): number {
+  return Math.max(
+    MIN_DIRECT_UPI_AMOUNT_INR,
+    Math.min(Number(process.env.DIRECT_UPI_MAX_AMOUNT_INR || 100_000), 1_000_000),
+  );
+}
+
 function generateDynamicMemo(): string {
   const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   let suffix = "";
@@ -24,12 +40,26 @@ function generateDynamicMemo(): string {
 
 async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
+  if (!["GET", "HEAD", "OPTIONS"].includes(String(req.method || "GET").toUpperCase()) && !sameOriginIfPresent(req)) {
+    return res.status(403).json({ error: "Invalid request origin." });
+  }
   const db = await getDb();
   const authUser = await getUserFromRequest(req, db);
   if (!authUser) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  if (denySupportMutation(authUser, res, action === "history" && req.method === "GET")) return;
+  const readOnlyAction = ["history", "config"].includes(String(action)) && req.method === "GET";
+  if (denySupportMutation(authUser, res, readOnlyAction)) return;
+
+  if (action === "config") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    return res.status(200).json({
+      minAmount: MIN_DIRECT_UPI_AMOUNT_INR,
+      maxAmount: maxDirectUpiAmountInr(),
+    });
+  }
+
   const userObjectId = new ObjectId(authUser.userId);
   if (["create-order", "verify-identifier", "verify-utr"].includes(String(action))) {
     // Do not let legacy memo migration block read-only history or authentication,
@@ -52,9 +82,9 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
     const { amount } = req.body || {};
     const numAmount = parseFloat(amount);
 
-    const maxDirectUpiAmount = Math.max(10, Math.min(Number(process.env.DIRECT_UPI_MAX_AMOUNT_INR || 100_000), 1_000_000));
-    if (!Number.isFinite(numAmount) || numAmount < 10 || numAmount > maxDirectUpiAmount || Math.abs(numAmount - Math.round(numAmount * 100) / 100) > 0.000001) {
-      return res.status(400).json({ error: `Deposit amount must be between ₹10 and ₹${maxDirectUpiAmount.toLocaleString("en-IN")} with at most two decimals.` });
+    const maxDirectUpiAmount = maxDirectUpiAmountInr();
+    if (!Number.isFinite(numAmount) || numAmount < MIN_DIRECT_UPI_AMOUNT_INR || numAmount > maxDirectUpiAmount || Math.abs(numAmount - Math.round(numAmount * 100) / 100) > 0.000001) {
+      return res.status(400).json({ error: `Deposit amount must be between ₹${MIN_DIRECT_UPI_AMOUNT_INR} and ₹${maxDirectUpiAmount.toLocaleString("en-IN")} with at most two decimals.` });
     }
 
     const upiVpa = String(process.env.UPI_VPA || "").trim();

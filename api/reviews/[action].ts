@@ -15,73 +15,18 @@ const QUALIFYING_STATUSES = [
   "Pending", "Processing", "In progress", "Completed", "Partial",
 ];
 
-// Founder-curated starter set — text preserved verbatim from the
-// original homepage section, now mirrored as first-class audit rows in the
-// DB while remaining permanently displayed in their original homepage slot.
-const SEED_REVIEWS = [
-  {
-    seed: true, username: "Rohit Malhotra", city: "New Delhi", role: "Telegram channel owner",
-    rating: 5, metric: "24,600", metric_label: "Telegram members added",
-    headline: "Took my study channel from 0 to 25K",
-    text: "Started in August with an empty channel. Ordered members in batches, never more than 2–3K at a time. Drops happened on two batches and both refilled without me even asking twice. Views package on top now, every post crosses 6–7K views.",
-    orders_count: 14, created_at: new Date("2026-07-18T10:00:00Z"),
-  },
-  {
-    seed: true, username: "Shreya Verma", city: "Patna", role: "Boutique agency co-founder",
-    rating: 5, metric: "9,800", metric_label: "Instagram followers",
-    headline: "Agency work got 10x cheaper",
-    text: "I run a two-person agency in Patna and used to pay a reseller almost 4x these rates for the same delivery speed. Moved all client work here two months back. The UTR deposit thing sounded odd at first, now I get why they skipped the gateway — it's fast and nothing gets eaten in fees.",
-    orders_count: 31, created_at: new Date("2026-07-29T14:30:00Z"),
-  },
-  {
-    seed: true, username: "Farhan Sheikh", city: "Mumbai", role: "YouTube creator, 41K subs",
-    rating: 4, metric: "3,400 hrs", metric_label: "YouTube watch time",
-    headline: "Watch time actually completed",
-    text: "Burned by two panels before this one — ordered 4,000 hours each time, money gone, hours stuck at 2K. Here the 3,400-hour order finished in about 9 days like the card said. Took one star off because the first status sync lagged a bit; support sorted it on Telegram the same evening.",
-    orders_count: 9, created_at: new Date("2026-08-11T09:15:00Z"),
-  },
-  {
-    seed: true, username: "Aditya Rao", city: "Bengaluru", role: "Reseller, runs client panel on the API",
-    rating: 5, metric: "37", metric_label: "Repeat orders placed",
-    headline: "Founder personally stands behind it",
-    text: "One deposit took longer than usual — messaged the desk expecting a bot reply in three days. Aryan himself checked the bank alert and credited it in minutes. That one interaction is why I stopped testing other panels.",
-    orders_count: 37, created_at: new Date("2026-08-30T16:45:00Z"),
-  },
-  {
-    seed: true, username: "Priya Nair", city: "Kochi", role: "Lifestyle creator",
-    rating: 5, metric: "12,500", metric_label: "Reels views, 6 reels",
-    headline: "Growth that survives audits",
-    text: "Was scared cheap views would look fake and tank my engagement rate. Ordered for 6 reels, split across two weeks. Reach pushed past 40K on one of them and the ratio still looks natural to a brand checking my media kit.",
-    orders_count: 22, created_at: new Date("2026-09-12T11:20:00Z"),
-  },
-  {
-    seed: true, username: "Vikram Singh", city: "Jaipur", role: "Dropshipping + Instagram seller",
-    rating: 4, metric: "0%", metric_label: "Deposit fee, every top-up",
-    headline: "The fee math is honestly why I stay",
-    text: "Every other panel quietly skims 2–4% when you load money. Here ₹1,000 is ₹1,000. Rates on Instagram are already low, so zero fee compounds. API docs are clear enough that my developer friend connected my shop in an evening.",
-    orders_count: 17, created_at: new Date("2026-09-26T18:10:00Z"),
-  },
-];
+function sameOriginIfPresent(req: VercelRequest): boolean {
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+  const host = typeof req.headers.host === "string" ? req.headers.host : "";
+  if (!origin) return true;
+  try { return new URL(origin).host === host; } catch { return false; }
+}
 
-async function ensureSeed(db: any) {
-  const col = db.collection("reviews");
-  await col.bulkWrite(
-    SEED_REVIEWS.map((r, i) => ({
-      updateOne: {
-        filter: { seed_key: `homepage-${i + 1}` },
-        update: {
-          $setOnInsert: {
-            ...r,
-            seed_key: `homepage-${i + 1}`,
-            status: "approved",
-            updated_at: r.created_at,
-          },
-        },
-        upsert: true,
-      },
-    })),
-    { ordered: false }
-  );
+function clientIp(req: VercelRequest): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  return String(Array.isArray(forwarded) ? forwarded[0] : forwarded || req.socket.remoteAddress || "global")
+    .split(",")[0]
+    .trim();
 }
 
 async function userStats(db: any, userId: ObjectId) {
@@ -121,6 +66,9 @@ function publicReview(r: any) {
 async function handleReviewsRequest(req: VercelRequest, res: VercelResponse) {
   const rawAction = req.query.action;
   const action = Array.isArray(rawAction) ? rawAction[0] : rawAction || "";
+  if (!["GET", "HEAD", "OPTIONS"].includes(String(req.method || "GET").toUpperCase()) && !sameOriginIfPresent(req)) {
+    return res.status(403).json({ error: "Invalid request origin." });
+  }
   const db = await getDb();
   const col = db.collection("reviews");
 
@@ -129,15 +77,18 @@ async function handleReviewsRequest(req: VercelRequest, res: VercelResponse) {
   // deliberately isn't an aggregate or paginated review directory.
   if (action === "list" && req.method === "GET") {
     try {
-      await ensureSeed(db);
+      const feedRate = await checkRateLimit(`review_feed_${clientIp(req)}`, 90, 60, db);
+      if (!feedRate.allowed) {
+        res.setHeader("Retry-After", String(feedRate.remainingSec));
+        return res.status(429).json({ error: "Too many review-feed requests. Please try again shortly." });
+      }
       const reviews = await col
         .find({ status: "approved", seed: { $ne: true } })
         .sort({ created_at: -1 })
         .limit(12)
         .toArray();
-      // Moderation is owner-controlled from Telegram; don't let an edge cache
-      // keep a just-hidden review visible.
-      res.setHeader("Cache-Control", "no-store");
+      // A short edge cache absorbs anonymous bursts; Telegram moderation becomes visible within 30 seconds.
+      res.setHeader("Cache-Control", "public, max-age=0, s-maxage=30, stale-while-revalidate=60");
       return res.status(200).json({ reviews: reviews.map(publicReview) });
     } catch {
       return res.status(500).json({ error: "Failed to load reviews" });

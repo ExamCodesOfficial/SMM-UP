@@ -43,11 +43,66 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [scrollProgress, setScrollProgress] = React.useState(0);
   const prevScrollY = React.useRef(0);
+  const headerRef = React.useRef<HTMLElement>(null);
+  const menuButtonRef = React.useRef<HTMLButtonElement>(null);
+  const drawerRef = React.useRef<HTMLDivElement>(null);
+  const closeButtonRef = React.useRef<HTMLButtonElement>(null);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
 
-  // Lock background scroll while the mobile drawer is open
+  // Treat the mobile drawer as a true modal: lock scroll, isolate the page,
+  // trap keyboard focus, support Escape, and restore the opener on close.
   React.useEffect(() => {
+    const drawer = drawerRef.current;
+    const main = document.querySelector("main");
+    const footer = document.querySelector("footer");
     document.body.style.overflow = mobileMenuOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
+
+    if (!mobileMenuOpen) {
+      drawer?.setAttribute("inert", "");
+      headerRef.current?.removeAttribute("inert");
+      main?.removeAttribute("inert");
+      footer?.removeAttribute("inert");
+      previousFocusRef.current?.focus();
+      previousFocusRef.current = null;
+      return () => { document.body.style.overflow = ""; };
+    }
+
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    drawer?.removeAttribute("inert");
+    headerRef.current?.setAttribute("inert", "");
+    main?.setAttribute("inert", "");
+    footer?.setAttribute("inert", "");
+    requestAnimationFrame(() => closeButtonRef.current?.focus());
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileMenuOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !drawer) return;
+      const focusable = Array.from(
+        drawer.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+      ).filter((element) => !element.hasAttribute("inert"));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+      headerRef.current?.removeAttribute("inert");
+      main?.removeAttribute("inert");
+      footer?.removeAttribute("inert");
+    };
   }, [mobileMenuOpen]);
 
   // Champagne reading-progress line under the navbar
@@ -107,6 +162,7 @@ export default function Navbar({
   return (
     <>
     <header
+      ref={headerRef}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 backdrop-blur-xl bg-[#090807]/85 border-b border-white/[0.08] ${
         navVisible ? "translate-y-0" : "-translate-y-full"
       }`}
@@ -214,9 +270,12 @@ export default function Navbar({
 
           {/* Mobile Hamburger Button */}
           <button
+            ref={menuButtonRef}
             onClick={() => setMobileMenuOpen(true)}
             className="md:hidden p-2.5 rounded-none border border-white/10 text-zinc-300 hover:text-white hover:bg-white/[0.05] transition-colors cursor-pointer"
             aria-label="Open navigation menu"
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-navigation-dialog"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -227,6 +286,12 @@ export default function Navbar({
 
       {/* ── EXAMCODES-STYLE FULLSCREEN CINEMATIC MOBILE MENU ── */}
       <div
+        ref={drawerRef}
+        id="mobile-navigation-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mobile-navigation-title"
+        aria-hidden={!mobileMenuOpen}
         className={`md:hidden fixed inset-0 z-[70] flex flex-col transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           mobileMenuOpen
             ? "opacity-100 bg-black/95 backdrop-blur-md pointer-events-auto animate-fadeIn"
@@ -239,6 +304,7 @@ export default function Navbar({
         >
           {/* Menu Top Bar */}
           <div className="w-full px-5 py-4 flex items-center justify-between border-b border-white/[0.08] shrink-0">
+            <h2 id="mobile-navigation-title" className="sr-only">Site navigation</h2>
             <a
               href={pathFor("home")}
               onClick={() => setMobileMenuOpen(false)}
@@ -251,6 +317,7 @@ export default function Navbar({
             </a>
 
             <button
+              ref={closeButtonRef}
               onClick={() => setMobileMenuOpen(false)}
               className="p-2.5 rounded-none border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Close menu"

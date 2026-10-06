@@ -27,7 +27,7 @@ export const RESPONSIBLE_GROWTH_FAQS: Faq[] = [
 export const FAQS: Faq[] = [
   {
     q: "What is SMM UP?",
-    a: "SMM UP is an Indian wholesale SMM panel. You can order social media services — Telegram members, Instagram followers, YouTube views and 2,000+ more — at direct wholesale rates. Individuals, agencies and reseller panels all use the same rates.",
+    a: "SMM UP is an Indian wholesale SMM panel. You can order social media services — Telegram members, Instagram followers, YouTube views and 2,100+ more — at direct wholesale rates. Individuals, agencies and reseller panels all use the same rates.",
   },
   {
     q: "Who owns SMM UP (SMMUP)?",

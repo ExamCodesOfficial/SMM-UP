@@ -116,9 +116,44 @@ async function run() {
     assert.equal(emailConfirmation.body.signedIn, false);
     assert.equal((await db.collection("users").findOne({ _id: unverified._id }))?.email, "changed@example.com");
     assert.equal((await invoke("verify-email", { token: emailChangeToken })).statusCode, 400);
-    assert.equal((await invoke("login", { identifier: "changed@example.com", password: newPassword })).statusCode, 200);
+    const finalLogin = await invoke("login", { identifier: "changed@example.com", password: newPassword });
+    assert.equal(finalLogin.statusCode, 200);
+    const finalCookie = cookieFrom(finalLogin);
 
-    console.log("Verified registration, recovery, and email-change integration checks passed.");
+    const profileUpdate = await invoke("update-profile", {
+      username: "updated-member",
+      displayName: "Updated Member",
+      avatarColor: "blue",
+      password: newPassword,
+    }, finalCookie);
+    assert.equal(profileUpdate.statusCode, 200);
+    assert.equal(profileUpdate.body.profile.username, "updated-member");
+    const updatedUser: any = await db.collection("users").findOne({ _id: unverified._id });
+    assert.equal(updatedUser.display_name, "Updated Member");
+    assert.equal(updatedUser.avatar_color, "blue");
+
+    await Promise.all([
+      db.collection("orders").insertOne({ user_id: unverified._id, user_email: "changed@example.com", status: "Completed", link: "https://example.com/private-target", comments: "private", created_at: new Date() }),
+      db.collection("service_favorites").insertOne({ user_id: unverified._id, service_id: "101", created_at: new Date() }),
+      db.collection("order_templates").insertOne({ user_id: unverified._id, service_id: "101", name: "Template", created_at: new Date() }),
+    ]);
+    const deletion = await invoke("delete-account", {
+      password: newPassword,
+      confirmation: "DELETE updated-member",
+    }, finalCookie);
+    assert.equal(deletion.statusCode, 200);
+    const deletedUser: any = await db.collection("users").findOne({ _id: unverified._id });
+    assert.ok(deletedUser.account_deleted_at instanceof Date);
+    assert.equal(deletedUser.account_locked, true);
+    assert.match(deletedUser.email, /^deleted\+.+@deleted\.invalid$/);
+    const retainedOrder: any = await db.collection("orders").findOne({ user_id: unverified._id });
+    assert.equal(retainedOrder.link, undefined, "account deletion must erase sensitive order targets");
+    assert.equal(retainedOrder.comments, undefined, "account deletion must erase private comments");
+    assert.equal(await db.collection("service_favorites").countDocuments({ user_id: unverified._id }), 0);
+    assert.equal(await db.collection("order_templates").countDocuments({ user_id: unverified._id }), 0);
+    assert.equal(await db.collection("sessions").countDocuments({ user_id: unverified._id, revoked_at: null }), 0, "deleted account sessions must be revoked");
+
+    console.log("Verified registration, recovery, email-change, profile-update, and account-erasure integration checks passed.");
   } finally {
     globalThis.fetch = originalFetch;
     if (dbLib) await (await dbLib.getMongoClient()).close().catch(() => {});

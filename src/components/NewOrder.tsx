@@ -22,6 +22,9 @@ import {
   SlidersHorizontal,
   X,
   FileText,
+  Heart,
+  BookmarkPlus,
+  Trash2,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { SkeletonOrderForm } from "./Skeleton";
@@ -145,6 +148,28 @@ export default function NewOrder({
   const [submitting, setSubmitting] = React.useState(false);
   const [errorMsg, setErrorMsg] = React.useState("");
   const [successMsg, setSuccessMsg] = React.useState("");
+  const [favorites, setFavorites] = React.useState<string[]>([]);
+  const [templates, setTemplates] = React.useState<Array<{ id: string; name: string; serviceId: string; quantity: number | null }>>([]);
+  const [templateName, setTemplateName] = React.useState("");
+  const [presetBusy, setPresetBusy] = React.useState("");
+
+  React.useEffect(() => {
+    if (!user) {
+      setFavorites([]);
+      setTemplates([]);
+      return;
+    }
+    let active = true;
+    fetch("/api/presets/list", { cache: "no-store" })
+      .then(async (response) => ({ ok: response.ok, data: await readApiPayload(response) }))
+      .then(({ ok, data }) => {
+        if (!active || !ok) return;
+        setFavorites(Array.isArray(data.favorites) ? data.favorites.map(String) : []);
+        setTemplates(Array.isArray(data.templates) ? data.templates : []);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [user?.userId]);
 
   // Close dropdowns on outside click or Escape key (keyboard accessibility)
   React.useEffect(() => {
@@ -220,13 +245,22 @@ export default function NewOrder({
 
   // Sync selected service
   React.useEffect(() => {
-    if (preselectedServiceId) {
+    if (preselectedServiceId && services.length > 0) {
       const match = services.find((s) => Number(s.service) === Number(preselectedServiceId));
       if (match) {
         setSelectedCategory(match.category);
         setSelectedServiceId(match.service);
+        setLink("");
+        setQuantity("");
+        setComments("");
+        setErrorMsg("");
         return;
       }
+      setSelectedServiceId("");
+      setLink("");
+      setQuantity("");
+      setErrorMsg("That previous service is currently unavailable. Choose a current service before ordering again.");
+      return;
     }
 
     if (servicesInCategory.length > 0) {
@@ -281,6 +315,96 @@ export default function NewOrder({
 
   const userBalance = user?.balance ?? 0;
   const hasEnoughBalance = user ? userBalance >= calculatedCharge : true;
+  const currentServiceIsFavorite = currentService ? favorites.includes(String(currentService.service)) : false;
+
+  const applySavedService = (serviceId: string, savedQuantity?: number | null) => {
+    const match = services.find((service) => String(service.service) === String(serviceId));
+    if (!match) {
+      setErrorMsg("That saved service is currently unavailable. Choose a current service.");
+      return;
+    }
+    setSelectedPlatform("All");
+    setSelectedCategory(sanitizeBrandText(match.category));
+    setSelectedServiceId(match.service);
+    setLink("");
+    setComments("");
+    setQuantity(savedQuantity ?? "");
+    setErrorMsg("");
+    setSuccessMsg("Saved service applied. Enter a current target before ordering.");
+  };
+
+  const toggleFavorite = async () => {
+    if (!user) return onOpenAuth();
+    if (!currentService) return;
+    const serviceId = String(currentService.service);
+    setPresetBusy(`favorite:${serviceId}`);
+    setErrorMsg("");
+    try {
+      const response = await fetch("/api/presets/toggle-favorite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serviceId }),
+      });
+      const data = await readApiPayload(response);
+      if (!response.ok) throw new Error(data.error || "Unable to update favourites.");
+      setFavorites((current) => data.favorite ? Array.from(new Set([...current, serviceId])) : current.filter((id) => id !== serviceId));
+      setSuccessMsg(data.favorite ? "Service added to favourites." : "Service removed from favourites.");
+    } catch (favoriteError: any) {
+      setErrorMsg(favoriteError?.message || "Unable to update favourites.");
+    } finally {
+      setPresetBusy("");
+    }
+  };
+
+  const saveTemplate = async () => {
+    if (!user) return onOpenAuth();
+    if (!currentService || templateName.trim().length < 2) {
+      setErrorMsg("Enter a template name and select a service.");
+      return;
+    }
+    setPresetBusy("template-save");
+    setErrorMsg("");
+    try {
+      const response = await fetch("/api/presets/save-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: templateName.trim(),
+          serviceId: String(currentService.service),
+          quantity: currentService.type === "Package" || currentService.type === "Custom Comments" ? null : quantity,
+        }),
+      });
+      const data = await readApiPayload(response);
+      if (!response.ok) throw new Error(data.error || "Unable to save template.");
+      setTemplates((current) => [data.template, ...current]);
+      setTemplateName("");
+      setSuccessMsg(data.message || "Template saved.");
+    } catch (templateError: any) {
+      setErrorMsg(templateError?.message || "Unable to save template.");
+    } finally {
+      setPresetBusy("");
+    }
+  };
+
+  const deleteTemplate = async (templateId: string) => {
+    setPresetBusy(`template-delete:${templateId}`);
+    setErrorMsg("");
+    try {
+      const response = await fetch("/api/presets/delete-template", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId }),
+      });
+      const data = await readApiPayload(response);
+      if (!response.ok) throw new Error(data.error || "Unable to delete template.");
+      setTemplates((current) => current.filter((item) => item.id !== templateId));
+      setSuccessMsg("Template deleted.");
+    } catch (templateError: any) {
+      setErrorMsg(templateError?.message || "Unable to delete template.");
+    } finally {
+      setPresetBusy("");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -607,6 +731,47 @@ export default function NewOrder({
                 )}
               </div>
 
+              <div className="p-3.5 border border-white/[0.08] bg-black/30 space-y-3" aria-label="Saved services and templates">
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={toggleFavorite} disabled={!currentService || presetBusy.startsWith("favorite:")} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40" aria-pressed={currentServiceIsFavorite}>
+                    <Heart className={`w-3.5 h-3.5 ${currentServiceIsFavorite ? "fill-current" : ""}`} /> {currentServiceIsFavorite ? "Favourited" : "Add favourite"}
+                  </button>
+                  {favorites.length > 0 && (
+                    <select
+                      aria-label="Choose a favourite service"
+                      defaultValue=""
+                      onChange={(event) => { if (event.target.value) applySavedService(event.target.value); event.currentTarget.value = ""; }}
+                      className="bg-black/70 border border-white/10 px-3 py-2 text-[11px] text-zinc-300 outline-none"
+                    >
+                      <option value="">Open favourite…</option>
+                      {favorites.map((serviceId) => {
+                        const service = services.find((item) => String(item.service) === serviceId);
+                        return <option key={serviceId} value={serviceId}>#{serviceId} {service?.name || "Unavailable service"}</option>;
+                      })}
+                    </select>
+                  )}
+                </div>
+
+                <div className="grid sm:grid-cols-[1fr_auto] gap-2">
+                  <label className="sr-only" htmlFor="template-name">Template name</label>
+                  <input id="template-name" type="text" maxLength={60} value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="Template name (target is never saved)" className="bg-black/60 border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-white/30" />
+                  <button type="button" onClick={saveTemplate} disabled={!currentService || presetBusy === "template-save"} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40"><BookmarkPlus className="w-3.5 h-3.5" /> Save template</button>
+                </div>
+
+                {templates.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-600">Saved templates</p>
+                    {templates.map((template) => (
+                      <div key={template.id} className="flex items-center justify-between gap-2 text-[11px]">
+                        <button type="button" onClick={() => applySavedService(template.serviceId, template.quantity)} className="min-w-0 text-left text-zinc-300 hover:text-white truncate">{template.name} · #{template.serviceId}{template.quantity ? ` · ${formatNumber(template.quantity)}` : ""}</button>
+                        <button type="button" onClick={() => deleteTemplate(template.id)} disabled={presetBusy === `template-delete:${template.id}`} aria-label={`Delete template ${template.name}`} className="p-1 text-zinc-600 hover:text-red-300 disabled:opacity-40"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-zinc-600">For privacy, templates save only the current service and optional quantity—not target links, usernames or comments.</p>
+              </div>
+
               {/* 3. Target Link */}
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
@@ -730,7 +895,7 @@ export default function NewOrder({
                 {user && userBalance < calculatedCharge && (
                   <div className="pt-2">
                     <a
-                      href="/add-funds"
+                      href={pathFor("add-funds")}
                       className="w-full py-2.5 rounded-none border border-white/15 bg-white/[0.06] text-zinc-100 font-semibold text-xs tracking-wider hover:bg-white/[0.06] transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <ExecutiveWalletIcon size={15} />
@@ -742,14 +907,14 @@ export default function NewOrder({
 
               {/* Status Messages */}
               {errorMsg && (
-                <div className="p-4 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs sm:text-sm flex items-start gap-3">
+                <div role="alert" className="p-4 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs sm:text-sm flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 shrink-0 text-zinc-100" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
               {successMsg && (
-                <div className="p-4 rounded-none bg-[#E4E4E7]/10 border border-[#E4E4E7]/30 text-[#FAF9F7] text-xs sm:text-sm flex items-start gap-3">
+                <div role="status" aria-live="polite" className="p-4 rounded-none bg-[#E4E4E7]/10 border border-[#E4E4E7]/30 text-[#FAF9F7] text-xs sm:text-sm flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 shrink-0 text-[#E4E4E7]" />
                   <span>{successMsg}</span>
                 </div>

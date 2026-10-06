@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import ContentPage from "../ContentPage";
 import { formatINR, formatNumber } from "../../lib/utils";
+import { pathFor } from "../../lib/routes";
 
 interface PageProps {
   onNavigate: (tab: string) => void;
@@ -135,6 +136,12 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
   const [success, setSuccess] = React.useState("");
   const [newEmail, setNewEmail] = React.useState("");
   const [emailChangePassword, setEmailChangePassword] = React.useState("");
+  const [profileUsername, setProfileUsername] = React.useState(String(user?.username || ""));
+  const [displayName, setDisplayName] = React.useState(String(user?.displayName || user?.username || ""));
+  const [avatarColor, setAvatarColor] = React.useState(String(user?.avatarColor || "zinc"));
+  const [profilePassword, setProfilePassword] = React.useState("");
+  const [deletePassword, setDeletePassword] = React.useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = React.useState("");
 
   const formatDate = (value?: string | null) => {
     if (!value) return "Never";
@@ -448,6 +455,55 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
     }
   };
 
+  const updateProfile = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy("profile-update");
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch("/api/auth/update-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: profileUsername, displayName, avatarColor, password: profilePassword }),
+      });
+      const data = await readApiPayload(response);
+      if (!response.ok) throw new Error(data.error || "Unable to update profile.");
+      onUserUpdate?.(data.profile || {});
+      setProfilePassword("");
+      setSuccess(data.message || "Profile updated.");
+    } catch (profileError: any) {
+      setError(profileError?.message || "Unable to update profile.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const deleteAccount = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const expected = `DELETE ${user?.username || ""}`;
+    if (deleteConfirmation !== expected) {
+      setError(`Type ${expected} exactly to confirm.`);
+      return;
+    }
+    if (!window.confirm("Permanently delete this account and anonymize its personal profile data? This cannot be undone.")) return;
+    setBusy("account-delete");
+    setError("");
+    setSuccess("");
+    try {
+      const response = await fetch("/api/auth/delete-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: deletePassword, confirmation: deleteConfirmation }),
+      });
+      const data = await readApiPayload(response);
+      if (!response.ok) throw new Error(data.error || "Unable to delete account.");
+      onLogout();
+    } catch (deletionError: any) {
+      setError(deletionError?.message || "Unable to delete account.");
+      setBusy(null);
+    }
+  };
+
   const copySecret = async () => {
     if (!revealed) return;
     await navigator.clipboard.writeText(revealed.secret);
@@ -458,6 +514,15 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
   const activeKeyCount = keys?.filter((key) => key.status !== "archived").length || 0;
   const readOnlySupport = Boolean(user?.supportSession?.active);
   const fullAccess = scopes.length > 0 && scopes.every((scope) => form.scopes.includes(scope));
+  const avatarColorClass = ({
+    zinc: "bg-zinc-800 text-zinc-100",
+    slate: "bg-slate-800 text-slate-100",
+    stone: "bg-stone-800 text-stone-100",
+    blue: "bg-blue-950 text-blue-100",
+    emerald: "bg-emerald-950 text-emerald-100",
+    violet: "bg-violet-950 text-violet-100",
+  } as Record<string, string>)[String(user?.avatarColor || avatarColor)] || "bg-zinc-800 text-zinc-100";
+  const avatarInitial = String(user?.displayName || user?.username || "U").trim().charAt(0).toUpperCase() || "U";
 
   return (
     <ContentPage
@@ -471,12 +536,13 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
       <div className="space-y-6">
         <section className="grid lg:grid-cols-[1fr_auto] gap-5 items-center p-5 sm:p-6 border border-white/12 bg-white/[0.025]">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-12 h-12 border border-white/10 bg-white/[0.04] flex items-center justify-center shrink-0">
-              <User className="w-5 h-5 text-zinc-200" />
+            <div className={`w-12 h-12 border border-white/10 flex items-center justify-center shrink-0 text-lg font-semibold ${avatarColorClass}`} aria-hidden="true">
+              {avatarInitial}
             </div>
             <div className="min-w-0">
               <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 block mb-1">Signed-in account</span>
-              <h2 className="text-lg font-semibold text-white truncate">@{user?.username}</h2>
+              <h2 className="text-lg font-semibold text-white truncate">{user?.displayName || user?.username}</h2>
+              <p className="text-xs text-zinc-400 truncate">@{user?.username}</p>
               <p className="text-xs text-zinc-500 truncate">{user?.email}</p>
             </div>
           </div>
@@ -493,13 +559,30 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
           </section>
         )}
 
+        {error && <div role="alert" className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {error}</div>}
+        {success && <div role="status" aria-live="polite" className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2"><Check className="w-4 h-4 shrink-0 mt-0.5" /> {success}</div>}
+
+        {!readOnlySupport && (
+          <section className="p-5 border border-white/12 bg-white/[0.02]">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1"><User className="w-4 h-4" /> Public profile</div>
+            <p className="text-xs text-zinc-500 mb-4">Change your display name, username and initials-avatar colour. Confirm with your current password.</p>
+            <form onSubmit={updateProfile} className="grid md:grid-cols-2 gap-3">
+              <label className="block"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Display name</span><input type="text" autoComplete="name" required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} className="up-input w-full" /></label>
+              <label className="block"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Username</span><input type="text" autoComplete="username" required minLength={3} maxLength={40} value={profileUsername} onChange={(event) => setProfileUsername(event.target.value)} className="up-input w-full" /></label>
+              <label className="block"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Avatar colour</span><select value={avatarColor} onChange={(event) => setAvatarColor(event.target.value)} className="up-input w-full"><option value="zinc">Zinc</option><option value="slate">Slate</option><option value="stone">Stone</option><option value="blue">Blue</option><option value="emerald">Emerald</option><option value="violet">Violet</option></select></label>
+              <label className="block"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Current password</span><input type="password" autoComplete="current-password" required value={profilePassword} onChange={(event) => setProfilePassword(event.target.value)} className="up-input w-full" /></label>
+              <button type="submit" disabled={busy === "profile-update"} className="btn-up btn-up-solid md:col-span-2 md:w-fit disabled:opacity-40">{busy === "profile-update" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Save profile</button>
+            </form>
+          </section>
+        )}
+
         {!readOnlySupport && (
           <section className="p-5 border border-white/12 bg-white/[0.02]">
             <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1"><ShieldCheck className="w-4 h-4" /> Verified email</div>
             <p className="text-xs text-zinc-500 mb-4">Your current address is {user?.email}. A change takes effect only after you confirm the link sent to the new address; active sessions are then revoked.</p>
-            <form onSubmit={requestEmailChange} className="grid md:grid-cols-[1fr_1fr_auto] gap-3">
-              <input type="email" required value={newEmail} onChange={(event) => setNewEmail(event.target.value)} placeholder="New email address" className="up-input" />
-              <input type="password" required value={emailChangePassword} onChange={(event) => setEmailChangePassword(event.target.value)} placeholder="Current password" className="up-input" />
+            <form onSubmit={requestEmailChange} className="grid md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">New email address</span><input type="email" autoComplete="email" required value={newEmail} onChange={(event) => setNewEmail(event.target.value)} className="up-input w-full" /></label>
+              <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Current password</span><input type="password" autoComplete="current-password" required value={emailChangePassword} onChange={(event) => setEmailChangePassword(event.target.value)} className="up-input w-full" /></label>
               <button type="submit" disabled={busy === "email-change"} className="btn-up btn-up-solid">{busy === "email-change" ? "Sending…" : "Verify new email"}</button>
             </form>
           </section>
@@ -514,9 +597,9 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
         <section className="grid sm:grid-cols-3 gap-3">
           {readOnlySupport
             ? <span className="btn-up btn-up-ghost w-full justify-between opacity-45 cursor-not-allowed"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds blocked</span><span>×</span></span>
-            : <a href="/add-funds" className="btn-up btn-up-solid w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds</span><span>→</span></a>}
-          <a href="/transactions" className="btn-up btn-up-ghost w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Deposit history</span><span>→</span></a>
-          <a href="/logs" className="btn-up btn-up-ghost w-full justify-between"><span className="flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Order history</span><span>→</span></a>
+            : <a href={pathFor("add-funds")} className="btn-up btn-up-solid w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds</span><span>→</span></a>}
+          <a href={pathFor("transactions")} className="btn-up btn-up-ghost w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Deposit history</span><span>→</span></a>
+          <a href={pathFor("logs")} className="btn-up btn-up-ghost w-full justify-between"><span className="flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Order history</span><span>→</span></a>
         </section>
 
         <div className="grid xl:grid-cols-[minmax(0,1fr)_300px] gap-5 items-start">
@@ -542,9 +625,6 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                   <button type="button" onClick={copySecret} className="btn-up btn-up-solid btn-up-sm">{copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} {copied ? "Copied" : "Copy secret"}</button>
                 </div>
               )}
-
-              {error && <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2"><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> {error}</div>}
-              {success && <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2"><Check className="w-4 h-4 shrink-0 mt-0.5" /> {success}</div>}
 
               {formMode && (
                 <form onSubmit={submitForm} className="p-4 border border-white/12 bg-black/35 space-y-4">
@@ -658,7 +738,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                 </div>
               )}
 
-              <a href="/api" className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white underline underline-offset-4">Open API documentation <ExternalLink className="w-3.5 h-3.5" /></a>
+              <a href={pathFor("api")} className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white underline underline-offset-4">Open API documentation <ExternalLink className="w-3.5 h-3.5" /></a>
             </section>
           </div>
 
@@ -707,6 +787,21 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
             </div>
           )}
         </section>
+
+        {!readOnlySupport && (
+          <section className="p-5 sm:p-6 border border-red-950/70 bg-red-950/10 space-y-4">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-red-100"><Trash2 className="w-4 h-4" /> Delete account</div>
+              <p className="text-xs text-zinc-400 mt-1">Permanent and irreversible. Personal profile data and order targets are anonymized; legally necessary financial and operational records are retained without your public identity.</p>
+            </div>
+            <p className="text-[11px] text-zinc-500">Deletion is blocked while your wallet has funds, an order is active, or a deposit is pending. Type <strong className="text-zinc-300">DELETE {user?.username}</strong> and confirm with your current password.</p>
+            <form onSubmit={deleteAccount} className="grid md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+              <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Exact confirmation</span><input type="text" autoComplete="off" required value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} className="up-input w-full" /></label>
+              <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Current password</span><input type="password" autoComplete="current-password" required value={deletePassword} onChange={(event) => setDeletePassword(event.target.value)} className="up-input w-full" /></label>
+              <button type="submit" disabled={busy !== null || deleteConfirmation !== `DELETE ${user?.username || ""}`} className="btn-up btn-up-ghost border-red-900/70 text-red-200 disabled:opacity-40">{busy === "account-delete" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />} Delete permanently</button>
+            </form>
+          </section>
+        )}
       </div>
     </ContentPage>
   );
@@ -749,7 +844,7 @@ export function TransactionsPage({ onNavigate, user }: PageProps & { user: any }
         <div className="p-10 text-center border border-white/10 rounded-none">
           <p className="text-sm text-zinc-400 mb-1">No deposits yet{user ? "" : " — or you're not signed in"}.</p>
           <p className="text-xs text-zinc-600 mb-5">Direct UPI and Razorpay payment records will appear here.</p>
-          <a href="/add-funds" className="btn-up btn-up-solid btn-up-sm">Add funds</a>
+          <a href={pathFor("add-funds")} className="btn-up btn-up-solid btn-up-sm">Add funds</a>
         </div>
       ) : (
         <div className="overflow-x-auto border border-white/10 rounded-none">

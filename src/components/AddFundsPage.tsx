@@ -21,6 +21,7 @@ import {
 import confetti from "canvas-confetti";
 import QRCode from "qrcode";
 import { formatINR } from "../lib/utils";
+import { pathFor } from "../lib/routes";
 
 interface AddFundsPageProps {
   user: any;
@@ -87,13 +88,16 @@ export default function AddFundsPage({
   const [razorpayVerifying, setRazorpayVerifying] = React.useState(false);
   const [razorpayError, setRazorpayError] = React.useState("");
   const [razorpaySuccess, setRazorpaySuccess] = React.useState("");
+  const [directUpiLimits, setDirectUpiLimits] = React.useState({ loaded: false, minAmount: 0, maxAmount: 0, error: "" });
   const [razorpayConfig, setRazorpayConfig] = React.useState<{
     loaded: boolean;
     enabled: boolean;
     mode: "test" | "live";
     testWalletCreditEnabled: boolean;
+    minAmount: number;
+    maxAmount: number;
     message?: string;
-  }>({ loaded: false, enabled: false, mode: "test", testWalletCreditEnabled: false });
+  }>({ loaded: false, enabled: false, mode: "test", testWalletCreditEnabled: false, minAmount: 0, maxAmount: 0 });
   const [qrData, setQrData] = React.useState<{
     qrUrl: string;
     upiUrl: string;
@@ -121,6 +125,7 @@ export default function AddFundsPage({
 
   React.useEffect(() => {
     loadHistory();
+    loadDirectUpiLimits();
     loadRazorpayConfig();
     return () => stopPolling();
   }, []);
@@ -183,17 +188,38 @@ export default function AddFundsPage({
     }
   }, [activeStep, qrData?.memo, verifySuccess]);
 
+  const loadDirectUpiLimits = async () => {
+    try {
+      const res = await fetch("/api/payments/config", { cache: "no-store" });
+      const data = await readApiPayload(res);
+      if (!res.ok) throw new Error(data.error || "Unable to load Direct UPI limits.");
+      const minAmount = Number(data.minAmount);
+      const maxAmount = Number(data.maxAmount);
+      if (!Number.isFinite(minAmount) || !Number.isFinite(maxAmount) || minAmount <= 0 || maxAmount < minAmount) {
+        throw new Error("Direct UPI limits are unavailable.");
+      }
+      setDirectUpiLimits({ loaded: true, minAmount, maxAmount, error: "" });
+    } catch (configError: any) {
+      setDirectUpiLimits({ loaded: true, minAmount: 0, maxAmount: 0, error: configError?.message || "Direct UPI limits are unavailable." });
+    }
+  };
+
   const loadRazorpayConfig = async () => {
     setRazorpayConfig((current) => ({ ...current, loaded: false }));
     try {
       const res = await fetch("/api/razorpay/config", { cache: "no-store" });
       const data = await readApiPayload(res);
+      const minAmount = Number(data.minAmount);
+      const maxAmount = Number(data.maxAmount);
+      const validLimits = Number.isFinite(minAmount) && Number.isFinite(maxAmount) && minAmount > 0 && maxAmount >= minAmount;
       setRazorpayConfig({
         loaded: true,
-        enabled: Boolean(res.ok && data.enabled),
+        enabled: Boolean(res.ok && data.enabled && validLimits),
         mode: data.mode === "live" ? "live" : "test",
         testWalletCreditEnabled: Boolean(data.testWalletCreditEnabled),
-        message: data.message || data.error,
+        minAmount: validLimits ? minAmount : 0,
+        maxAmount: validLimits ? maxAmount : 0,
+        message: validLimits ? (data.message || data.error) : "Razorpay limits are unavailable.",
       });
     } catch {
       setRazorpayConfig({
@@ -201,6 +227,8 @@ export default function AddFundsPage({
         enabled: false,
         mode: "test",
         testWalletCreditEnabled: false,
+        minAmount: 0,
+        maxAmount: 0,
         message: "Razorpay availability could not be checked.",
       });
     }
@@ -218,17 +246,41 @@ export default function AddFundsPage({
     setLoadingHistory(false);
   };
 
+  const paymentLimitsLoaded = directUpiLimits.loaded && razorpayConfig.loaded;
+  const availableMinimums = [
+    directUpiLimits.maxAmount > 0 ? directUpiLimits.minAmount : 0,
+    razorpayConfig.enabled ? razorpayConfig.minAmount : 0,
+  ].filter((value) => value > 0);
+  const minSelectableAmount = availableMinimums.length ? Math.min(...availableMinimums) : 0;
+  const maxSelectableAmount = Math.max(
+    directUpiLimits.maxAmount,
+    razorpayConfig.enabled ? razorpayConfig.maxAmount : 0,
+  );
+  const selectedAmount = Number(amount);
+  const directUpiEligible = Number.isFinite(selectedAmount)
+    && directUpiLimits.maxAmount > 0
+    && selectedAmount >= directUpiLimits.minAmount
+    && selectedAmount <= directUpiLimits.maxAmount;
+  const razorpayEligible = Number.isFinite(selectedAmount)
+    && razorpayConfig.enabled
+    && selectedAmount >= razorpayConfig.minAmount
+    && selectedAmount <= razorpayConfig.maxAmount;
+
   const getValidAmount = (): number | null => {
     const num = Number(amount);
-    if (!Number.isFinite(num) || num < 10 || Math.abs(num * 100 - Math.round(num * 100)) > 0.0001) {
+    if (!paymentLimitsLoaded || minSelectableAmount <= 0 || maxSelectableAmount <= 0 || !Number.isFinite(num) || num < minSelectableAmount || num > maxSelectableAmount || Math.abs(num * 100 - Math.round(num * 100)) > 0.0001) {
       return null;
     }
     return num;
   };
 
   const handleContinueToMethod = () => {
+    if (!paymentLimitsLoaded || maxSelectableAmount <= 0) {
+      setAmountError("Payment limits are unavailable. Retry loading them before choosing a method.");
+      return;
+    }
     if (getValidAmount() === null) {
-      setAmountError("Enter at least ₹10 with no more than 2 decimal places.");
+      setAmountError(`Enter ₹${minSelectableAmount.toLocaleString("en-IN")}–₹${maxSelectableAmount.toLocaleString("en-IN")} with no more than 2 decimal places.`);
       return;
     }
     setAmountError("");
@@ -239,8 +291,8 @@ export default function AddFundsPage({
 
   const handleGenerateQR = async () => {
     const num = getValidAmount();
-    if (num === null) {
-      setAmountError("Enter at least ₹10 with no more than 2 decimal places.");
+    if (num === null || num < directUpiLimits.minAmount || num > directUpiLimits.maxAmount) {
+      setAmountError(`Direct UPI accepts ₹${directUpiLimits.minAmount.toLocaleString("en-IN")}–₹${directUpiLimits.maxAmount.toLocaleString("en-IN")} with no more than 2 decimal places.`);
       setActiveStep("select");
       return;
     }
@@ -326,8 +378,8 @@ export default function AddFundsPage({
 
   const handleRazorpayPayment = async () => {
     const num = getValidAmount();
-    if (num === null) {
-      setRazorpayError("Enter a valid deposit amount of at least ₹10.");
+    if (num === null || num < razorpayConfig.minAmount || num > razorpayConfig.maxAmount) {
+      setRazorpayError(`Razorpay accepts ₹${razorpayConfig.minAmount.toLocaleString("en-IN")}–₹${razorpayConfig.maxAmount.toLocaleString("en-IN")} with no more than 2 decimal places.`);
       return;
     }
     if (!razorpayConfig.enabled) {
@@ -570,8 +622,10 @@ export default function AddFundsPage({
                 </span>
                 <input
                   type="number"
-                  min="10"
+                  min={minSelectableAmount || undefined}
+                  max={maxSelectableAmount || undefined}
                   step="0.01"
+                  aria-describedby="deposit-amount-limits"
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
@@ -581,8 +635,21 @@ export default function AddFundsPage({
                   className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-9 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
                 />
               </div>
+              <div id="deposit-amount-limits" className="mt-2 text-[11px] text-zinc-500">
+                {!paymentLimitsLoaded ? (
+                  <span role="status">Loading current payment limits…</span>
+                ) : (
+                  <>
+                    {directUpiLimits.maxAmount > 0
+                      ? <>Direct UPI: ₹{directUpiLimits.minAmount.toLocaleString("en-IN")}–₹{directUpiLimits.maxAmount.toLocaleString("en-IN")}</>
+                      : <>Direct UPI limits unavailable</>}
+                    {razorpayConfig.enabled && <> · Razorpay: ₹{razorpayConfig.minAmount.toLocaleString("en-IN")}–₹{razorpayConfig.maxAmount.toLocaleString("en-IN")}</>}
+                    {directUpiLimits.error && <button type="button" onClick={loadDirectUpiLimits} className="ml-2 underline underline-offset-2 text-zinc-300">Retry</button>}
+                  </>
+                )}
+              </div>
               {amountError && (
-                <div className="mt-3 p-3 border border-white/15 bg-white/[0.04] text-xs text-zinc-200 flex items-start gap-2">
+                <div role="alert" className="mt-3 p-3 border border-white/15 bg-white/[0.04] text-xs text-zinc-200 flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{amountError}</span>
                 </div>
@@ -601,8 +668,10 @@ export default function AddFundsPage({
             </div>
 
             <button
+              type="button"
               onClick={handleContinueToMethod}
-              className="w-full py-3.5 px-6 rounded-none bg-white text-black font-bold tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2 cursor-pointer"
+              disabled={!paymentLimitsLoaded || maxSelectableAmount <= 0}
+              className="w-full py-3.5 px-6 rounded-none bg-white text-black font-bold disabled:opacity-50 disabled:cursor-not-allowed tracking-wider text-xs uppercase hover:bg-zinc-200 transition-all duration-300 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] flex items-center justify-center gap-2 cursor-pointer"
             >
               <span>Choose Payment Method</span>
               <ChevronRight className="w-4 h-4" />
@@ -633,7 +702,7 @@ export default function AddFundsPage({
                 <button
                   type="button"
                   onClick={handleGenerateQR}
-                  disabled={loading || razorpayVerifying}
+                  disabled={!directUpiEligible || loading || razorpayVerifying}
                   className="w-full p-4 border border-white/12 bg-white/[0.025] hover:bg-white/[0.06] hover:border-white/25 transition-all text-left cursor-pointer disabled:opacity-50 group"
                 >
                   <div className="flex items-start gap-4">
@@ -643,11 +712,12 @@ export default function AddFundsPage({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-bold text-white">Direct UPI</span>
-                        <span className="text-[9px] font-mono tracking-wider text-zinc-200 border border-white/15 px-2 py-1">0% FEE</span>
+                        <span className="text-[9px] font-mono tracking-wider text-zinc-200 border border-white/15 px-2 py-1">{directUpiEligible ? "0% FEE" : "AMOUNT OUTSIDE LIMIT"}</span>
                       </div>
                       <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
                         Dedicated QR and UPI intent for GPay, PhonePe, Paytm and other UPI apps. Confirmed through the existing UTR system.
                       </p>
+                      <p className="text-[10px] text-zinc-500 mt-2">Accepted amount: ₹{directUpiLimits.minAmount.toLocaleString("en-IN")}–₹{directUpiLimits.maxAmount.toLocaleString("en-IN")}.</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-white mt-3 shrink-0" />
                   </div>
@@ -656,7 +726,7 @@ export default function AddFundsPage({
                 <button
                   type="button"
                   onClick={handleRazorpayPayment}
-                  disabled={!razorpayConfig.loaded || !razorpayConfig.enabled || razorpayLoading || razorpayVerifying}
+                  disabled={!razorpayEligible || razorpayLoading || razorpayVerifying}
                   className="w-full p-4 border border-white/12 bg-white/[0.025] hover:bg-white/[0.06] hover:border-white/25 transition-all text-left cursor-pointer disabled:cursor-not-allowed disabled:opacity-55 group"
                 >
                   <div className="flex items-start gap-4">
@@ -673,14 +743,17 @@ export default function AddFundsPage({
                             ? "CHECKING"
                             : !razorpayConfig.enabled
                               ? "AWAITING ACTIVATION"
-                              : razorpayConfig.mode === "test"
-                                ? "TEST MODE"
-                                : "AVAILABLE"}
+                              : !razorpayEligible
+                                ? "AMOUNT OUTSIDE LIMIT"
+                                : razorpayConfig.mode === "test"
+                                  ? "TEST MODE"
+                                  : "AVAILABLE"}
                         </span>
                       </div>
                       <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
                         A separate Razorpay-hosted payment flow for enabled UPI, cards, netbanking and wallet methods. Card and banking credentials never enter SMM UP.
                       </p>
+                      {razorpayConfig.enabled && <p className="text-[10px] text-zinc-500 mt-2">Accepted amount: ₹{razorpayConfig.minAmount.toLocaleString("en-IN")}–₹{razorpayConfig.maxAmount.toLocaleString("en-IN")}.</p>}
                       {razorpayConfig.loaded && !razorpayConfig.enabled && (
                         <p className="text-[10px] text-zinc-500 mt-2">
                           UI is ready. Checkout activates automatically after the Razorpay keys and webhook are configured.
@@ -707,13 +780,13 @@ export default function AddFundsPage({
               </div>
             )}
             {razorpayError && (
-              <div className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2.5">
+              <div role="alert" className="p-3.5 border border-white/15 bg-white/[0.05] text-xs text-zinc-200 flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{razorpayError}</span>
               </div>
             )}
             {razorpaySuccess && (
-              <div className="p-3.5 border border-white/15 bg-white/[0.06] text-xs text-zinc-100 flex items-start gap-2.5">
+              <div role="status" aria-live="polite" className="p-3.5 border border-white/15 bg-white/[0.06] text-xs text-zinc-100 flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{razorpaySuccess}</span>
               </div>
@@ -825,7 +898,7 @@ export default function AddFundsPage({
                   Bank notifications can be delayed. Enter your 12-digit UTR or FamPay Transaction ID below for receipt verification, or contact support if the bank record is not available yet.
                 </p>
                 <a
-                  href="/support"
+                  href={pathFor("support")}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#E4E4E7] hover:text-white underline underline-offset-4 cursor-pointer"
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
@@ -855,14 +928,14 @@ export default function AddFundsPage({
               </div>
 
               {verifyError && (
-                <div className="p-3.5 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs flex items-start gap-2.5">
+                <div role="alert" className="p-3.5 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs flex items-start gap-2.5">
                   <AlertCircle className="w-4 h-4 shrink-0 text-zinc-100 mt-0.5" />
                   <span>{verifyError}</span>
                 </div>
               )}
 
               {verifySuccess && (
-                <div className="p-3.5 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs flex items-start gap-2.5">
+                <div role="status" aria-live="polite" className="p-3.5 rounded-none bg-white/[0.06] border border-white/15 text-zinc-100 text-xs flex items-start gap-2.5">
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-zinc-100 mt-0.5" />
                   <span>{verifySuccess}</span>
                 </div>
@@ -969,7 +1042,7 @@ export default function AddFundsPage({
               <p className="text-[11px] leading-relaxed text-zinc-500">
                 Direct UPI and Razorpay use separate records and verification systems. SMM UP never asks for your OTP, UPI PIN, card CVV or banking password.
               </p>
-              <a href="/support" className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white underline underline-offset-4">
+              <a href={pathFor("support")} className="inline-flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white underline underline-offset-4">
                 <MessageCircle className="w-3.5 h-3.5" />
                 Payment support
               </a>

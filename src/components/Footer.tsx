@@ -48,6 +48,8 @@ const COLUMNS: { title: string; links: { tab: string; label: string }[] }[] = [
       { tab: "privacy", label: "Privacy Policy" },
       { tab: "refunds", label: "Refund Policy" },
       { tab: "security", label: "Security" },
+      { tab: "press", label: "Press & Brand Kit" },
+      { tab: "sitemap", label: "Sitemap" },
     ],
   },
 ];
@@ -74,7 +76,7 @@ export default function Footer() {
             </a>
             <p className="text-xs sm:text-sm text-zinc-400 font-light leading-relaxed max-w-sm">
               India's wholesale SMM panel, founded by Aryan. 0% fee UPI deposits, 2,100+ services
-              with refill guarantees from 7 days to lifetime, and a standard reseller API.
+              with service-specific refill terms from 7 days to lifetime, and a standard reseller API.
             </p>
             <a href={pathFor("status")} className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-none border border-white/[0.1] bg-[#0A0A0A] text-zinc-300 text-[11px] font-mono hover:text-white">
               <span className="relative inline-flex rounded-full h-2 w-2 border border-zinc-500" />
