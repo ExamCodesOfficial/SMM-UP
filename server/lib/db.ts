@@ -1,7 +1,5 @@
 import { MongoClient, Db } from "mongodb";
 
-const uri = process.env.MONGODB_URI;
-if (!uri) throw new Error("MONGODB_URI environment variable is required");
 const dbName = process.env.DATABASE_NAME || "smm_up_db";
 
 interface GlobalWithMongo {
@@ -10,23 +8,28 @@ interface GlobalWithMongo {
 
 const globalWithMongo = global as unknown as GlobalWithMongo;
 
-let clientPromise: Promise<MongoClient>;
-
-if (!globalWithMongo._mongoClientPromise) {
-  const client = new MongoClient(uri, {
-    maxPoolSize: 10,
-    minPoolSize: 1,
-    serverSelectionTimeoutMS: 15000,
-    connectTimeoutMS: 15000,
-    socketTimeoutMS: 30000,
-  });
-  globalWithMongo._mongoClientPromise = client.connect();
+function clientConnection(): Promise<MongoClient> {
+  if (!globalWithMongo._mongoClientPromise) {
+    const uri = String(process.env.MONGODB_URI || "").trim();
+    if (!uri) return Promise.reject(new Error("MONGODB_URI environment variable is required"));
+    const client = new MongoClient(uri, {
+      maxPoolSize: 10,
+      minPoolSize: 1,
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      socketTimeoutMS: 30000,
+    });
+    globalWithMongo._mongoClientPromise = client.connect().catch((error) => {
+      globalWithMongo._mongoClientPromise = undefined;
+      throw error;
+    });
+  }
+  return globalWithMongo._mongoClientPromise;
 }
-clientPromise = globalWithMongo._mongoClientPromise;
 
 /** Returns the shared client for operations that require MongoDB transactions. */
 export async function getMongoClient(): Promise<MongoClient> {
-  return clientPromise;
+  return clientConnection();
 }
 
 let coreIndexesPromise: Promise<void> | null = null;
@@ -37,7 +40,7 @@ let sessionIndexesPromise: Promise<void> | null = null;
 /** Financial uniqueness indexes are awaited by Razorpay writes (fail closed). */
 export async function ensureRazorpayIndexes(): Promise<void> {
   if (!razorpayIndexesPromise) {
-    razorpayIndexesPromise = clientPromise.then(async (client) => {
+    razorpayIndexesPromise = clientConnection().then(async (client) => {
       const db = client.db(dbName);
       await Promise.all([
         db.collection("transactions").createIndex(
@@ -72,7 +75,7 @@ export async function ensureRazorpayIndexes(): Promise<void> {
 /** Critical API-key lifecycle indexes are awaited before key writes/authentication. */
 export async function ensureApiKeyIndexes(): Promise<void> {
   if (!apiKeyIndexesPromise) {
-    apiKeyIndexesPromise = clientPromise.then(async (client) => {
+    apiKeyIndexesPromise = clientConnection().then(async (client) => {
       const db = client.db(dbName);
       await Promise.all([
         db.collection("api_keys").createIndex({ user_id: 1, created_at: -1 }),
@@ -136,7 +139,7 @@ export async function ensureApiKeyIndexes(): Promise<void> {
 /** Session/token uniqueness and expiry indexes are awaited before issuance. */
 export async function ensureSessionIndexes(): Promise<void> {
   if (!sessionIndexesPromise) {
-    sessionIndexesPromise = clientPromise.then(async (client) => {
+    sessionIndexesPromise = clientConnection().then(async (client) => {
       const db = client.db(dbName);
       await Promise.all([
         db.collection("sessions").createIndex({ token_hash: 1 }, { unique: true }),
@@ -173,7 +176,7 @@ export async function ensureSessionIndexes(): Promise<void> {
 export async function ensureCoreIndexes(suppliedDb?: Db): Promise<void> {
   if (!coreIndexesPromise) {
     coreIndexesPromise = (async () => {
-      const db = suppliedDb || (await clientPromise).db(dbName);
+      const db = suppliedDb || (await clientConnection()).db(dbName);
       await Promise.all([
         db.collection("users").createIndex({ email: 1 }, { unique: true }),
         db.collection("users").createIndex(
@@ -221,10 +224,8 @@ export async function ensureCoreIndexes(suppliedDb?: Db): Promise<void> {
 }
 
 export async function getDb(): Promise<Db> {
-  const client = await clientPromise;
+  const client = await clientConnection();
   const db = client.db(dbName);
   await ensureCoreIndexes(db);
   return db;
 }
-
-export default clientPromise;

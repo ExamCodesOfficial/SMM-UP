@@ -1,6 +1,7 @@
 import React from "react";
 import { SmmUpLogo } from "./icons/ExecutiveIcons";
 import { pathFor } from "../lib/routes";
+import { readApiPayload } from "../lib/apiResponse";
 
 interface AuthPageProps {
   initialMode: "login" | "register";
@@ -48,7 +49,10 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token: verificationToken }),
     })
-      .then(async (res) => ({ ok: res.ok, data: await res.json() }))
+      .then(async (res) => ({
+        ok: res.ok,
+        data: await readApiPayload(res, "Email verification is temporarily unavailable."),
+      }))
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Email verification failed.");
         setSuccess(data.message || "Email verified.");
@@ -89,7 +93,7 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const data = await readApiPayload(res, "Authentication is temporarily unavailable.");
 
       if (!res.ok) {
         setError(data.error || "Authentication failed");
@@ -142,7 +146,7 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: verificationEmail }),
       });
-      const data = await res.json();
+      const data = await readApiPayload(res, "Verification email service is temporarily unavailable.");
       if (!res.ok) throw new Error(data.error || "Unable to resend verification.");
       setSuccess(data.message);
     } catch (err: any) {

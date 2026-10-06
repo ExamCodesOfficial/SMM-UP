@@ -64,6 +64,7 @@ async function sendTransactionalEmail(to: string, purpose: EmailTokenPurpose, ac
   const html = `<!doctype html><html><body style="margin:0;background:#090909;color:#f4f4f5;font-family:Arial,sans-serif"><div style="max-width:560px;margin:0 auto;padding:40px 24px"><p style="letter-spacing:.2em;color:#a1a1aa">SMM UP</p><h1 style="font-size:24px">${copy.heading}</h1><p style="line-height:1.6;color:#d4d4d8">${copy.body}</p><p style="margin:30px 0"><a href="${copy.actionUrl}" style="display:inline-block;padding:13px 20px;background:#fff;color:#000;text-decoration:none;font-weight:700">${copy.action}</a></p><p style="font-size:12px;line-height:1.6;color:#71717a">If the button does not work, copy this link: ${copy.actionUrl}</p></div></body></html>`;
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
+    signal: AbortSignal.timeout(10_000),
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",

@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../../lib/apiResponse";
 import { Star, BadgeCheck, MapPin, PenLine, Lock, CheckCircle2, Loader2 } from "lucide-react";
 import Reveal from "../Reveal";
 import ContentPage from "../ContentPage";
@@ -55,7 +56,7 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
   const loadReviews = React.useCallback(async () => {
     try {
       const r = await fetch("/api/reviews/list");
-      const d = await r.json();
+      const d = await readApiPayload(r);
       if (Array.isArray(d.reviews)) setCommunityReviews(d.reviews);
     } catch {
       // A review form still works even if the public feed is temporarily unavailable.
@@ -70,12 +71,22 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
     }
     try {
       const r = await fetch("/api/reviews/eligibility", { credentials: "include" });
-      const d = await r.json();
-      setElig(d);
-      if (d.my_review && !editing) {
-        setRating(d.my_review.rating);
-        setText(d.my_review.text);
-        setCity(d.my_review.city || "");
+      const d = await readApiPayload(r);
+      if (!r.ok || typeof d.eligible !== "boolean") {
+        setElig(null);
+        return;
+      }
+      const eligibility: Eligibility = {
+        eligible: d.eligible,
+        reason: typeof d.reason === "string" ? d.reason : null,
+        order_count: Number.isFinite(Number(d.order_count)) ? Number(d.order_count) : undefined,
+        my_review: d.my_review || null,
+      };
+      setElig(eligibility);
+      if (eligibility.my_review && !editing) {
+        setRating(eligibility.my_review.rating);
+        setText(eligibility.my_review.text);
+        setCity(eligibility.my_review.city || "");
       }
     } catch {
       setElig(null);
@@ -96,7 +107,7 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rating, text, city: city || undefined }),
       });
-      const d = await r.json();
+      const d = await readApiPayload(r);
       if (!r.ok) {
         setErr(d.error || "Could not save review.");
       } else {

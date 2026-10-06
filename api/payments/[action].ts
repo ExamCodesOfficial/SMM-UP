@@ -22,7 +22,7 @@ function generateDynamicMemo(): string {
   return "SUP" + suffix;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
   const db = await getDb();
   const authUser = await getUserFromRequest(req, db);
@@ -54,49 +54,56 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: `Deposit amount must be between ₹10 and ₹${maxDirectUpiAmount.toLocaleString("en-IN")} with at most two decimals.` });
     }
 
-    const upiVpa = process.env.UPI_VPA;
-    const merchantName = process.env.UPI_MERCHANT_NAME || "SMM UP";
+    const upiVpa = String(process.env.UPI_VPA || "").trim();
+    const merchantName = String(process.env.UPI_MERCHANT_NAME || "SMM UP").trim().slice(0, 80);
     if (!upiVpa) return res.status(500).json({ error: "Payment configuration missing. Contact support." });
-    const memo = generateDynamicMemo();
-
-    const upiQuery = new URLSearchParams({
-      pa: upiVpa,
-      pn: merchantName,
-      am: numAmount.toFixed(2),
-      tn: memo,
-      tr: memo,
-      cu: "INR",
-    });
-
-    const upiUrl = `upi://pay?${upiQuery.toString()}`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=15&data=${encodeURIComponent(upiUrl)}`;
 
     try {
       const pendingTtlMinutes = Math.max(5, Math.min(Number.parseInt(String(process.env.DIRECT_UPI_PENDING_TTL_MINUTES || "30"), 10) || 30, 180));
-      const createdAt = new Date();
-      const newTx = {
-        user_id: userObjectId,
-        user_email: authUser.email,
-        amount: numAmount,
-        method: "FAMPAY_UPI",
-        upi_id: upiVpa,
-        memo: memo,
-        status: "pending",
-        delay_alert_sent: false,
-        created_at: createdAt,
-        expires_at: new Date(createdAt.getTime() + pendingTtlMinutes * 60_000),
-      };
+      let memo = "";
+      let transactionId = "";
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        memo = generateDynamicMemo();
+        const createdAt = new Date();
+        try {
+          const inserted = await db.collection("transactions").insertOne({
+            user_id: userObjectId,
+            user_email: authUser.email,
+            amount: numAmount,
+            method: "FAMPAY_UPI",
+            upi_id: upiVpa,
+            memo,
+            status: "pending",
+            delay_alert_sent: false,
+            created_at: createdAt,
+            expires_at: new Date(createdAt.getTime() + pendingTtlMinutes * 60_000),
+          });
+          transactionId = inserted.insertedId.toString();
+          break;
+        } catch (error: any) {
+          if (error?.code === 11000) continue;
+          throw error;
+        }
+      }
+      if (!transactionId) throw new Error("Unable to allocate a unique payment reference.");
 
-      const insertRes = await db.collection("transactions").insertOne(newTx);
+      const upiQuery = new URLSearchParams({
+        pa: upiVpa,
+        pn: merchantName,
+        am: numAmount.toFixed(2),
+        tn: memo,
+        tr: memo,
+        cu: "INR",
+      });
+      const upiUrl = `upi://pay?${upiQuery.toString()}`;
 
       return res.status(200).json({
         success: true,
-        transactionId: insertRes.insertedId.toString(),
+        transactionId,
         amount: numAmount,
-        memo: memo,
-        upiVpa: upiVpa,
-        upiUrl: upiUrl,
-        qrUrl: qrUrl,
+        memo,
+        upiVpa,
+        upiUrl,
       });
     } catch (err: any) {
       console.error("Create deposit order error:", err);
@@ -159,18 +166,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Trigger Delayed Payment Alert to Telegram Admin Group (between 60-90s, sent once)
       if (elapsedSeconds >= 75 && !tx.delay_alert_sent) {
-        await db.collection("transactions").updateOne(
-          { _id: tx._id },
-          { $set: { delay_alert_sent: true, delay_alert_at: new Date() } }
+        const claimId = crypto.randomBytes(16).toString("hex");
+        const claimCutoff = new Date(Date.now() - 2 * 60_000);
+        const claimedAlert = await db.collection("transactions").findOneAndUpdate(
+          {
+            _id: tx._id,
+            status: "pending",
+            delay_alert_sent: { $ne: true },
+            $or: [
+              { delay_alert_claimed_at: { $exists: false } },
+              { delay_alert_claimed_at: { $lt: claimCutoff } },
+            ],
+          },
+          { $set: { delay_alert_claim_id: claimId, delay_alert_claimed_at: new Date() } },
+          { returnDocument: "after" },
         );
 
-        sendPaymentDelayAlert({
-          userEmail: authUser.email,
-          amount: tx.amount,
-          memo: tx.memo,
-          elapsedSeconds: elapsedSeconds,
-          upiVpa: tx.upi_id,
-        }).catch((e) => console.error("Delay alert send error:", e));
+        if (claimedAlert) {
+          const alertSent = await sendPaymentDelayAlert({
+            userEmail: authUser.email,
+            amount: tx.amount,
+            memo: tx.memo,
+            elapsedSeconds,
+            upiVpa: tx.upi_id,
+          });
+          if (alertSent) {
+            await db.collection("transactions").updateOne(
+              { _id: tx._id, delay_alert_claim_id: claimId },
+              {
+                $set: { delay_alert_sent: true, delay_alert_at: new Date() },
+                $unset: { delay_alert_claim_id: "", delay_alert_claimed_at: "" },
+              },
+            );
+          } else {
+            await db.collection("transactions").updateOne(
+              { _id: tx._id, delay_alert_claim_id: claimId, delay_alert_sent: { $ne: true } },
+              { $unset: { delay_alert_claim_id: "", delay_alert_claimed_at: "" } },
+            );
+          }
+        }
       }
 
       // MongoDB poll only: instant 1ms response, 0 Gmail IMAP connections
@@ -243,6 +277,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const parsedPayment = await searchFamPayPayment({
         identifier: cleanInput,
         expectedAmount: requestedAmount,
+        minDate: new Date(pendingDeposit.created_at),
       });
       if (!parsedPayment) {
         return res.status(404).json({
@@ -358,4 +393,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   return res.status(404).json({ error: "Payments action not found" });
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    return await handlePaymentsRequest(req, res);
+  } catch (error: any) {
+    console.error("handlePaymentsRequest uncaught error:", error?.message || error);
+    if (res.headersSent) return;
+    return res.status(503).json({ error: "Service temporarily unavailable. Please try again shortly." });
+  }
 }

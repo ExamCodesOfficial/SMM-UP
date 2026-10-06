@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../lib/apiResponse";
 import { Layers, Send, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import confetti from "canvas-confetti";
 import { formatINR } from "../lib/utils";
@@ -34,17 +35,18 @@ export default function MassOrder({
       if (parts.length < 3) {
         return { valid: false, error: "Format must be service_id | link | quantity", raw: l };
       }
-      const sId = parseInt(parts[0], 10);
+      const sId = /^\d+$/.test(parts[0]) ? Number(parts[0]) : Number.NaN;
       const link = parts[1];
-      const qty = parseInt(parts[2], 10);
+      const qty = /^\d+$/.test(parts[2]) ? Number(parts[2]) : Number.NaN;
 
-      if (isNaN(sId) || !link || isNaN(qty) || qty <= 0) {
+      if (!Number.isSafeInteger(sId) || !link || link.length > 2048 || !Number.isSafeInteger(qty) || qty <= 0) {
         return { valid: false, error: "Invalid parameters", raw: l };
       }
 
       const s = services.find((srv) => Number(srv.service) === sId);
-      const rate = s ? s.rate : 0;
-      const charge = (rate * qty) / 1000;
+      if (!s) return { valid: false, error: "Service not found", raw: l };
+      const rate = Number(s.rate);
+      const charge = Math.max(0.1, Math.round(((rate * qty) / 1000) * 100) / 100);
 
       return { valid: true, serviceId: sId, link, quantity: qty, charge, raw: l };
     });
@@ -60,6 +62,10 @@ export default function MassOrder({
       return;
     }
 
+    if (parsedOrders.length > 20) {
+      setErrorMsg("Mass orders are limited to 20 lines per batch.");
+      return;
+    }
     const validItems = parsedOrders.filter((p) => p.valid);
     if (validItems.length === 0) {
       setErrorMsg("No valid order lines detected. Use the format: service_id | target_link | quantity");
@@ -86,7 +92,7 @@ export default function MassOrder({
             quantity: item.quantity,
           }),
         });
-        const data = await res.json();
+        const data = await readApiPayload(res);
         if (res.ok && data.success) {
           localResults.push({
             line: `${item.serviceId} | ${item.link}`,
@@ -142,6 +148,7 @@ export default function MassOrder({
             </div>
             <textarea
               rows={8}
+              maxLength={50_000}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="2664 | https://instagram.com/p/reel1 | 1000&#10;508 | https://t.me/channel | 500"

@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../lib/apiResponse";
 import {
   ArrowRight,
   User,
@@ -180,7 +181,7 @@ export default function LandingHero({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const data = await readApiPayload(res, "Authentication is temporarily unavailable.");
 
       if (!res.ok) {
         setAuthError(data.error || "Authentication failed");
@@ -215,7 +216,7 @@ export default function LandingHero({
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-24 pb-14 md:pb-20">
           {/* Status pill */}
           <div className="animate-hero-1 inline-flex items-center px-4 sm:px-5 py-2 rounded-full border border-white/[0.10] bg-white/[0.02] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_0_0_1px_rgba(0,0,0,0.4)] text-zinc-300 text-[9px] sm:text-[10px] font-mono tracking-[0.18em] sm:tracking-[0.22em] uppercase">
-            All systems live &bull; 0% deposit fee
+            Direct UPI &bull; 0% deposit fee
           </div>
 
           {/* Two-line headline — SCALE SOCIAL nearly matches SMM UP, brand a notch bigger */}
@@ -236,7 +237,7 @@ export default function LandingHero({
               {services.length > 0 ? services.length.toLocaleString() : "2,128"}+ services
             </span>
             <span className="text-zinc-700 select-none" aria-hidden="true">&bull;</span>
-            <span>Refill guaranteed</span>
+            <span>Refill options shown per service</span>
             <span className="text-zinc-700 select-none" aria-hidden="true">&bull;</span>
             <span>Reseller API</span>
           </div>

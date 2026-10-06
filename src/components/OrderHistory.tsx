@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../lib/apiResponse";
 import {
   ListOrdered,
   Search,
@@ -81,7 +82,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: orderId }),
       });
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (res.ok && data.success) {
         setActionMsg({ id: orderId, msg: "Refill requested successfully" });
       } else {
@@ -99,7 +100,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
     setActionMsg(null);
     try {
       const res = await fetch(`/api/orders/status?id=${orderId}`);
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (res.ok && data.success) {
         setActionMsg({ id: orderId, msg: `Live status: ${data.status}` });
         onRefresh();

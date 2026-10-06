@@ -1,5 +1,5 @@
 import React from "react";
-import { MessageCircle, Clock, ShieldCheck, CheckCircle2, Download } from "lucide-react";
+import { MessageCircle, Clock, ShieldCheck, Download } from "lucide-react";
 import ContentPage, { P, H2, H3, UL, Callout } from "../ContentPage";
 import { SmmUpLogo } from "../icons/ExecutiveIcons";
 import { RESPONSIBLE_GROWTH_FAQS } from "../../lib/faqs";
@@ -119,7 +119,7 @@ export function ResponsibleGrowthPage({ onNavigate }: PageProps) {
         <li><strong className="text-zinc-200">Cost control:</strong> compare live rates and see the full order price before confirming.</li>
         <li><strong className="text-zinc-200">Flexible scale:</strong> choose a quantity within each service's clearly displayed minimum and maximum.</li>
         <li><strong className="text-zinc-200">Operational visibility:</strong> monitor status, start count, remains and refill eligibility from order history.</li>
-        <li><strong className="text-zinc-200">Delivery protection:</strong> use the listed refill coverage, cancellation support or partial refund when applicable.</li>
+        <li><strong className="text-zinc-200">Delivery protection:</strong> use listed refill coverage and request cancellation or an eligible wallet adjustment when applicable.</li>
         <li><strong className="text-zinc-200">Agency efficiency:</strong> place mass orders or automate repeatable workflows through the SMM v2 API.</li>
         <li><strong className="text-zinc-200">Account privacy:</strong> order with a public profile, post or channel link — never a social password.</li>
       </UL>
@@ -129,8 +129,7 @@ export function ResponsibleGrowthPage({ onNavigate }: PageProps) {
         SMM UP's prices are low because orders are routed to wholesale delivery networks without a large retail
         layer in between, and UPI deposits are verified directly instead of carrying a payment-gateway surcharge.
         Lower operating overhead is not presented as a promise that every service behaves identically. It means
-        customers can select and test the service that fits their objective without paying unnecessary platform
-        markups on top.
+        customers can compare the final displayed price and test the service that fits their objective before scaling.
       </P>
 
       <H2>Quality controls customers can see</H2>
@@ -142,10 +141,10 @@ export function ResponsibleGrowthPage({ onNavigate }: PageProps) {
       <UL>
         <li>Service description and supported platform.</li>
         <li>Live rate, minimum quantity and maximum quantity.</li>
-        <li>Measured average delivery time from recent orders.</li>
+        <li>Supplier-listed average delivery estimate.</li>
         <li>Refill duration where protection is included.</li>
         <li>Live order status and remaining quantity.</li>
-        <li>Refund of the undelivered portion when an order ends as Partial.</li>
+        <li>Review of final supplier counts for any eligible undelivered-quantity wallet adjustment.</li>
         <li>Direct support for delivery or refill issues.</li>
       </UL>
 
@@ -166,7 +165,7 @@ export function ResponsibleGrowthPage({ onNavigate }: PageProps) {
       <H2>Clear promises create better customer outcomes</H2>
       <P>
         SMM UP promises the controls it can actually provide: transparent rates, listed quantities, public-link-only
-        ordering, trackable delivery, clearly stated refill coverage, partial-order refunds and accessible support.
+        ordering, trackable delivery, clearly stated refill coverage, reconciled wallet corrections and accessible support.
         It does not use unverifiable promises about guaranteed sales, guaranteed monetization, guaranteed ranking
         or immunity from a platform's own moderation decisions.
       </P>
@@ -215,17 +214,17 @@ export function SupportPage({ onNavigate }: PageProps) {
     <ContentPage
       kicker="Help"
       title="Support & Contact"
-      subtitle="Real human help, 24/7. Here's the fastest way to reach it."
+      subtitle="Direct Telegram help. Here's the fastest way to request a review."
       crumbs={[{ label: "Home", tab: "home" }, { label: "Help" }, { label: "Support" }]}
       onNavigate={onNavigate}
     >
       <div className="grid sm:grid-cols-2 gap-4 mb-10">
         <div className="p-6 rounded-none border border-white/15 bg-white/[0.03]">
           <MessageCircle className="w-5 h-5 text-white mb-3" />
-          <h3 className="text-sm font-bold text-white tracking-wide mb-1.5">Telegram Desk — 24/7</h3>
+          <h3 className="text-sm font-bold text-white tracking-wide mb-1.5">Telegram Support Desk</h3>
           <p className="text-xs text-zinc-400 leading-relaxed mb-4">
             The primary support channel. Include your <b className="text-zinc-300">username</b> and{" "}
-            <b className="text-zinc-300">order ID</b> for instant resolution.
+            <b className="text-zinc-300">order ID</b> so the request can be investigated without back-and-forth.
           </p>
           <a
             href="https://t.me/smmup_support"
@@ -258,7 +257,7 @@ export function SupportPage({ onNavigate }: PageProps) {
       <H3>Order stuck on Pending?</H3>
       <P>
         Most services queue for up to an hour before starting — the start time on your service card tells you
-        what's normal. Well past that? It'll be reviewed and either started or auto-refunded.
+        what's normal. Well past that? It will be reviewed against the supplier record before any restart or refund decision.
       </P>
       <H3>Numbers dropped?</H3>
       <P>
@@ -283,17 +282,17 @@ export function SupportPage({ onNavigate }: PageProps) {
 /* ══════════════════════ STATUS ══════════════════════ */
 export function StatusPage({ onNavigate }: PageProps) {
   const systems = [
-    { name: "Website & dashboard", note: "Operational" },
-    { name: "Order processing", note: "Operational" },
-    { name: "UPI deposit processing (UTR)", note: "Operational" },
-    { name: "Reseller API (v2)", note: "Operational" },
-    { name: "Telegram support desk", note: "Operational" },
+    { name: "Website & dashboard", note: "No live assertion" },
+    { name: "Order processing", note: "No live assertion" },
+    { name: "UPI deposit processing (UTR)", note: "No live assertion" },
+    { name: "Reseller API (v2)", note: "No live assertion" },
+    { name: "Telegram support desk", note: "No live assertion" },
   ];
   return (
     <ContentPage
       kicker="Operations"
       title="System Status"
-      subtitle="Current operational state of every SMM UP component, updated after each incident review."
+      subtitle="A conservative service-status reference. This page does not claim live health without independent telemetry."
       crumbs={[{ label: "Home", tab: "home" }, { label: "Operations" }, { label: "Status" }]}
       onNavigate={onNavigate}
     >
@@ -302,7 +301,7 @@ export function StatusPage({ onNavigate }: PageProps) {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
         </span>
-        <span className="text-sm text-white font-medium">All systems operational</span>
+        <span className="text-sm text-white font-medium">Live status telemetry is not currently published</span>
       </div>
 
       <div className="divide-y divide-white/[0.06] border-y border-white/[0.06] mb-10">
@@ -310,7 +309,7 @@ export function StatusPage({ onNavigate }: PageProps) {
           <div key={s.name} className="py-4 flex items-center justify-between gap-4">
             <span className="text-sm text-zinc-300">{s.name}</span>
             <span className="text-xs font-mono text-zinc-400 flex items-center gap-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+              <Clock className="w-3.5 h-3.5 text-zinc-500" />
               {s.note}
             </span>
           </div>
@@ -319,8 +318,8 @@ export function StatusPage({ onNavigate }: PageProps) {
 
       <H2>Incident history</H2>
       <P>
-        No unresolved incidents. When an outage or delivery-network degradation affects orders, it is listed
-        here with timestamps and the fix — along with automatic refunds for affected orders.
+        This page does not maintain a complete public incident ledger yet. A missing notice is not proof that every
+        component is healthy. Order and payment corrections are made only after the corresponding supplier or payment record is reconciled.
       </P>
       <P>
         If you're seeing a problem that isn't listed, tell the desk via{" "}
@@ -343,14 +342,14 @@ export function ChangelogPage({ onNavigate }: PageProps) {
         "New help centre: expanded FAQ, guides, security and refund documentation.",
         "Order form: quantity field now enforces each service's min/max live, and category picker remembers your position.",
         "Public API docs rebuilt with cURL, PHP and Python examples, plus an in-browser API playground.",
-        "Order status auto-sync every 15 minutes — statuses and refill windows update in near-real time.",
+        "Scheduled order reconciliation and user-triggered status checks now preserve bounded supplier status fields.",
       ],
     },
     {
       date: "September 2026",
       items: [
         "Mobile experience overhaul: full-screen navigation drawer, bottom thumb bar, safe-area support.",
-        "Automatic UTR deposit verification upgraded — most deposits credit within minutes, 24/7.",
+        "Direct UPI settlement now binds an exact memo, amount, sender and payment-request time before wallet credit.",
         "Added refill request and cancel support directly from order history.",
       ],
     },

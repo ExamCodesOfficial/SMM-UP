@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">SMM UP Website Architecture</h1>
 <p align="center"><strong>Source-derived architecture snapshot · 2026-10-06</strong></p>
-<p align="center"><code>IMPLEMENTED LOCALLY</code> · <code>SECURITY-FIRST</code> · <code>DEPLOYMENT PENDING</code></p>
+<p align="center"><code>CODE PUSHED @ 93ae440</code> · <code>DOC SECOND PASS LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
 
 
 > **Inventory size:** 730 source-derived atomic capabilities and controls.
@@ -29,6 +29,9 @@ SYSTEM STREAM
 - [Source manifest](#source-and-asset-manifest)
 - [Environment](#environment-variable-contract)
 - [Testing](#validation-and-traceability)
+- [Operations](#website-operational-contract)
+- [Accessibility and performance](#accessibility-and-performance-contract)
+- [Failure and recovery](#failure-and-recovery-matrix)
 
 </details>
 
@@ -36,10 +39,11 @@ SYSTEM STREAM
 ## Purpose and truth rules
 
 1. This is a codebase architecture document, not marketing copy.
-2. `IMPLEMENTED LOCALLY` means present in the current working tree; it does not mean deployed.
-3. Provider/dashboard operations are explicitly marked as deployment gates.
-4. Secrets and private pricing values are named by variable only and never copied here.
-5. Every atomic registry entry has a stable ID for review and test traceability.
+2. The implementation baseline is pushed at `93ae440634fbff897d40f81506a863810d38aa8b`; this second documentation pass is local until separately committed/pushed.
+3. A pushed implementation is not proof of Vercel, Railway, provider, domain or production validation.
+4. Provider/dashboard operations are explicitly marked as deployment gates.
+5. Secrets and private pricing values are named by variable only and never copied here.
+6. Every atomic registry entry has a stable ID for review and test traceability.
 
 ## System map
 
@@ -1576,18 +1580,24 @@ erDiagram
 | `RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET` | Vercel | Razorpay API credentials. |
 | `RAZORPAY_WEBHOOK_SECRET` | Vercel | Webhook HMAC secret. |
 | `RAZORPAY_MODE / RAZORPAY_ALLOW_TEST_WALLET_CREDIT` | Vercel | Explicit test/live safeguards. |
+| `RAZORPAY_MAX_DEPOSIT_INR` | Vercel | Optional bounded Razorpay deposit ceiling. |
 | `RESEND_API_KEY / EMAIL_FROM` | Vercel | Transactional email provider and verified sender. |
+| `EMAIL_TOKEN_TTL_MINUTES` | Vercel | Optional bounded verification/recovery/email-change token lifetime. |
 | `PUBLIC_SITE_URL` | Vercel | Canonical origin used in email links. |
+| `SITE_URL` | Vercel | Legacy compatibility fallback; new deployments should set `PUBLIC_SITE_URL`. |
+| `NODE_ENV` | Vercel/Node runtime | Runtime mode used by production security/cookie behavior. |
 | `CRON_SECRET` | Vercel | At least 32-character internal cron bearer secret. |
 | `API_KEY_CREATION_FEE_INR / API_KEY_MAX_IDENTITIES` | Vercel | Key product policy with bounded defaults. |
 | `API_ACTIVITY_HASH_SECRET` | Vercel | Hashes sensitive activity dimensions where used. |
-| `TELEGRAM_BOT_TOKEN / TELEGRAM_OWNER_ID` | Railway | Bot API secret and immutable owner identity. |
+| `TELEGRAM_BOT_TOKEN` | Vercel + Railway | Bot API credential for website alerts and Railway long polling; server-only. |
+| `TELEGRAM_OWNER_ID` | Railway | Immutable numeric bot authorization identity. |
 | `ADMIN_BOT_STATE_SECRET` | Railway | AES-GCM key material for short-lived protected action state. |
 | `TELEGRAM_ADMIN_CHAT_ID` | Vercel | Payment/security alert destination. |
-| `IMAP_USER / IMAP_PASSWORD` | Railway or Vercel manual verifier | Mailbox credentials; app password only. |
-| `FAMPAY_EMAIL / FAMPAY_APP_PASSWORD` | Vercel compatibility | Direct UPI mailbox configuration. |
-| `FAMPAY_SENDER_FILTER` | Railway | Expected payment-email sender. |
-| `ENABLE_IMAP_WORKER` | Railway | Explicit worker enable switch. |
+| `IMAP_USER / IMAP_PASSWORD` | Railway | Worker mailbox credentials; app password only. |
+| `FAMPAY_EMAIL / FAMPAY_APP_PASSWORD` | Vercel | Website-side manual receipt-verifier mailbox configuration. |
+| `FAMPAY_SENDER_FILTER` | Vercel + Railway | Expected payment-email sender. |
+| `ENABLE_IMAP_WORKER` | Railway | Worker is active unless explicitly set to `false`; set intended service role deliberately. |
+| `ADMIN_BOT_DISABLE_AUTOSTART` | Railway/tests | Controlled-import/integration-test switch; never a production authorization bypass. |
 | `TEMP_PASSWORD_TTL_MINUTES / TEMP_PASSWORD_MAX_USES` | Both | Bounded temporary-credential policy. |
 | `TEMP_PASSWORD_SESSION_TTL_MINUTES` | Vercel | Restricted change-session lifetime. |
 
@@ -1617,11 +1627,78 @@ erDiagram
 
 ### Current release truth
 
-- Phases 0–6 are implemented locally.
-- Root build, static checks, audits and replica-set integration suites have passed during this workstream.
-- The current Phase 5/6 working tree is not committed or pushed.
+- Phases 0–6 implementation is pushed on GitHub `master` at `93ae440634fbff897d40f81506a863810d38aa8b`.
+- Root build, static checks, audits and replica-set integration suites passed for that implementation workstream.
+- This second documentation pass is a separate local change set and has not been pushed.
 - Vercel/Railway staging, production provider checks, Search Console and production smoke tests remain mandatory.
-- A production push requires separate explicit authorization and a fresh minimum-scope credential that is revoked immediately afterward.
+- Any additional push requires explicit authorization, ephemeral least-privilege credential handling and immediate revocation.
+
+## Website operational contract
+
+### Runtime ownership
+
+| Area | Primary owner | Evidence/source |
+|---|---|---|
+| Static React routes, SEO and headers | Vercel release owner | deployment ID, route/content-type/header checks |
+| Auth/session/email APIs | application security owner | auth tests, security events, Resend delivery evidence |
+| Order/catalog/status APIs | supplier integration owner | provider requests, local order IDs, cron outcome |
+| Direct UPI and Razorpay | payment owner | exact transaction/ledger/provider IDs and reconciliation |
+| MongoDB data/indexes/backups | database owner | index gate, backup/PITR and restore drill |
+| Telegram/IMAP integration | Railway owner | bot identity, lease, heartbeat and settlement evidence |
+| Domain/Search Console | domain owner | primary domain, redirects, sitemap and inspection state |
+
+### Observability
+
+Monitor Vercel function errors/latency, shared rate-limit anomalies, auth/email failure events, supplier failures, cron results, payment reconciliation, Razorpay webhook deliveries, account/order/payment holds, Railway worker health and domain/content-type regressions. Logs may contain bounded internal/public IDs and safe categories but never credentials, cookies, authorization headers, private pricing or complete receipt bodies.
+
+### Data retention and recovery
+
+- `api_key_activity` detailed telemetry has a 90-day TTL.
+- `security_events` are bounded by the implemented one-year TTL contract.
+- sessions, short-lived codes/tokens and limiter buckets expire through purpose-specific TTL indexes.
+- financial/order/audit records are not assigned an arbitrary deletion period by architecture; formal legal/business retention remains an operational policy gate.
+- Atlas backup/PITR must be confirmed before high-risk deployment.
+- Restore tests run in an isolated database and verify collection/index presence plus transaction/ledger relations.
+- A Vercel rollback does not reverse committed data, wallet changes, provider events or sent email.
+
+## Accessibility and performance contract
+
+### Implemented foundations
+
+- Semantic real links for discoverable navigation and support.
+- Breadcrumb links only where a real destination exists.
+- Responsive desktop/mobile navigation.
+- Visible labels and error copy on account/order/funding flows.
+- Central page/SEO registries and bounded API lists.
+
+### Release verification
+
+- Keyboard traversal, visible focus, dialog focus return and no keyboard traps.
+- Screen-reader smoke for registration, order and Add Funds.
+- Programmatic form labels/error associations.
+- Light/dark contrast and reduced-motion behavior.
+- Mobile-width layout, throttled initial load and failure recovery.
+- Layout-shift checks around fonts, logo, lists and checkout.
+- Browser console/CSP validation.
+
+The build currently has a non-failing large main-chunk advisory. Route/component splitting, automated Lighthouse budgets and a formal WCAG 2.2 AA audit remain explicit post-launch work rather than claimed implementation.
+
+## Failure and recovery matrix
+
+| Failure | Safe behavior | Recovery owner action |
+|---|---|---|
+| MongoDB/index failure | startup/API fails rather than bypassing uniqueness | stop rollout; reconcile data; restore connectivity/index contract |
+| Resend unavailable | token may exist but no verification bypass occurs | retry/resend after provider recovery; inspect delivery evidence |
+| Supplier timeout | local state/error remains; no secret returned | avoid blind duplicate provider order; reconcile exact local/provider IDs |
+| Cron secret missing/bad | 503/401 fail-closed | correct server secret and redeploy; do not expose cron publicly |
+| Direct UPI evidence mismatch | reconciliation and no guessed credit | inspect exact pending ID/user/memo/amount/identifier |
+| Razorpay callback/webhook race | one settlement winner through unique keys | inspect exact provider payment/event and ledger |
+| Refund/dispute | account/transaction review hold | reconcile spend and provider state before adjustment/release |
+| Shared limiter unavailable/error | sensitive flow returns safe failure | restore database; investigate abuse; do not replace with per-instance guess |
+| Domain/static rewrite error | asset may return SPA HTML | restore Vercel route/config and verify content types |
+| Deployment regression | prior Vercel deployment may be restored | reconcile in-flight data/providers separately; run smoke tests |
+
+Detailed staging, rollback and incident steps live in [`../SECURITY_DEPLOYMENT_RUNBOOK.md`](../SECURITY_DEPLOYMENT_RUNBOOK.md).
 
 ---
 

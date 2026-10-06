@@ -76,13 +76,10 @@ export default function Footer() {
               India's wholesale SMM panel, founded by Aryan. 0% fee UPI deposits, 2,100+ services
               with refill guarantees from 7 days to lifetime, and a standard reseller API.
             </p>
-            <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-none border border-white/[0.1] bg-[#0A0A0A] text-zinc-300 text-[11px] font-mono">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-              </span>
-              <span>All systems operational</span>
-            </div>
+            <a href={pathFor("status")} className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-none border border-white/[0.1] bg-[#0A0A0A] text-zinc-300 text-[11px] font-mono hover:text-white">
+              <span className="relative inline-flex rounded-full h-2 w-2 border border-zinc-500" />
+              <span>View service status</span>
+            </a>
           </div>
 
           {COLUMNS.map((col) => (

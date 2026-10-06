@@ -742,6 +742,7 @@ export async function reserveApiKeyOrderSpend(
   auth: AuthenticatedApiKey,
   amountInr: number,
   operationId: string,
+  orderDraft?: Record<string, unknown>,
 ) {
   const amountPaise = Math.round(amountInr * 100);
   if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0) {
@@ -751,6 +752,7 @@ export async function reserveApiKeyOrderSpend(
   const session = client.startSession();
   let newBalance = 0;
   let ledgerId: ObjectId | null = null;
+  const orderId = orderDraft ? new ObjectId() : null;
 
   try {
     await session.withTransaction(async () => {
@@ -822,11 +824,32 @@ export async function reserveApiKeyOrderSpend(
       );
       ledgerId = ledger.insertedId;
       newBalance = Number(user.balance || 0);
+
+      if (orderId && orderDraft) {
+        await db.collection("orders").insertOne({
+          ...orderDraft,
+          _id: orderId,
+          user_id: auth.user._id,
+          user_email: auth.user.email,
+          charge: amountInr,
+          provider_order_id: null,
+          provider_error: null,
+          status: "Submitting",
+          refund_status: null,
+          source: "v2_api",
+          api_key_id: key._id,
+          api_key_version: version.version,
+          api_operation_id: operationId,
+          wallet_ledger_id: ledger.insertedId,
+          created_at: now,
+          updated_at: now,
+        }, { session });
+      }
     });
   } finally {
     await session.endSession();
   }
-  return { newBalance, ledgerId, amountPaise };
+  return { newBalance, ledgerId, amountPaise, orderId };
 }
 
 export async function recordApiKeyActivity(

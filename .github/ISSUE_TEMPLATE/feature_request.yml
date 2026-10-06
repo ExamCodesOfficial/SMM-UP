@@ -1,0 +1,51 @@
+name: Internal feature request
+description: Propose a reviewed product or operational improvement
+title: "feature: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Features are not approved merely because they are convenient. State the operational purpose, authorization, audit, failure and rollback model.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and user/owner outcome
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Security and trust boundaries
+      description: Cover authentication, authorization, secrets, personal data and abuse.
+    validations:
+      required: true
+  - type: textarea
+    id: financial
+    attributes:
+      label: Financial, idempotency and concurrency impact
+  - type: textarea
+    id: failure
+    attributes:
+      label: Failure modes, observability and rollback
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Database, index, retention and environment impact
+  - type: checkboxes
+    id: decisions
+    attributes:
+      label: Product constraints
+      options:
+        - label: This does not introduce a website admin panel, readable passwords/secrets, guessed payment credit or private-pricing disclosure.
+          required: true
+        - label: I understand implementation requires explicit approval, tests and documentation updates.
+          required: true

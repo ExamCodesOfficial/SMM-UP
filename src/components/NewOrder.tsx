@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../lib/apiResponse";
 import {
   Send,
   Zap,
@@ -334,7 +335,7 @@ export default function NewOrder({
         }),
       });
 
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (!res.ok || data.error) {
         setErrorMsg(data.error || "Order execution failed. Please verify target link.");
       } else {

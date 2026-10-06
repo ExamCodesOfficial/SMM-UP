@@ -21,7 +21,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   order: {
     title: "Place an Order | SMM UP",
-    description: "Order Telegram members, Instagram followers, YouTube views and 2,100+ SMM services at wholesale rates. Instant start, refill guarantee, pay via UPI with 0% fee.",
+    description: "Order Telegram members, Instagram followers, YouTube views and 2,100+ SMM services at wholesale rates. Listed start times and refill terms, with UPI deposits at 0% platform fee.",
   },
   catalog: {
     title: "Services & Prices — 2,100+ SMM Services | SMM UP",
@@ -29,11 +29,11 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   mass: {
     title: "Mass Order — Bulk SMM Orders | SMM UP",
-    description: "Place bulk SMM orders in one go: paste multiple links with quantities, get instant pricing and dispatch. Built for agencies and resellers.",
+    description: "Place bulk SMM orders in one go: paste multiple links with quantities, see current pricing and submit each order with a durable local record. Built for agencies and resellers.",
   },
   logs: {
     title: "Order History | SMM UP",
-    description: "Track all your SMM orders in real time: status, start count, remains, refill windows and full order details.",
+    description: "Track SMM orders with provider status checks, start count, remains, refill windows and full order details.",
   },
   auth: {
     title: "Sign In or Create Free Account | SMM UP",
@@ -77,7 +77,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   support: {
     title: "Support & Contact | SMM UP",
-    description: "Get help from the SMM UP team: 24/7 Telegram support desk, response-time promise, and answers to common issues.",
+    description: "Get help from the SMM UP Telegram support desk and find the references needed for order and payment review.",
   },
   about: {
     title: "Who Owns SMM UP? Aryan — Founder & Owner | SMMUP",
@@ -121,7 +121,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   status: {
     title: "System Status | SMM UP",
-    description: "Live operational status of SMM UP: ordering, UPI deposit processing, API and delivery networks, plus incident history.",
+    description: "Conservative SMM UP service-status reference without unverified live-health claims.",
   },
   changelog: {
     title: "Changelog | SMM UP",
@@ -133,23 +133,23 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   "p-telegram": {
     title: "Telegram SMM Panel India — Members, Views, Reactions | SMM UP",
-    description: "Buy Telegram channel members, post views and reactions at true wholesale rates from SMM UP — India's trusted Telegram SMM panel. 0% UPI fee, instant start, refill guarantee.",
+    description: "Buy Telegram channel members, post views and reactions at true wholesale rates from SMM UP — India's trusted Telegram SMM panel. 0% UPI fee, listed start times and service-specific refill terms.",
   },
   "p-instagram": {
     title: "Instagram SMM Panel India — Followers, Likes, Reels Views | SMM UP",
-    description: "Buy Instagram followers, likes, reels views and reach at wholesale prices from SMM UP — India's trusted Instagram SMM panel. 0% UPI fee, fast start, refill guarantee.",
+    description: "Buy Instagram followers, likes, reels views and reach at wholesale prices from SMM UP — India's trusted Instagram SMM panel. 0% UPI fee, listed start times and service-specific refill terms.",
   },
   "p-youtube": {
     title: "YouTube SMM Panel India — Views, Watch Time, Subscribers | SMM UP",
-    description: "Buy YouTube views, 4000-hour watch time, subscribers and likes at wholesale rates from SMM UP — India's trusted YouTube SMM panel. Monetization-safe, refill guaranteed.",
+    description: "Buy YouTube views, 4000-hour watch time, subscribers and likes at wholesale rates from SMM UP — India's trusted YouTube SMM panel. Clear service terms and refill options; YouTube retains final monetization authority.",
   },
   "p-twitter": {
     title: "Twitter / X SMM Panel India — Followers, Likes, Retweets | SMM UP",
-    description: "Buy Twitter (X) followers, likes, retweets and impressions at wholesale rates from SMM UP. 0% UPI fee, quick start and refill guarantee.",
+    description: "Buy Twitter (X) followers, likes, retweets and impressions at wholesale rates from SMM UP. 0% UPI fee, listed start times and service-specific refill terms.",
   },
   "p-tiktok": {
     title: "TikTok SMM Panel India — Views, Followers, Likes | SMM UP",
-    description: "Buy TikTok video views, followers, likes and shares at wholesale prices from SMM UP — India's trusted TikTok SMM panel. 0% UPI fee, instant start.",
+    description: "Buy TikTok video views, followers, likes and shares at wholesale prices from SMM UP — India's trusted TikTok SMM panel. 0% UPI fee and listed service delivery estimates.",
   },
   "p-spotify": {
     title: "Spotify SMM Panel India — Streams, Followers, Monthly Listeners | SMM UP",

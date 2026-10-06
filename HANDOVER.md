@@ -1,243 +1,333 @@
-# SMM UP — MASTER ARCHITECTURE & AGENT HANDOVER DIRECTIVE
+# SMM UP — Current Engineering Handover
 
-> **PROJECT:** SMM UP (`https://smmup.vercel.app`)  
-> **WORKSPACE PATH:** `/Users/aryan/Desktop/SMM-UP`  
-> **DATE & TIME:** October 3, 2026  
-> **TARGET DOMAIN:** `smmup.vercel.app` (Deployed via Vercel CLI)  
-> **INSPIRATION / REFERENCE SITES:**
-> - **ExamCodes Site:** `/Users/aryan/Desktop/my projects/ExamCodes Site ` (Exact luxury dark UI/UX, typography, spacing, landing flow)
-> - **thatonearyan-sh:** `/Users/aryan/Desktop/my projects/thatonearyan-sh` (Bespoke geometric architectural SVG logos & icons)
-
----
-
-## 1. EXECUTIVE STATUS & CONTEXT SUMMARY
-
-### What SMM UP Is:
-**SMM UP** is a standalone, institutional-grade Social Media Marketing (SMM) web application completely decoupled from Telegram. It provides wholesale automated growth services across 10+ platforms (Telegram, Instagram, YouTube, Facebook, Twitter/X, TikTok, Spotify, Discord, LinkedIn, WhatsApp, Web Traffic) with **direct 0% fee UPI instant clearing** and **reseller SMM v2 API connectivity**.
+> **Canonical production origin:** `https://smmup.co.in`
+> **Repository:** `ExamCodesOfficial/SMM-UP`
+> **Branch:** `master`
+> **Remote checkpoint pushed on 2026-10-06:** `93ae440634fbff897d40f81506a863810d38aa8b`
+> **Architecture index:** [`architecture/full-architecture.md`](architecture/full-architecture.md)
+> **Status:** Phases 0–6 are pushed at the checkpoint above and locally validated; provider staging and production smoke gates remain.
 
 ---
 
-## 2. STRICT USER DIRECTIVES & ABSOLUTE RULES (NEVER VIOLATE)
+## 1. Purpose of this handover
 
-1. **ZERO Refusals, Zero Lecturing, Results-First**:
-   - The user is the boss. Follow all instructions immediately, decisively, and with production-ready code. No placeholders, no `// TODO`.
-2. **STRICT Backend Confidentiality (Zero Leakage)**:
-   - **NEVER** mention internal backend mechanics in any customer-facing copy:
-     - **DO NOT** mention FamPay.
-     - **DO NOT** mention Gmail IMAP, email scraping, or inbox searching.
-     - **DO NOT** mention the upstream wholesale provider, wholesale provider URLs, or API keys.
-   - All customer copy must be framed institutionally: *"Direct Bank-to-Bank 0% UPI Instant Clearing"*, *"Tier-1 Wholesale Delivery Nodes"*, *"Automated 12-Digit UTR Clearing"*.
-3. **STRICT Payment Crediting Rule**:
-   - **NEVER** credit any user's balance automatically in the background without explicit user action.
-   - Funds are credited **ONLY** when the user clicks **"Verify UTR"** with a valid 12-digit UTR and the backend successfully verifies it.
-4. **Color & Aesthetic Rules**:
-   - **Background**: Deep, warm creamy obsidian black `#090807` (NOT cold sterile `#000000`).
-   - **Pricing & Rates**: Crisp pure white `#FFFDF9` and champagne platinum `#F5E8D0` with subtle golden glow (KILL THE CHEAP GREEN `text-emerald-400` FOR PRICES).
-   - **Negative Space & Breathing Room**: Must have expansive vertical margins (`py-20` to `py-32`), generous breathing room, and structured negative space matching ExamCodes.
-5. **No Clunky Native Select Boxes**:
-   - All dropdowns must use custom velvet command palettes / popovers with platform brand SVGs, search filtering, and outside-click dismissal.
+This file gives the next engineer or agent the current operational truth without relying on obsolete implementation plans. It does not contain credentials, private pricing values, raw tokens, production banking data or readable passwords.
+
+Use the following documents together:
+
+| Document | Role |
+|---|---|
+| [`architecture/full-architecture.md`](architecture/full-architecture.md) | Complete cross-system architecture and feature registry |
+| [`architecture/website-architecture.md`](architecture/website-architecture.md) | Website, API, data, SEO and security architecture |
+| [`architecture/bot-architecture.md`](architecture/bot-architecture.md) | Telegram owner plane and Railway worker architecture |
+| [`SECURITY_DEPLOYMENT_RUNBOOK.md`](SECURITY_DEPLOYMENT_RUNBOOK.md) | Staging, production, rollback and evidence gates |
+| [`RAZORPAY_SETUP.md`](RAZORPAY_SETUP.md) | Razorpay test/live activation procedure |
+| [`LATER_ON_UPGRADATIONS.md`](LATER_ON_UPGRADATIONS.md) | Completed phase ledger and approved post-launch backlog |
+| [`planner.md`](planner.md) | Concise implementation planner and source-of-truth index |
+| [`admin-bot/README.md`](admin-bot/README.md) | Railway bot operator quick start |
+| [`admin-bot/ADMIN_BOT_DEVELOPMENT_PLAN.md`](admin-bot/ADMIN_BOT_DEVELOPMENT_PLAN.md) | Bot implementation and extension contract |
 
 ---
 
-## 3. WHAT HAS BEEN FULLY BUILT & VERIFIED (COMPLETED)
+## 2. Repository state at handover
 
-### A. Full Backend Engine (`/api`)
-- **`server/lib/db.ts`**: MongoDB connection pool with lazy indexing and optimized server timeouts (`serverSelectionTimeoutMS: 15000`).
-- **`server/lib/smm.ts`**: Live wholesale integration with the upstream panel API (endpoint supplied via the `PANEL_URL` env var). Successfully categorizes 2,177 services across all major platforms.
-- **`server/lib/imap.ts`**: Gmail IMAP SSL connection with `X-GM-RAW` search across 6,400+ emails to verify FamPay payment notifications by 12-digit UTR and exact amount.
-- **`server/lib/auth.ts`**: Password hashing with bcrypt, JWT token signing, and HTTP-only secure cookie verification.
-- **`api/auth/`**:
-  - `register.ts`: Generates user with bcrypt password and unique personal API key (`sup_<hex>`).
-  - `login.ts`: Authenticates user, sets `token` HTTP-only cookie.
-  - `me.ts`: Returns current authenticated session.
-  - `logout.ts`: Clears cookie.
-  - `reset-password.ts`: Password reset workflow.
-- **`api/services/list.ts`**: Returns all 2,177 services grouped by platform with search and category indexing.
-- **`api/orders/`**:
-  - `create.ts`: Deducts user balance atomically, dispatches order to wholesale node, stores order log.
-  - `list.ts`: Fetches user's order history, queries real-time status from upstream nodes.
-  - `refill.ts`: Triggers automated multi-tier refill SLA request.
-- **`api/wallet/`**:
-  - `deposit.ts`: Generates dynamic UPI QR for UPI ID `aryan888@fam` with pre-filled amount and memo.
-  - `verify.ts`: Verifies submitted 12-digit UTR via IMAP SSL; enforces atomic duplicate protection; credits wallet balance instantly upon match.
-- **`api/v2.ts`**: Standard SMM v2 protocol endpoint for resellers/developers (`services`, `balance`, `add`, `status`) authenticated by personal user API keys (`key=sup_...`).
-- **`api/admin/`**: Admin metrics, user management, and manual transaction review endpoints.
+### Pushed baseline
 
-### B. Frontend Components & Design System (`/src`)
-- **`src/components/icons/PlatformIcons.tsx`**: Dedicated pixel-perfect vector SVGs for Telegram, Instagram, YouTube, Facebook, Twitter/X, TikTok, Spotify, Discord, LinkedIn, WhatsApp, and Web Traffic + platform resolver `getPlatformInfo`.
-- **`src/components/icons/ExecutiveIcons.tsx`**: Bespoke architectural SVGs inspired by `thatonearyan-sh/assets`:
-  - `SmmUpLogo`: Squircle canvas, UP architectural monogram, glowing node, signature telemetry lines.
-  - `ExecutiveOrderIcon`: Supersonic growth chevron vector.
-  - `ExecutiveCatalogIcon`: 3-tier architectural database strata matrix.
-  - `ExecutiveWalletIcon`: Cryptographic vault card with micro-chip tracery.
-  - `ExecutiveHistoryIcon`: Telemetry chrono ring.
-  - `ExecutiveMassIcon`: 4-node matrix grid.
-- **`src/components/NewOrder.tsx`**:
-  - Replaced native `<select>` with custom searchable command palettes/popovers.
-  - Rates updated to `#FFFDF9` and `#F5E8D0` (champagne platinum).
-  - Integrated with `ExecutiveIcons`.
-- **`src/components/ServicesCatalog.tsx`**:
-  - Managed client-side pagination (24, 48, 96 per page) with page numbers, prev/next buttons, and scroll-to-top (eliminating 2,177-item endless scroll lag).
-  - Both Card Grid View and Table View updated with champagne platinum pricing.
-- **`src/components/Navbar.tsx`**:
-  - Uses `SmmUpLogo`, `ExecutiveIcons`, smooth hide-on-scroll/reveal-on-scroll.
-  - Luxury champagne platinum balance button.
-- **`src/components/MobileBottomNav.tsx`**:
-  - Upgraded with `ExecutiveIcons` and champagne platinum wallet styling.
-- **`src/components/FaqSection.tsx`**:
-  - 6 executive, client-centric questions and answers (zero backend leaks).
-- **`src/components/TermsModal.tsx`**:
-  - 6-point institutional Terms of Service & SLA modal.
-- **`src/components/GuaranteesBento.tsx`**:
-  - ExamCodes-style architectural bento grid (0% Bank UPI, Tier-1 Wholesale Node, Dynamic Refill SLA 7D to Lifetime, Zero Password Privacy).
-- **`src/components/TestimonialsTicker.tsx`**:
-  - Live dispatch telemetry ticker and verified agency reviews.
-- **`src/index.css`**:
-  - Warm creamy obsidian background (`#090807`), warm 40px grid pattern, sleek dark scrollbar.
-- **Public Assets (`/public`)**:
-  - `public/favicon.svg`: Standalone vector favicon.
-  - `public/manifest.json`: Web App Manifest with `#090807` theme color.
-  - `public/sitemap.xml`: Complete SEO sitemap.
-  - `public/robots.txt`: Production robots file.
+The remote `master` branch includes:
+
+1. Phases 0–4 foundations.
+2. Google-compatible ICO/PNG favicon and square logo assets.
+3. Phase 5 Telegram owner control plane.
+4. Phase 6 platform hardening.
+5. Verified email registration, recovery and email changes.
+6. Exact Direct UPI settlement and reconciliation.
+7. Shared persistent limiting and critical-index validation.
+8. Expanded `/api` developer documentation.
+9. Three exhaustive architecture documents.
+10. Replica-set integration tests and deployment runbook.
+
+### Post-push documentation pass
+
+Any edits made after the checkpoint above are local until a later, separately authorized push. Always inspect `git status`, `git log -1`, and the remote branch before claiming a documentation update is deployed.
+
+The emergency-authorized credential used for the completed implementation push was not persisted by the workspace process, but revocation has not been confirmed in this handover. Confirm revocation immediately through the provider without recording the credential value.
+
+### Never infer deployment from a GitHub push
+
+A successful GitHub push does not prove that:
+
+- Vercel production built successfully;
+- Railway restarted successfully;
+- Atlas accepted new indexes on production-shaped data;
+- Resend sender/domain verification is complete;
+- the Vercel cron has the correct bearer secret;
+- Razorpay test/live dashboards are correctly configured;
+- `www` redirects to the apex in production;
+- Google has recrawled the homepage/favicon.
+
+Those are explicit operational gates in the deployment runbook.
 
 ---
 
-## 4. WHAT IS CURRENTLY LEFT & EXACT USER MANDATE
+## 3. Product boundaries that must not regress
 
-### The User's Immediate Complaint & Directive:
-> *"When anyone goes to the site, he will see that the entire website is fully filled with some text in every single place. There is no blank space, and there is no space around that, so I think we need to do that as well. If you see ExamCodes, then that actually looks so crazy and better! The home page looks awesome! Also, on the home page, login, or something like this, something can be added, and we should basically do a very systematic approach. Tell me what exactly we should do so that it looks much, much better than every single thing! You can use the UI/UX pro skill, which is inside this Gemini machine. Check that out as well."*
-
-### Why the Site Currently Feels Packed:
-When an unauthenticated visitor opens `smmup.vercel.app`, `App.tsx` immediately renders `currentTab === "store"` (`<NewOrder />`). The screen is immediately filled edge-to-edge with the dense order form, category popovers, service metrics, and wallet alerts, with **zero breathing room or landing presentation**.
-
-### The Solution: ExamCodes Dual-State Architecture
-In ExamCodes (`/Users/aryan/Desktop/my projects/ExamCodes Site `), new visitors first see an **expansive, breathtaking Landing Page** (`page === 'landing'`) with:
-1. Massive vertical padding (`py-24 sm:py-32`) and negative space.
-2. Majestic typography (`text-4xl sm:text-6xl md:text-7xl font-light`).
-3. An **embedded Quick Sign In / Registration Card or CTA Portal** directly on the landing page hero.
-4. Clean **Live Counters Bar** (`LiveStatsBar`).
-5. **Platform Ecosystem Showcase** (Telegram, Instagram, YouTube, X, TikTok, Spotify with brand SVGs and live starting rates).
-6. **Architectural Guarantees Bento** (`GuaranteesBento.tsx`).
-7. **How It Works (01, 02, 03 Step Cards)**.
-8. **Live Dispatch Telemetry Ticker & Verified Agency Testimonials** (`TestimonialsTicker.tsx`).
-9. **Executive Client FAQs** (`FaqSection.tsx`).
-10. When the user clicks **"ENTER ORDER DESK"** or logs in, they transition smoothly into the dedicated **Order Workstation** (`store`), **Catalog** (`services`), **Mass Order** (`mass`), or **Logs** (`orders`).
+1. Keep the static top haze orb in `src/App.tsx`.
+2. Keep permanent account navigation at `/account`.
+3. Keep `/profile` as a permanent redirect to `/account`.
+4. Keep Add Funds at `/add-funds`.
+5. Dedicated platform SEO pages are exactly:
+   - Telegram;
+   - Instagram;
+   - YouTube;
+   - Twitter/X;
+   - TikTok;
+   - Spotify.
+6. Do not add a rate calculator.
+7. Do not turn breadcrumb labels into fake links.
+8. Internal navigation should use real `<a href>` destinations where discoverability matters.
+9. Support contact paths must remain clickable.
+10. Service Terms must open the real Terms page.
+11. Reviews require a valid prior purchase.
+12. Preserve the six existing homepage reviews.
+13. Review moderation remains Telegram-only.
+14. Do not expose private markup multipliers in source, documentation, browser responses or Telegram.
+15. Do not add a website admin panel.
+16. Prefer Telegram inline navigation and confirmations for owner administration.
+17. Do not introduce API-key IP allowlisting without a new approved requirement.
 
 ---
 
-## 5. STEP-BY-STEP IMPLEMENTATION ROADMAP FOR NEXT AGENT
+## 4. Security invariants
 
-### STEP 1: Create `src/components/LandingHero.tsx`
-Build the majestic, spacious ExamCodes-style Landing Page component.
-- **Hero Section**:
-  - Generous whitespace: `py-20 sm:py-28 md:py-36`.
-  - Ambient glow orb with warm champagne tone.
-  - Protocol badge:
-    ```tsx
-    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.02] text-[#F5E8D0] text-[11px] font-semibold tracking-wider uppercase mb-6">
-      <span className="w-1.5 h-1.5 rounded-full bg-[#F5E8D0] animate-pulse" />
-      <span>Wholesale Node Infrastructure Initialized</span>
-    </div>
-    ```
-  - Huge typography:
-    ```tsx
-    <h1 className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-light tracking-[0.06em] leading-tight text-white mb-6">
-      <span className="block text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-500">
-        SCALE SOCIAL
-      </span>
-      <span className="block mt-1 sm:mt-2 text-[#FAF7F2] drop-shadow-[0_0_25px_rgba(255,255,255,0.7)]">
-        SMM UP ENGINE
-      </span>
-    </h1>
-    ```
-  - Elegant subtitle with wide tracking:
-    ```tsx
-    <p className="text-sm sm:text-base md:text-lg text-zinc-400 max-w-2xl mx-auto font-light tracking-wide leading-relaxed mb-10">
-      Direct-to-node social marketing infrastructure. Direct 0% fee bank UPI clearing, 2,177+ wholesale channels, and automated 30-day retention refill SLA.
-    </p>
-    ```
-  - Action CTAs:
-    - Primary CTA: `[ LAUNCH ORDER DESK → ]` (switches tab to `'store'`).
-    - Secondary CTA: `[ BROWSE WHOLESALE CATALOG ]` (switches tab to `'services'`).
-  - **Embedded Quick-Access Portal / Sign-In Desk**:
-    - Right under or alongside the hero, an elegant, spacious card allowing visitors to quickly sign in or register with 1 click, or an interactive live platform preview card showing live starting rates.
-- **Section 2: Live Network Counters Bar** (using `LiveStatsBar` style with 2,177+ services, 0% UPI fee, 0-15m speed, 99.98% uptime).
-- **Section 3: Platform Ecosystem Bento** (Clean grid featuring Telegram, Instagram, YouTube, X, TikTok, Spotify with brand SVGs and live starting rates).
-- **Section 4: Architectural Guarantees Bento** (`<GuaranteesBento />`).
-- **Section 5: How It Works (01, 02, 03 Step Cards)**.
-- **Section 6: Live Dispatch Ticker & Agency Reviews** (`<TestimonialsTicker />`).
-- **Section 7: Executive Client FAQs** (`<FaqSection />`).
+### Passwords and recovery
 
-### STEP 2: Update `src/components/Navbar.tsx`
-- Add a `HOME` tab or ensure clicking the SMM UP brand logo switches to the landing page (`currentTab === 'home'`).
-- Ensure navigation links support both Landing Page (`home`) and the dedicated workstations:
-  - `HOME` (`home`)
-  - `ORDER DESK` (`store`)
-  - `CATALOG` (`services`)
-  - `MASS` (`mass`)
-  - `LOGS` (`orders`)
-- Keep the luxury champagne platinum wallet balance button for signed-in users.
+- Permanent passwords are bcrypt hashes.
+- No owner or support workflow retrieves a prior password.
+- Password complexity applies when creating or replacing a password, not during login.
+- Strong passphrases up to the configured upper bound remain valid; there is no 10-character maximum.
+- Owner temporary credentials default to a three-hour lifetime.
+- Temporary credentials default to two successful uses and can be configured to one.
+- Temporary login receives only a restricted password-change session.
+- Permanent-password completion invalidates temporary credentials and related sessions.
+- Owner-selected temporary values use five-minute AES-GCM-protected action state and are removed on confirmation/cancel.
 
-### STEP 3: Update `src/App.tsx`
-- Set default tab for non-authenticated visitors to `"home"` (the spacious Landing Page).
-- If authenticated or when clicking `ORDER DESK`, switch to `"store"`.
-- Cleanly separate the landing page from the operational workstation views so the order form isn't cluttering the initial visit.
-- Connect `onOpenTerms` and `onOpenWallet` to all modals.
+### Sessions and Support Access
 
-### STEP 4: Update `index.html`
-- Replace default title and generic data-URL favicon with:
-  ```html
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="manifest" href="/manifest.json" />
-  <title>SMM UP — Institutional Growth Engine | Direct 0% UPI SMM Panel</title>
-  <meta name="description" content="SMM UP is India's most advanced wholesale social media marketing infrastructure. Direct 0% UPI clearing, sub-second dispatch, 2,177+ services, and reseller API." />
-  <meta name="theme-color" content="#090807" />
-  <!-- OpenGraph & Twitter tags -->
-  ```
+- Normal sessions are random opaque values; MongoDB stores only hashes.
+- Raw session tokens never appear in Telegram or audit records.
+- Support Access exchange codes are one-time and hash-only.
+- Exchange window is five minutes.
+- Resulting support session is read-only and lasts fifteen minutes.
+- Owner actor and customer subject are stored and validated separately.
+- Support sessions use a separate cookie and preserve the owner’s normal session.
+- Support sessions cannot mutate orders, deposits, passwords, reviews, sessions or API keys.
 
-### STEP 5: Verification & Production Deployment
-Run the standard validation commands in `/Users/aryan/Desktop/SMM-UP`:
-```bash
-npx tsc --noEmit
-npm run build
-git add .
-git commit -m "feat(ui): ExamCodes luxury spacious landing page, embedded auth desk, and negative space overhaul"
-npx vercel --prod --yes
+### API keys
+
+- Each integration has a separately named key identity.
+- Raw key secrets are shown only once.
+- MongoDB stores stable public identity, safe hint and secret hashes only.
+- Pause preserves the current secret.
+- Rotation/reissue is free and permanently revokes the old version.
+- Archive requires exact-name confirmation, permanently revokes versions and gives no refund.
+- Owner-required reissue cannot resume until website rotation succeeds.
+- Explicit scopes, optional expiration, and atomic daily/monthly IST spending limits remain enforced.
+- Complete operational order attribution may be retained; raw secrets, passwords, authorization headers and cookies may not.
+
+### Payments and wallet
+
+- Never request or store a UPI PIN, OTP, CVV or banking password.
+- Direct UPI settlement must bind to one exact user-owned, unexpired pending transaction.
+- Pending ID, amount in paise and receipt memo must match.
+- UTR, transaction ID and memo anti-replay identities are uniquely indexed.
+- Wallet mutation, pending claim, anti-replay record and ledger entry commit together.
+- Missing/mismatched receipt data creates reconciliation state; it must not trigger a guessed credit.
+- Razorpay wallet credit requires authoritative captured state.
+- Razorpay browser verification and raw-body webhook processing are independently idempotent.
+- Refund/dispute state may place ordering/payment holds.
+- Every credit, debit, charge and refund has a durable settlement key.
+
+### Internal services
+
+- Rate limits use shared MongoDB counters and HMACed identifiers.
+- Sensitive endpoints fail closed when the database/limiter is unavailable.
+- Cron authentication fails closed when `CRON_SECRET` is absent or too short.
+- Catalog refresh requires POST and a normal owner session.
+- Critical indexes are awaited before database access is considered ready.
+- Security events are persistent and bounded by retention/index policy.
+
+### Telegram
+
+- Every command and callback checks immutable numeric owner ID.
+- The transport is Bot API long polling, not webhooks.
+- Sensitive actions require mandatory reasons and five-minute actor-bound confirmation.
+- Confirmation tokens are hash-only, one-time, expiring and atomically claimed.
+- Stale and replayed buttons cannot execute twice.
+- Telegram may show full operational user/order/deposit data to the owner.
+- Telegram must never show permanent passwords/hashes, raw API secrets, cookies, authorization headers, OTPs, CVVs, UPI PINs or banking passwords.
+
+---
+
+## 5. Current architecture summary
+
+```mermaid
+flowchart LR
+  Browser[Customer browser] --> Vercel[Vercel React + APIs]
+  Vercel --> DB[(MongoDB replica set)]
+  Vercel --> Supplier[Supplier API]
+  Vercel --> Razorpay[Razorpay]
+  Vercel --> Resend[Resend]
+  Railway[Railway Telegram bot + IMAP worker] --> DB
+  Railway --> Telegram[Telegram Bot API]
+  Railway --> Mailbox[Payment mailbox]
 ```
-Verify the live deployment at `https://smmup.vercel.app`.
+
+### Browser layer
+
+- React 19 and Vite.
+- Tailwind CSS.
+- Real-path SPA navigation with history support.
+- Permanent account, add-funds, API, legal, company and platform routes.
+- Route-specific canonical metadata and structured data.
+- Responsive desktop/mobile navigation.
+
+### Vercel API layer
+
+- Account, email, session, Support Access and API-key actions under `/api/auth/[action]`.
+- Website order actions under `/api/orders/[action]`.
+- Direct UPI actions under `/api/payments/[action]`.
+- Razorpay actions and raw webhook endpoint.
+- Standard reseller API at `/api/v2`.
+- Fail-closed status cron.
+- Public catalog with owner-only refresh.
+
+### Railway layer
+
+- Owner-only Telegram long polling.
+- Inline administrative navigation.
+- Transactional credit/debit/refund/control/API-key actions.
+- Recovery and Support Access status synchronization.
+- Lease-protected IMAP settlement worker.
+- Payment reconciliation and owner alerts.
+- Worker heartbeat/error records.
+
+### MongoDB layer
+
+- Replica-set transactions are mandatory for financial and multi-record security operations.
+- Unique indexes enforce identities and replay protection.
+- TTL indexes expire sessions, action tokens, limiter windows and bounded events.
+- The complete collection inventory is in `architecture/website-architecture.md`.
 
 ---
 
-## 6. CURRENT SECURITY ARCHITECTURE UPDATE (OCTOBER 6, 2026)
+## 6. Important source files
 
-- Normal website authentication now uses 256-bit opaque `sms_` tokens; MongoDB stores SHA-256 token hashes only. Migration-era JWTs remain revocable during the bounded cutover.
-- Account recovery uses bcrypt temporary-password hashes and separate hash-only `smr_` restricted sessions. Temporary credentials default to 180 minutes and two successful uses, then permanent-password completion revokes every old session transactionally.
-- Owner Support Access is separate from user login: Telegram issues a one-time 80-bit code that expires in five minutes; exchange creates a hash-only `smi_` cookie and 15-minute read-only session while preserving the owner's normal cookie.
-- Support sessions store/validate the owner actor and customer subject separately, write fail-closed request/page-view audit records, show a countdown banner, and support transactional exit/automatic expiry.
-- Central server enforcement blocks support-session writes across registration/login switching, passwords, sessions, API keys, reviews, orders and both deposit systems. API secrets, passwords, cookies and authorization headers are not returned.
-- `/user <email>` in Telegram exposes inline active-session inspection, confirmed individual/global revocation and Support Access guidance. `/supportaccess <email> | <reason>` creates the one-time code.
-- Security gates are `npm run test:api-keys`, `npm run test:recovery`, `npm run test:support-access`, root/admin-bot `npx tsc --noEmit`, `npm run build`, `git diff --check`, and full root/admin-bot `npm audit`.
-- `@vercel/node` was removed because it was used only for TypeScript interfaces but pulled a vulnerable dev build-tool chain. Minimal runtime-compatible HTTP interfaces now live in `server/lib/http.ts`; both npm audit trees are clean.
-
-## 7. PROJECT REPOSITORY & ENVIRONMENT CONFIGURATION
-
-### Key Files:
-- `.env` & `.env.local`:
-  - `MONGODB_URI`: Live MongoDB connection string.
-  - `JWT_SECRET`: Secret key for signed authentication tokens and default activity-IP pseudonymization.
-  - `API_ACTIVITY_HASH_SECRET`: Optional dedicated HMAC key for API-activity IP pseudonyms.
-  - `API_KEY_CREATION_FEE_INR`: New named-key identity fee; defaults to `29`.
-  - `API_KEY_MAX_IDENTITIES`: Maximum non-archived key identities per user; defaults to `10`.
-  - `SESSION_METADATA_HASH_SECRET`: Optional dedicated HMAC key for session IP pseudonyms.
-  - `TEMP_PASSWORD_TTL_MINUTES`: Temporary-password lifetime; defaults to `180`.
-  - `TEMP_PASSWORD_MAX_USES`: Successful temporary logins allowed; only `1` or `2`, default `2`.
-  - `TEMP_PASSWORD_SESSION_TTL_MINUTES`: Restricted password-change session; defaults to `15`.
-  - `SMM_API_KEY`: Wholesale SMM provider key.
-  - `PANEL_URL`: Wholesale SMM API endpoint (supplied via environment variable, never hardcoded).
-  - `IMAP_USER`: Gmail address for automated UTR payment verification.
-  - `IMAP_PASSWORD`: Gmail App Password for IMAP SSL.
-  - `UPI_ID`: `aryan888@fam`
-- `vercel.json`: Configured for Vercel serverless functions with standard routing.
+| File | Responsibility |
+|---|---|
+| `src/App.tsx` | Application routing, shared state, support banner and permanent haze orb |
+| `src/components/AuthPage.tsx` | Login, verified registration, email recovery and token consumption |
+| `src/components/AddFundsPage.tsx` | Direct UPI and Razorpay browser flows |
+| `src/components/pages/AccountPages.tsx` | Sessions, email change, named API keys, activity and reports |
+| `src/components/ApiDocs.tsx` | Public reseller API reference and key lifecycle documentation |
+| `api/auth/[action].ts` | Account/email/session/key HTTP control plane |
+| `api/orders/[action].ts` | Website order lifecycle |
+| `api/payments/[action].ts` | Direct UPI pending and exact verification lifecycle |
+| `api/razorpay/[action].ts` | Razorpay authenticated actions |
+| `api/razorpay-webhook.ts` | HMAC-protected raw-body webhook |
+| `api/v2.ts` | Scoped named-key reseller API |
+| `server/lib/db.ts` | MongoDB client and awaited critical indexes |
+| `server/lib/auth.ts` | Password policy, cookies and server sessions |
+| `server/lib/apiKeys.ts` | Key identities, versions, limits, spend and telemetry |
+| `server/lib/directUpiSettlement.ts` | Exact transactional UPI settlement |
+| `server/lib/email.ts` | Resend and hash-only email action tokens |
+| `server/lib/rateLimit.ts` | Shared persistent limiter |
+| `server/lib/recovery.ts` | Temporary-password restricted sessions |
+| `admin-bot/bot.ts` | Telegram owner plane and Railway workers |
 
 ---
-*This document contains the complete state, rules, and blueprints for the SMM UP project. The incoming agent can proceed immediately with STEP 1 through STEP 5.*
+
+## 7. Validation commands
+
+Run root and admin suites sequentially to reduce memory pressure:
+
+```bash
+npm ci
+npm run typecheck
+npm run build
+npm run test:search-appearance
+npm run test:api-keys
+npm run test:recovery
+npm run test:support-access
+npm run test:rate-limit
+npm run test:direct-upi
+npm run test:email-delivery
+npm run test:email-auth
+npm run test:core-indexes
+npm audit --omit=dev
+
+git diff --check
+
+cd admin-bot
+npm ci
+npx tsc --noEmit
+npm run test:admin-actions
+npm audit --omit=dev
+```
+
+Do not run memory-heavy replica-set suites concurrently in a constrained sandbox.
+
+If `node_modules` is absent, run `npm ci` first. Do not allow `npx` to download the unrelated deprecated `tsc` package.
+
+---
+
+## 8. Deployment gates still pending
+
+1. Verify GitHub remote commit and required checks.
+2. Deploy Vercel preview/staging with a separate staging database.
+3. Deploy Railway staging with a separate bot token and owner ID.
+4. Verify every critical index on production-shaped staging data.
+5. Verify Resend sender/domain and all one-time email flows.
+6. Verify cron missing/bad/good-secret behavior.
+7. Verify public catalog and owner-only refresh.
+8. Verify Direct UPI wrong user/ID/amount/memo/expiry/concurrency failures.
+9. Verify Razorpay test callback/webhook ordering and duplicate delivery.
+10. Run two Railway replicas and prove one lease and one settlement.
+11. Verify Telegram stale/replay buttons and forbidden-data boundaries.
+12. Verify apex/`www` redirect and all icon content types.
+13. Perform controlled production smoke tests.
+14. Request Search Console homepage indexing after deployment.
+
+---
+
+## 9. Credential and push procedure
+
+- Never commit or persist a PAT.
+- Never place a PAT in `.git/config`, a remote URL, a workspace file or shell history.
+- Treat any token pasted into a conversation as exposed and revoke it immediately after its explicitly authorized use.
+- A push authorization applies only to the stated push, not later documentation or code commits.
+- Verify local and remote commit hashes after a push.
+- Confirm credential revocation outside the repository.
+
+---
+
+## 10. Known non-blocking considerations
+
+- Vite currently reports an advisory warning for a JavaScript chunk larger than 500 KB; the production build succeeds. A future performance pass may introduce route/component code splitting without changing behavior.
+- Search favicon/logo changes require deployment and recrawl; code alone cannot update Google immediately.
+- Existing production data may expose historical duplicate/index conflicts. Staging must validate index creation against a production-shaped snapshot before release.
+- External providers can be delayed or unavailable. Reconciliation and idempotency must remain more authoritative than browser success screens.
+
+---
+
+## 11. Definition of a safe continuation
+
+A continuation is safe only when it:
+
+1. reads the current source and architecture documents;
+2. checks Git status and the actual remote commit;
+3. preserves all product boundaries above;
+4. makes no security claim without a reproducible test or provider-side evidence;
+5. adds or updates tests for changed transactional/security behavior;
+6. runs the complete relevant validation suite;
+7. leaves credentials out of source, logs and documentation;
+8. distinguishes local implementation, GitHub push, staging deployment and production verification.

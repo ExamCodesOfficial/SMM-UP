@@ -7,8 +7,14 @@ import type { Db } from "mongodb";
 import { ObjectId } from "mongodb";
 import { ensureSessionIndexes, getDb, getMongoClient } from "./db.js";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error("JWT_SECRET environment variable is required");
+function jwtSecret(): string {
+  const secret = String(process.env.JWT_SECRET || "");
+  if (secret.length < 32) {
+    throw new Error("JWT_SECRET must be configured with at least 32 characters.");
+  }
+  return secret;
+}
+
 const COOKIE_NAME = "smm_up_session";
 const SUPPORT_COOKIE_NAME = "smm_up_support";
 const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -54,12 +60,12 @@ export function signUserToken(user: { _id: ObjectId | string; email: string; use
     username: user.username,
     role: user.role === "admin" ? "admin" : "user",
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
+  return jwt.sign(payload, jwtSecret(), { expiresIn: "30d" });
 }
 
 export function verifyUserToken(token: string): UserTokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as UserTokenPayload;
+    return jwt.verify(token, jwtSecret()) as UserTokenPayload;
   } catch {
     return null;
   }

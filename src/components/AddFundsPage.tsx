@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../lib/apiResponse";
 import {
   Wallet,
   QrCode,
@@ -18,6 +19,7 @@ import {
   Loader2,
 } from "lucide-react";
 import confetti from "canvas-confetti";
+import QRCode from "qrcode";
 import { formatINR } from "../lib/utils";
 
 interface AddFundsPageProps {
@@ -149,7 +151,7 @@ export default function AddFundsPage({
       const pollStatus = async () => {
         try {
           const res = await fetch(`/api/payments/check-status?transactionId=${encodeURIComponent(qrData.transactionId)}`);
-          const data = await res.json();
+          const data = await readApiPayload(res);
           if (res.ok && data.status === "paid") {
             stopPolling();
             setVerifySuccess(data.message || "Payment auto-detected & credited to wallet!");
@@ -185,7 +187,7 @@ export default function AddFundsPage({
     setRazorpayConfig((current) => ({ ...current, loaded: false }));
     try {
       const res = await fetch("/api/razorpay/config", { cache: "no-store" });
-      const data = await res.json();
+      const data = await readApiPayload(res);
       setRazorpayConfig({
         loaded: true,
         enabled: Boolean(res.ok && data.enabled),
@@ -208,7 +210,7 @@ export default function AddFundsPage({
     setLoadingHistory(true);
     try {
       const res = await fetch("/api/payments/history");
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (res.ok && data.transactions) {
         setTransactions(data.transactions);
       }
@@ -255,9 +257,30 @@ export default function AddFundsPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: num }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setQrData(data);
+      const data = await readApiPayload(res);
+      if (
+        res.ok
+        && data.success
+        && typeof data.upiUrl === "string"
+        && typeof data.memo === "string"
+        && typeof data.transactionId === "string"
+        && typeof data.upiVpa === "string"
+        && Number.isFinite(Number(data.amount))
+      ) {
+        const qrUrl = await QRCode.toDataURL(data.upiUrl, {
+          errorCorrectionLevel: "M",
+          margin: 2,
+          width: 600,
+          color: { dark: "#000000", light: "#ffffff" },
+        });
+        setQrData({
+          qrUrl,
+          upiUrl: data.upiUrl,
+          memo: data.memo,
+          transactionId: data.transactionId,
+          amount: Number(data.amount),
+          upiVpa: data.upiVpa,
+        });
         setActiveStep("upi-pay");
       } else {
         setRazorpayError(data.error || "Failed to generate the Direct UPI payment QR.");
@@ -287,7 +310,7 @@ export default function AddFundsPage({
         `/api/razorpay/status?transactionId=${encodeURIComponent(internalTransactionId)}`,
         { cache: "no-store" },
       );
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (res.ok && (data.status === "paid" || data.status === "test_paid")) {
         applyRazorpayResult(data);
         return;
@@ -322,7 +345,7 @@ export default function AddFundsPage({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: num }),
       });
-      const order = await orderRes.json();
+      const order = await readApiPayload(orderRes);
       if (!orderRes.ok || !order.success) {
         throw new Error(order.error || "Unable to create Razorpay order.");
       }
@@ -367,7 +390,7 @@ export default function AddFundsPage({
                 razorpay_signature: response.razorpay_signature,
               }),
             });
-            const verified = await verifyRes.json();
+            const verified = await readApiPayload(verifyRes);
             if (verifyRes.ok && verifyRes.status !== 202) {
               applyRazorpayResult(verified);
             } else if (verifyRes.status === 202) {
@@ -424,7 +447,7 @@ export default function AddFundsPage({
         }),
       });
 
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (!res.ok || data.error) {
         setVerifyError(data.error || "Payment verification failed.");
       } else {
@@ -799,7 +822,7 @@ export default function AddFundsPage({
                   <span>Taking longer than 60 seconds?</span>
                 </div>
                 <p className="text-[11px] text-zinc-300 leading-relaxed">
-                  Bank networks sometimes experience minor notification delays. You can enter your 12-digit UTR or FamPay Transaction ID below for instant clearance, or reach out to our team.
+                  Bank notifications can be delayed. Enter your 12-digit UTR or FamPay Transaction ID below for receipt verification, or contact support if the bank record is not available yet.
                 </p>
                 <a
                   href="/support"

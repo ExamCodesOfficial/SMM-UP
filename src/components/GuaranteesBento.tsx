@@ -49,7 +49,7 @@ export default function GuaranteesBento() {
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-[#E4E4E7]" />
-              <span>Instant UTR verification</span>
+              <span>UTR-assisted verification</span>
             </div>
           </div>
         </div>

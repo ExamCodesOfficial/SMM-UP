@@ -1,1558 +1,749 @@
-# SMM UP Admin Bot — Complete Development Specification
+# SMM UP Admin Bot — Implemented-State Specification and Evolution Plan
 
-> **Status:** Final architecture approved on 2026-10-06. Implementation remains dependency-gated: website key/session/security foundations are built first, then the Railway owner bot is upgraded in the phases below.
->
-> **Last updated:** 2026-10-06
->
-> **Hosting decision:** Railway always-on private worker. The website and normal HTTP APIs remain on Vercel.
->
-> **Administration decision:** There will be no web-based admin panel. Administrative operations will be performed through the owner-only Telegram bot.
+> **Reconciled against:** `admin-bot/bot.ts`, `admin-bot/src/**/*.ts` and `admin-bot/tests/adminActions.integration.ts`
+> **Pushed implementation:** `93ae440634fbff897d40f81506a863810d38aa8b`
+> **Local source organization:** behavior-preserving modular refactor on a feature branch; not pushed or deployed
+> **Updated:** 2026-10-06
+> **Runtime decision:** Railway long-polling bot plus IMAP worker
+> **Administration decision:** no website admin panel
 
----
-
-## 1. Purpose of this document
-
-This document is the single source of truth for the future SMM UP administrative bot. It defines:
-
-- what the bot will do;
-- what the bot will not do;
-- how the inline-button interface will work;
-- which actions require text input;
-- how financial actions will be confirmed and made idempotent;
-- how authentication and authorization will work;
-- how MongoDB access will be restricted;
-- how the payment-settlement worker will operate;
-- how every action will be audited;
-- how the bot will be tested, deployed, monitored and rolled back;
-- which website-security tasks must be completed before bot expansion begins.
-
-No feature should be added to the bot merely because it is convenient. Every feature must have a clear operational purpose, a defined authorization rule, an audit trail and a safe failure mode.
+This document replaces the old future-only plan. It distinguishes current source behavior from staging gates and optional later improvements. The exhaustive bot registry is in [`../architecture/bot-architecture.md`](../architecture/bot-architecture.md).
 
 ---
 
-## 2. Project timing and scope freeze
+## 1. Mission and non-goals
 
-### 2.1 Current decision
+The service gives the numeric Telegram owner audited operational control over:
 
-The full bot redesign is **not being implemented now**. Website completion and security hardening come first.
+- user/account/security state;
+- revocable website sessions;
+- password-recovery issuance;
+- read-only Support Access;
+- wallet corrections and order refunds;
+- order/deposit/ledger inspection;
+- named API-key administrative state;
+- purchase-verified review moderation;
+- Direct UPI email settlement and reconciliation;
+- worker health and owner alerts.
 
-The existing bot may continue to perform its currently implemented owner-only commands and payment worker duties, but large bot-interface changes must wait until the website phase is declared complete.
+It is not:
 
-### 2.2 Conditions for starting bot development
-
-Bot development starts only after all of the following are true:
-
-1. The website deploys successfully on the chosen Vercel plan.
-2. The API-key plaintext migration is complete.
-3. Payment verification is bound to an exact user transaction and memo.
-4. Distributed rate limiting protects sensitive website endpoints.
-5. Cron and catalog-refresh endpoints fail closed.
-6. Website authentication/session decisions are finalized.
-7. MongoDB backup and restore procedures are verified.
-8. Production and staging environment variables are documented.
-9. There are no known critical or high-severity production dependency vulnerabilities.
-10. The approved website dependency phases have passed their release gates. Final owner green light was recorded on 2026-10-06; no duplicate approval prompt is required.
-
-### 2.3 What may happen before the green light
-
-- Documentation may be improved.
-- Threat models may be updated.
-- Menu wording may be discussed.
-- Database schemas may be reviewed.
-- No production bot behavior should be changed solely from this planning document.
+- a public customer bot;
+- an MTProto user client;
+- a Telegram webhook consumer;
+- a website admin panel;
+- a supplier-secret viewer;
+- a password/API-secret retrieval system;
+- a generic MongoDB console;
+- an autonomous financial-decision system.
 
 ---
 
-## 3. Core product decisions
+## 2. Implementation status
 
-### 3.1 No website admin panel
+### Implemented and locally tested
 
-SMM UP will not expose:
+- Numeric owner middleware on every update.
+- Long polling with messages/callback queries only.
+- Startup bot-identity lookup and pending-update drop.
+- Inline top-level menu and inline user-detail actions.
+- Five-minute hash-only generic mutation confirmations.
+- Transactional credit, debit and full refund.
+- Account lock/unlock and ordering/payment holds.
+- API-key pause, resume, archive and reissue-required.
+- User/order/deposit/wallet/security/note inspection.
+- Revocable-session inspection, one-session revoke and global revoke.
+- Generated or owner-selected temporary passwords.
+- Temporary-password status synchronization.
+- One-time Support Access codes and status synchronization.
+- Review hide/restore in Telegram.
+- Exact Direct UPI pending-payment settlement through IMAP.
+- Distributed worker lease, health record, retries and reconciliation alerts.
+- Replica-set integration coverage for concurrent mutations and settlement.
 
-- `/admin`;
-- `/dashboard/admin`;
-- browser-based balance controls;
-- browser-based refunds;
-- browser-based review moderation;
-- browser-based provider credentials;
-- public or secret-looking `api/admin/*` management routes.
+### Implemented but requiring staging/production proof
 
-This reduces the number of public administration surfaces. It does **not** make the system automatically secure: the Telegram bot itself becomes a high-value administrative surface and must be hardened accordingly.
+- Telegram owner identity and account security.
+- Railway long-polling stability.
+- Gmail/FamApp sender/content assumptions.
+- Two-replica lease takeover behavior on Railway.
+- Telegram edit/retry behavior under real API failures.
+- Production Atlas indexes and transaction behavior.
+- Production settlement/accounting reconciliation.
 
-### 3.2 Railway, not Vercel, for the complete bot
+### Not implemented as a full product surface
 
-The bot will run as one always-on Railway service because it requires:
+- A complete inline-only navigable dashboard.
+- Pagination for all lists.
+- Multi-admin roles or two-person approvals.
+- Provider-order retry/refill/cancel controls.
+- Service override/maintenance management.
+- Database-managed pricing/markup changes.
+- Formal metrics dashboard or external alert sink.
+- Bulk export.
 
-- Telegram long polling;
-- callback-query processing;
-- an always-running IMAP settlement loop;
-- continuous health and heartbeat checks;
-- predictable in-memory wizard state backed by MongoDB;
-- graceful shutdown handling;
-- restart-on-failure behavior.
-
-Vercel may host request/response APIs and webhooks, but the complete SMM UP bot will not be split between Vercel and Railway unless a future technical requirement makes that unavoidable.
-
-### 3.3 Telegram transport terminology
-
-The planned Telegraf implementation uses the **Telegram Bot API** with long polling. It does not use a user account and should not be described as an MTProto user client.
-
-### 3.4 Inline-first, not inline-only
-
-Every menu, navigation choice and confirmation should use inline buttons where practical.
-
-Some information cannot sensibly be selected from buttons:
-
-- user email or username;
-- wallet amount;
-- refund reason;
-- order ID;
-- transaction memo or UTR;
-- a free-form support/internal note.
-
-For those values, the bot will use a guided input wizard:
-
-1. Owner taps an inline action.
-2. Bot requests one specific value.
-3. Owner sends that value as text.
-4. Bot validates it without changing data.
-5. Bot shows a complete confirmation screen.
-6. Owner taps **Confirm** or **Cancel**.
-7. Only Confirm performs the operation.
+The current main-menu buttons mostly route the owner to command guidance, while `/user` opens richer inline controls. Documentation must not describe unimplemented menu screens as complete.
 
 ---
 
-## 4. Current implementation inventory
+## 3. Runtime architecture
 
-The existing bot currently contains these commands:
+```mermaid
+flowchart TD
+  Owner[Numeric Telegram owner] -->|messages + callbacks| API[Telegram Bot API]
+  API -->|long polling| Bot[Railway Telegraf process]
 
-| Current command | Current purpose | Future disposition |
-|---|---|---|
-| `/start`, `/help` | Text command list | Replace primary experience with Main Menu; retain as fallback |
-| `/stats` | Platform totals | Move into Overview screen |
-| `/user <email>` | User lookup | Move into guided Users search |
-| `/credit` | Wallet credit | Replace with confirmed inline wizard |
-| `/debit` | Wallet debit | Replace with confirmed inline wizard |
-| `/pending` | Pending deposits | Move into Payments screen |
-| `/orders [limit]` | Recent orders | Move into paginated Orders screen |
-| `/failed` | Failed order review | Move into Failed Orders queue |
-| `/refund` | Direct refund | Replace with atomic, confirmed refund workflow |
-| `/checkmemo` | Payment memo lookup | Move into guided Payment Search |
-| `/scan` | Manual IMAP scan | Move into System/Payments controls |
-| `/reviews` | Review list and moderation | Retain behavior, redesign into inline Reviews screen |
+  Bot --> Auth[Global owner middleware]
+  Bot --> Commands[Command / inline handlers]
+  Bot --> Recovery[Recovery + Support status worker]
+  Bot --> Loop[20-second settlement loop]
 
-The existing worker also scans payment emails and settles matching pending deposits. This functionality will remain, but its idempotency, locking, observability and failure recovery must be strengthened.
+  Commands --> Atlas[(MongoDB Atlas replica set)]
+  Recovery --> Atlas
+  Loop --> Lease[(worker_leases)]
+  Loop --> Gmail[Gmail IMAP]
+  Loop --> Atlas
 
----
-
-## 5. Proposed architecture
-
-```text
-Telegram owner account
-        |
-        | Telegram Bot API (long polling + callback queries)
-        v
-Railway: SMM UP Admin Bot / Worker
-        |
-        |-- Owner authorization middleware
-        |-- Inline menu router
-        |-- Wizard-state manager
-        |-- One-time action-token validator
-        |-- Admin audit logger
-        |-- Payment IMAP settlement worker
-        |-- Health and alert dispatcher
-        |
-        +---------------------> MongoDB Atlas
-        |                       - users
-        |                       - orders
-        |                       - transactions
-        |                       - processed_transactions
-        |                       - reviews
-        |                       - admin_action_tokens
-        |                       - admin_audit_logs
-        |                       - bot_runtime_state
-        |                       - security_events
-        |                       - service_overrides (future)
-        |
-        +---------------------> Telegram Bot API
-        |
-        +---------------------> Gmail/FamApp IMAP (worker only)
-        |
-        +---------------------> SMM provider API (only where required)
-
-Vercel website/API remains a separate runtime.
-No browser-based admin UI is introduced.
+  Atlas --> Web[Vercel website/API]
+  Web --> Atlas
+  Bot -->|owner messages| API
 ```
 
+One process hosts all responsibilities today. MongoDB—not process memory—is authoritative for confirmation tokens, sessions, recovery credentials, Support Access, financial records, worker leases and health.
+
+### Internal module boundaries
+
+The source is modular without changing the deployment topology:
+
+```text
+bot.ts
+├── config + MongoDB lifecycle/index gate
+├── global numeric-owner middleware
+├── generic confirmation callbacks
+├── command registrars
+│   ├── general/menu/reviews
+│   ├── users/sessions/controls
+│   ├── recovery/Support Access
+│   └── wallet/order/deposit operations
+└── worker runtime
+    ├── IMAP scan/lease/reconciliation/health
+    ├── temporary-password/Support Access status sync
+    └── exactly-once settlement transaction
+```
+
+- `bot.ts` owns composition, launch and shutdown only, and keeps compatibility re-exports for the integration suite.
+- `src/config.ts`, `src/db/client.ts` and `src/db/indexes.ts` isolate environment and persistence lifecycle concerns.
+- `src/security/`, `src/domain/` and `src/ui/` contain reusable security, transactional and rendering logic.
+- `src/middleware/`, `src/callbacks/` and `src/commands/` register the Telegram interface in the established order.
+- `src/worker/runtime.ts` composes focused payment and recovery-status workers.
+- `src/worker/paymentScanner.ts` owns IMAP parsing and matching; `src/worker/paymentRuntime.ts` owns `/scan`, leasing, reconciliation, health and scheduling.
+- `src/worker/recoveryStatus.ts` owns temporary-password and Support Access Telegram status synchronization; `src/worker/settlement.ts` owns the independently tested transaction.
+
+These boundaries must not be deployed as separate services without a separately reviewed architecture change. The intended runtime remains one Telegraf long-polling process with the recurring workers colocated on Railway.
+
 ---
 
-## 6. Trust boundaries
+## 4. Trust boundaries and threats
 
-### 6.1 Trusted components
+### Trusted only after verification
 
-- The configured Telegram owner account.
-- The Telegram bot token stored in Railway secrets.
-- The Railway runtime.
-- The scoped MongoDB bot user.
-- The configured IMAP account and app password.
-- The expected payment-alert sender configuration.
+- the exact `TELEGRAM_OWNER_ID`;
+- the Telegram bot identity returned by `getMe`;
+- Railway secret storage/runtime;
+- the scoped MongoDB account and transaction-capable cluster;
+- Gmail TLS connection and configured sender search;
+- unique indexes and transaction semantics.
 
-### 6.2 Untrusted inputs
-
-Even though the bot is owner-only, all of these remain untrusted:
+### Always untrusted
 
 - callback data;
-- typed email addresses;
-- amounts;
-- order IDs;
-- reasons and notes;
-- usernames and profile data from MongoDB;
-- provider API responses;
-- IMAP email content;
-- payment identifiers;
-- stored review text;
-- Telegram message metadata.
+- owner-typed email, amount, reason, order ID, key ID and temporary value;
+- Telegram username/chat metadata;
+- MongoDB user/review/order/service fields;
+- email subject/body and parsed memo/amount/UTR/TxID;
+- provider errors;
+- stale UI/message state.
 
-Every untrusted value must be validated and HTML-escaped before being included in a Telegram HTML message.
+### Primary threats and controls
 
-### 6.3 Never trust the client
+| Threat | Current control |
+|---|---|
+| Non-owner command/callback | global numeric owner middleware |
+| Username takeover | usernames never authorize |
+| Old queued Telegram action | pending updates dropped at launch |
+| Forged/replayed confirmation | SHA-256 token hash, actor binding, expiry, atomic state transition |
+| State changed after preview | mutation re-reads state in transaction |
+| Double credit/refund | unique settlement key plus transaction/conditional mutation |
+| Negative wallet | amount validation and atomic balance floor |
+| Raw secret exfiltration | secrets excluded from commands/audits; key controls mutate metadata only |
+| Password recovery abuse | identity-check attestation, protected confirmation, bcrypt, restricted session |
+| Unsafe impersonation | one-time Support Access, separate cookie/session, actor/subject, read-only API enforcement |
+| Duplicate worker settlement | process guard, distributed lease, unique keys, MongoDB transaction |
+| Email mismatch | trusted sender search, exact memo, exact amount, pending state and expiry |
+| Worker ambiguity/failure | reconciliation record and owner alerts; no guessed credit |
 
-An inline button does not authorize an action by itself. Every callback must re-check:
-
-1. Telegram sender ID;
-2. action-token validity;
-3. token expiry;
-4. intended action type;
-5. intended target document;
-6. current database state;
-7. whether the action was already consumed.
-
----
-
-## 7. Authentication and authorization model
-
-### 7.1 Owner-only authorization
-
-Every update must pass a global middleware check:
-
-```text
-ctx.from.id === TELEGRAM_OWNER_ID
-```
-
-Additional requirements:
-
-- Compare normalized numeric IDs, not usernames.
-- Reject channel posts and anonymous-admin actions.
-- Reject updates without a sender ID.
-- Do not authorize by Telegram username because usernames can change.
-- Do not authorize by chat ID alone.
-
-### 7.2 Owner Telegram account requirements
-
-Before bot production launch:
-
-- Telegram two-step verification must be enabled.
-- Recovery email must be controlled by the owner.
-- Other active Telegram sessions must be reviewed.
-- Device passcode/biometric lock must be enabled.
-- Bot token must never be pasted into messages or screenshots.
-
-### 7.3 Future multi-admin support
-
-Multi-admin support is not part of version 1.
-
-If it is added later, it requires explicit roles:
-
-- `owner`: all actions;
-- `finance`: payment investigation and approved refunds;
-- `support`: read-only user/order lookup and review moderation;
-- `observer`: read-only metrics.
-
-It must not be implemented as a comma-separated list with equal powers.
+Residual release gate: audit and standardize HTML escaping/sanitized owner-facing errors across all legacy list/error paths. New output must use the escaping helper; stored strings remain untrusted even in an owner-only chat.
 
 ---
 
-## 8. Main menu
-
-The default screen will be a single edited Telegram message, not a stream of new messages.
-
-```text
-SMM UP — ADMIN CONTROL
-
-System: Operational
-Worker: Connected
-Last settlement scan: 12 seconds ago
-
-[ 📊 Overview ]  [ 👥 Users ]
-[ 📦 Orders   ]  [ 💳 Payments ]
-[ ⭐ Reviews  ]  [ 🧰 Services ]
-[ 🛡 Security ]  [ ⚙️ System ]
-
-[ 🔄 Refresh ]   [ 🔒 Close ]
-```
-
-### 8.1 Universal navigation buttons
-
-Where appropriate, every screen will include:
-
-- `◀ Back`
-- `🏠 Main Menu`
-- `🔄 Refresh`
-- `❌ Cancel`
-- `🔒 Close`
-
-### 8.2 Close behavior
-
-Close will:
-
-1. cancel the active wizard;
-2. invalidate unconsumed action tokens for that wizard;
-3. clear temporary bot state;
-4. edit the message to `Admin session closed`;
-5. leave permanent audit logs untouched.
-
-Close does not log the owner out of Telegram and does not revoke the bot token.
-
----
-
-## 9. Overview module
-
-### 9.1 Metrics
-
-The Overview screen will show:
-
-- registered users;
-- users created today;
-- total wallet liability;
-- gross deposits today;
-- gross order volume today;
-- estimated gross profit today;
-- order count today;
-- active orders;
-- completed orders;
-- failed orders requiring review;
-- pending deposits;
-- delayed deposits;
-- approved/hidden community reviews;
-- provider connectivity;
-- MongoDB connectivity;
-- IMAP worker health;
-- bot uptime;
-- deployed bot version/commit.
-
-### 9.2 Rules
-
-- All financial values must state their currency.
-- Profit must never be confused with turnover.
-- Metrics must specify the time window.
-- The screen must never expose provider credentials or wholesale formulas.
-- Expensive aggregations should be cached briefly or precomputed.
-
-### 9.3 Buttons
-
-```text
-[ Today ] [ 7 Days ] [ 30 Days ]
-[ Failed Orders ] [ Pending Deposits ]
-[ 🔄 Refresh ] [ 🏠 Main Menu ]
-```
-
----
-
-## 10. Users module
-
-### 10.1 Search
-
-Search will accept:
-
-- exact email;
-- exact username;
-- MongoDB user ID;
-- optionally a safely escaped prefix search with a strict result limit.
-
-### 10.2 User detail screen
-
-Show owner-authorized operational data:
-
-- username;
-- full registered email (owner-only support view);
-- user ID;
-- current balance;
-- total spent;
-- total orders;
-- registration date;
-- account state;
-- whether an API key exists;
-- API-key last-used time;
-- recent orders count;
-- recent transactions count;
-- review state.
-
-Never show:
-
-- password hash;
-- raw API key;
-- JWT token;
-- full session token;
-- database connection string;
-- payment mailbox credentials.
-
-### 10.3 User buttons
-
-```text
-[ 📦 Orders ] [ 💳 Transactions ]
-[ ➕ Credit ] [ ➖ Debit ]
-[ 🔑 API Keys ] [ 🔐 Reset Password ]
-[ 👁 Support Access ]
-[ 🔒 Lock Account / 🔓 Unlock Account ]
-[ 🚪 Sessions ] [ 📝 Admin Notes ]
-[ ◀ Back ] [ 🏠 Main Menu ]
-```
-
-### 10.4 Credit workflow
-
-1. Select **Credit**.
-2. Enter amount.
-3. Validate finite number, currency precision and configured maximum.
-4. Enter reason.
-5. Display user, old balance, amount, projected balance and reason.
-6. Create one-time action token.
-7. Show Confirm/Cancel.
-8. On Confirm, atomically increment balance.
-9. Insert financial ledger record.
-10. Insert admin audit record.
-11. Mark action token consumed.
-12. Display final balance.
-
-### 10.5 Debit workflow
-
-The debit workflow mirrors credit but adds:
-
-- an atomic `balance >= amount` filter;
-- a prohibition on negative balances;
-- a higher-friction confirmation style;
-- a warning when debit exceeds a configured threshold.
-
-### 10.6 Account lock
-
-A locked account should be unable to:
-
-- authenticate with new sessions;
-- use existing website sessions after revocation/version check;
-- use the reseller API;
-- place orders;
-- initiate deposits.
-
-Locking must not delete historical data.
-
-### 10.7 Owner-triggered temporary-password reset
-
-The owner can recover an account without knowing or retrieving the existing password.
-
-Workflow:
-
-1. Search and open the user.
-2. Review full email, account history and private recovery evidence.
-3. Tap **Reset Password**.
-4. Enter a mandatory reason.
-5. Choose **Generate Automatically** (recommended) or **Set Custom Temporary Password**.
-6. Show a five-minute Confirm/Cancel action token.
-7. On confirmation, revoke existing sessions and store only a bcrypt hash of the temporary credential.
-8. Store expiry and bounded maximum-use count.
-9. Display the temporary value once in the owner chat.
-10. The user signs in through the restricted password-change flow.
-
-Configuration:
-
-```text
-TEMP_PASSWORD_TTL_MINUTES=180
-TEMP_PASSWORD_MAX_USES=2
-```
-
-Rules:
-
-- TTL is bounded by the server even when the environment variable is invalid.
-- Maximum uses is bounded to 1 or 2; default is 2.
-- Each successful temporary login atomically increments `uses_count`.
-- The bot edits the original reset message after each use.
-- Example first-use status: `✅ Used 1/2 · 1 use remaining · 2026-10-06 21:42 IST`.
-- Example terminal status: `✅ Used 2/2 · Temporary password exhausted`.
-- Expiry status: `⌛ Expired unused` or `⌛ Expired after 1/2 uses`.
-- Completing the permanent-password change invalidates the temporary credential immediately, even if one use remains.
-- Temporary login can access only password change and logout.
-- Permanent passwords and temporary-password hashes are never shown in Telegram.
-- The original Telegram message does not need automatic deletion because the value becomes unusable after consumption, completion or expiry.
-
-Suggested reset message:
-
-```text
-🔐 Temporary Password Created
-
-User: @username
-Email: full@example.com
-Temporary password: XXXX-XXXX-XXXX
-Expires: 3 hours (server-configured)
-Uses: 0/2
-Status: Waiting for user
-Reason: Owner-entered reason
-```
-
-### 10.8 Manual recovery evidence
-
-Until verified-email self-service recovery exists, the owner checks at least two private account facts where available:
-
-- registered email;
-- recent internal order ID and target;
-- recent service/quantity;
-- recent deposit amount and UTR/provider reference;
-- approximate balance or registration date.
-
-The audit event stores which evidence categories were checked, not copies of secrets.
-
-### 10.9 Support Access and website impersonation
-
-Support Access is for reproducing what a user sees without resetting the user password.
-
-1. Owner taps **Support Access** and enters a reason.
-2. Bot creates a one-time code stored only as a hash.
-3. Code exchange window is five minutes.
-4. Owner enters it at `/support-access` while authenticated as owner.
-5. Server creates a 15-minute `admin_impersonation` session.
-6. Session records `actor_admin_id` separately from `subject_user_id`.
-7. Website displays a permanent support banner and countdown.
-8. Session is read-only by default and can be exited early.
-9. Every sensitive view is audited.
-
-Read-only support access can view the account, full email, orders, targets, deposits, wallet records, API-key metadata, sessions and security state. It cannot place orders, spend balance, create deposits, mutate keys, change passwords or reveal raw secrets.
-
-The bot edits the Support Access message when the code is exchanged, the session exits, or it expires. Raw user passwords, API secrets and active cookies are never used as impersonation credentials.
-
-### 10.10 API-key owner controls
-
-The owner bot can inspect named keys, status, scopes, limits, expiry, spend and activity. Mutations use inline confirmations:
-
-- pause/resume;
-- rotate/reissue secret (the bot never receives the new raw secret);
-- archive after exact-name confirmation;
-- view creation-fee ledger entry;
-- view key-attributed orders and usage.
-
----
-
-## 11. Orders module
-
-### 11.1 Order queues
-
-- Latest
-- Active
-- Completed
-- Partial
-- Failed
-- Refunded
-- Cancelled
-- Refill eligible
-- Requires admin review
-
-### 11.2 Order detail
-
-Display:
-
-- internal order ID;
-- provider order ID;
-- user identity;
-- service name and ID;
-- platform/category;
-- quantity;
-- retail charge;
-- status;
-- start count/remains where available;
-- refill policy;
-- cancellation eligibility;
-- created/updated times;
-- provider error in sanitized form;
-- refund status;
-- target link only when operationally required.
-
-### 11.3 Order actions
-
-```text
-[ 🔄 Check Provider ]
-[ ♻️ Request Refill ]
-[ ✖️ Request Cancellation ]
-[ ↩️ Refund ]
-[ 👤 View User ]
-[ ◀ Back ] [ 🏠 Main Menu ]
-```
-
-Actions must be conditionally available. For example, do not show Refund after a completed refund, and do not show Refill for a non-refill service.
-
-### 11.4 Failed-order workflow
-
-For a failed provider submission:
-
-1. Display complete sanitized context.
-2. Allow **Retry Provider**, **Refund**, or **Keep Under Review** only when technically safe.
-3. Never retry if it could duplicate an order whose provider result is uncertain.
-4. Require confirmation for retry or refund.
-5. Record every choice in the audit log.
-
-### 11.5 Atomic refund design
-
-A refund must not use a read-then-credit-then-update sequence.
-
-Required design:
-
-1. Atomically change eligible order from `requires_admin_review` to `refund_processing` using a conditional filter.
-2. If no document changes, stop: another action already claimed it.
-3. Credit the wallet exactly once.
-4. Insert the refund ledger entry with a unique idempotency key.
-5. Mark order `refunded`.
-6. If an intermediate operation fails, leave a recoverable state and raise an urgent alert.
-7. A reconciliation task must detect stuck `refund_processing` states.
-
----
-
-## 12. Payments module
-
-### 12.1 Payment queues
-
-- Pending
-- Delayed
-- Paid
-- Failed verification
-- Anti-replay blocked
-- Manual investigation
-- Recently settled
-
-### 12.2 Payment detail
-
-Display:
-
-- internal transaction ID;
-- user;
-- expected amount;
-- memo;
-- status;
-- created time;
-- elapsed time;
-- UTR/transaction ID only where required;
-- settlement source;
-- whether processed identifier exists;
-- whether ledger and wallet updates agree.
-
-### 12.3 Payment actions
-
-```text
-[ 🔍 Recheck ]
-[ 📬 Scan Mailbox ]
-[ 👤 View User ]
-[ ⚠️ Flag Investigation ]
-[ ◀ Back ] [ 🏠 Main Menu ]
-```
-
-A general-purpose **Credit Payment** button must not exist without strong binding and confirmation.
-
-### 12.4 Settlement requirements
-
-Every settlement must verify:
-
-1. an exact pending transaction exists;
-2. the transaction belongs to the intended user;
-3. expected amount matches;
-4. memo matches when present;
-5. trusted sender filter matches;
-6. payment indicates incoming/credited funds;
-7. UTR/transaction ID has not been processed;
-8. the transaction has not already been paid;
-9. wallet credit and ledger state are idempotent.
-
-### 12.5 IMAP scan button
-
-Manual scan must:
-
-- acquire the same global worker lock as automatic scans;
-- refuse to overlap with another scan;
-- show start and finish states;
-- state messages checked and settlements completed;
-- avoid dumping full email content into Telegram;
-- time out safely.
-
----
-
-## 13. Reviews module
-
-### 13.1 Review queues
-
-- Latest community submissions
-- Approved
-- Hidden
-- Recently edited
-
-The six permanent homepage reviews remain unchanged and outside community moderation.
-
-### 13.2 Review detail
-
-Display:
-
-- review ID;
-- username;
-- rating;
-- optional city;
-- review body;
-- creation/update time;
-- verified order count;
-- visibility status.
-
-### 13.3 Review actions
-
-```text
-[ 🙈 Hide / 👁 Restore ]
-[ 👤 View User ]
-[ 📦 View Orders ]
-[ ◀ Back ] [ 🏠 Main Menu ]
-```
-
-### 13.4 Rules
-
-- Hiding is reversible.
-- Editing a hidden review must not republish it.
-- The bot must escape all review text before HTML output.
-- The owner may not rewrite a customer review through the bot.
-- The website must not expose a web moderation endpoint.
-
----
-
-## 14. Services module
-
-### 14.1 Version 1 scope
-
-- Provider connectivity status
-- Catalog service count
-- Platform/category counts
-- Last successful catalog fetch
-- Last provider error
-- Safe catalog refresh
-- Provider balance, if supported by provider API
-- Low-provider-balance warning
-
-### 14.2 Future service overrides
-
-Possible future capabilities:
-
-- disable one service locally;
-- hide a category;
-- maintenance flag;
-- preferred-service pinning;
-- service-quality notes;
-- temporary order block.
-
-These require a separate `service_overrides` collection. The bot must never edit supplier records directly.
-
-### 14.3 Markup management
-
-Markup management will not be added until pricing moves from deployment environment variables to a secure database configuration model.
-
-If implemented later:
-
-- values are stored in a private configuration collection;
-- website functions cache them briefly;
-- changes invalidate price caches;
-- old/new values are written to audit logs;
-- change requires confirmation;
-- exact supplier cost is never displayed;
-- rollback to the previous pricing version is supported;
-- markup values are never printed in shared groups.
-
-The bot will never manipulate Vercel environment variables using a long-lived Vercel owner token merely for convenience.
-
----
-
-## 15. Security module
-
-### 15.1 Security dashboard
-
-- failed login events;
-- registration spikes;
-- rate-limit events;
-- invalid API-key attempts;
-- payment replay attempts;
-- amount/memo mismatches;
-- unusual order velocity;
-- account locks;
-- session revocations;
-- worker failures;
-- database connectivity failures.
-
-### 15.2 Security actions
-
-```text
-[ 🔒 Lock User ]
-[ 🚪 Revoke Sessions ]
-[ 🔑 Revoke API Key ]
-[ ✅ Acknowledge Alert ]
-[ ◀ Back ] [ 🏠 Main Menu ]
-```
-
-### 15.3 Prohibited security behavior
-
-- Do not send passwords, hashes or raw tokens.
-- Do not dump complete request bodies.
-- Do not publish database URIs.
-- Do not provide a button to disable all security controls.
-- Do not permit account lookup by unconstrained regex.
-- Do not treat a successful Telegram callback as proof the database action succeeded.
-
----
-
-## 16. System module
-
-### 16.1 Health indicators
-
-- bot uptime;
-- Railway deployment version;
-- MongoDB ping;
-- IMAP connectivity;
-- last successful IMAP scan;
-- provider API connectivity;
-- last provider catalog refresh;
-- pending worker lock;
-- recent bot exceptions;
-- website health endpoint;
-- Vercel deployment version if exposed safely.
-
-### 16.2 System controls
-
-```text
-[ 📬 Run IMAP Scan ]
-[ 🧹 Clear Expired Wizard State ]
-[ 🔄 Refresh Catalog ]
-[ 🧪 Run Read-Only Health Check ]
-[ ◀ Back ] [ 🏠 Main Menu ]
-```
-
-There will be no button that reveals environment variables.
-
-### 16.3 Maintenance mode
-
-Maintenance mode is a future feature and must be represented by a database flag read by the website API. It must not rely only on bot memory.
-
----
-
-## 17. Inline callback design
-
-### 17.1 Telegram constraint
-
-Callback data must remain compact. It will carry opaque identifiers, not raw emails, review text or reasons.
-
-Example patterns:
-
-```text
-nav:main
-nav:users
-users:search
-orders:list:active:2
-orders:view:<short-token>
-reviews:toggle:<short-token>
-action:confirm:<one-time-token>
-action:cancel:<one-time-token>
-```
-
-### 17.2 Do not trust callback payloads
-
-The callback should identify a server-side action token. MongoDB stores the real:
-
-- action type;
-- target collection;
-- target document ID;
-- actor Telegram ID;
-- validated parameters;
-- created time;
-- expiry;
-- consumed state.
-
-### 17.3 One-time action tokens
-
-Proposed document:
-
-```json
-{
-  "token": "random-opaque-id",
-  "actor_telegram_id": "123456789",
-  "action": "refund_order",
-  "target_id": "mongo-object-id",
-  "parameters": {
-    "amount": 100,
-    "reason": "Provider rejected order"
-  },
-  "created_at": "date",
-  "expires_at": "date",
-  "consumed_at": null,
-  "status": "pending"
-}
+## 5. Authorization lifecycle
+
+```mermaid
+sequenceDiagram
+  participant T as Telegram update
+  participant M as Owner middleware
+  participant H as Handler
+  participant DB as MongoDB
+
+  T->>M: message or callback
+  M->>M: compare sender ID with configured numeric owner
+  alt unauthorized or sender absent
+    M-->>T: reject without operational data
+  else owner
+    M->>H: continue
+    H->>DB: validate and read current state
+    H-->>T: result or safe confirmation
+  end
 ```
 
 Requirements:
 
-- cryptographically random token;
-- unique index;
-- TTL index on `expires_at`;
-- maximum lifetime of 5 minutes for financial actions, accommodating temporary owner connectivity issues without leaving confirmations valid indefinitely;
-- conditional consume operation;
-- owner ID binding;
-- single use.
+- Do not authorize with Telegram username.
+- Do not authorize with chat ID alone.
+- Do not accept anonymous/channel identity as owner.
+- Every callback passes the same middleware as commands.
+- Owner Telegram two-step verification, device security and active-session review are operational prerequisites.
 
 ---
 
-## 18. Wizard-state model
+## 6. Interface model
 
-### 18.1 Why state is needed
+### Current inline menu
 
-Telegram buttons cannot collect arbitrary amounts or reasons. A state machine ensures the bot knows what the next owner message means.
-
-### 18.2 Example states
-
-```text
-idle
-awaiting_user_search
-awaiting_credit_amount
-awaiting_credit_reason
-awaiting_debit_amount
-awaiting_debit_reason
-awaiting_refund_reason
-awaiting_order_id
-awaiting_memo
-confirmation_pending
-```
-
-### 18.3 State storage
-
-Important wizard state should be stored in MongoDB, not only process memory, so a Railway restart does not turn a later message into the wrong action.
-
-State fields:
-
-- owner Telegram ID;
-- chat ID;
-- state name;
-- related target ID;
-- validated partial inputs;
-- created and expiry times;
-- message ID associated with the wizard.
-
-### 18.4 Cancellation
-
-`Cancel`, `Close` and `/cancel` invalidate wizard state immediately.
-
-Expired wizard state must never accept a late message.
-
----
-
-## 19. Audit logging
-
-### 19.1 Every administrative mutation is logged
-
-Proposed `admin_audit_logs` fields:
-
-```json
-{
-  "event_id": "uuid",
-  "actor_type": "telegram_owner",
-  "actor_telegram_id": "123456789",
-  "action": "wallet_credit",
-  "target_type": "user",
-  "target_id": "mongo-object-id",
-  "request_parameters": {
-    "amount": 100,
-    "reason": "Manual correction"
-  },
-  "before": {
-    "balance": 50
-  },
-  "after": {
-    "balance": 150
-  },
-  "result": "success",
-  "error_code": null,
-  "created_at": "date",
-  "bot_version": "git-commit"
-}
-```
-
-### 19.2 Sensitive-data exclusions
-
-Audit logs must exclude:
-
-- raw passwords;
-- password hashes;
-- raw JWTs;
-- raw reseller API keys;
-- bot token;
-- IMAP password;
-- MongoDB URI;
-- provider API key;
-- complete payment-email bodies.
-
-### 19.3 Audit retention
-
-Retention policy must be decided before launch. Financial mutation records should not be automatically deleted without a legal/business decision.
-
----
-
-## 20. Atomicity and idempotency
-
-### 20.1 General rule
-
-A Telegram success message is sent only after the authoritative database change has succeeded.
-
-### 20.2 Financial operations
-
-- Use conditional atomic updates.
-- Use unique idempotency keys.
-- Prevent double confirmation.
-- Detect incomplete multi-step operations.
-- Prefer MongoDB transactions when the production cluster supports them and the operation spans several documents.
-- When a transaction is not used, create an explicit recoverable state and reconciliation process.
-
-### 20.3 Provider operations
-
-Provider timeouts are ambiguous. A timeout does not prove an order was rejected. The bot must avoid blind retries that could duplicate fulfillment.
-
-### 20.4 Message retries
-
-Telegram delivery failure must not roll back a completed database mutation. The mutation remains logged; the bot should retry only the notification.
-
----
-
-## 21. IMAP payment worker
-
-### 21.1 Worker behavior
-
-- One active scan at a time.
-- Periodic interval with overlap guard.
-- Strict trusted-sender filter.
-- Decode and parse only necessary fields.
-- Match exact pending transaction memo and amount.
-- Enforce processed-identifier uniqueness.
-- Perform idempotent wallet settlement.
-- Record settlement source and time.
-- Send owner notification.
-- Update heartbeat after successful scan.
-
-### 21.2 Failure handling
-
-- Authentication failure: urgent alert, exponential retry.
-- Network timeout: retry with backoff.
-- Parse failure: log sanitized metadata and skip credit.
-- Amount mismatch: investigation event, no credit.
-- Memo mismatch: no credit.
-- Duplicate identifier: no credit.
-- Database failure: do not mark email/payment completed locally.
-- Telegram notification failure: settlement remains valid; retry notification separately.
-
-### 21.3 Worker lock
-
-The lock must survive overlapping asynchronous triggers. In-memory locks protect only one process. A MongoDB lease is preferred if more than one Railway replica could ever run.
-
-### 21.4 Worker heartbeat
-
-`bot_runtime_state` should record:
-
-- last scan start;
-- last scan completion;
-- last scan result;
-- messages checked;
-- settlements completed;
-- current lock owner;
-- lock expiry;
-- consecutive failures.
-
----
-
-## 22. Alerts
-
-### 22.1 Immediate alerts
-
-- provider order failure after wallet debit;
-- delayed deposit;
-- completed settlement;
-- payment replay attempt;
-- amount/memo mismatch;
-- failed refund operation;
-- worker authentication failure;
-- repeated database failure;
-- new or edited buyer review;
-- provider balance below threshold;
-- unusual login/API activity after security-events implementation.
-
-### 22.2 Alert controls
-
-Alerts should offer context-sensitive inline buttons, such as:
-
-```text
-[ View Order ] [ View User ]
-[ Open Failed Queue ] [ Acknowledge ]
-```
-
-No alert button should perform a refund immediately.
-
-### 22.3 Alert deduplication
-
-Repeated failures must not flood Telegram. Use fingerprints and cooldowns while retaining counters.
-
----
-
-## 23. Environment variables
-
-### 23.1 Railway bot variables
-
-```env
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_OWNER_ID=
-MONGODB_URI=
-MONGODB_DB_NAME=
-IMAP_HOST=
-IMAP_PORT=
-IMAP_SECURE=
-IMAP_USER=
-IMAP_PASSWORD=
-FAMPAY_SENDER_FILTER=
-ENABLE_IMAP_WORKER=true
-BOT_ENV=production
-BOT_VERSION=
-```
-
-Additional variables should be added only when the related feature exists.
-
-### 23.2 Secret-handling rules
-
-- Railway secret variables only.
-- Never commit `.env`.
-- Never print secret values at startup.
-- Never send secrets to Telegram.
-- Rotate the bot token after suspected exposure.
-- Use a Gmail/FamApp app password, never the primary account password.
-- Use separate production and staging tokens.
-
----
-
-## 24. MongoDB permissions
-
-### 24.1 Bot database user
-
-The bot should use a dedicated MongoDB credential, separate from the website where practical.
-
-Minimum desired scope:
-
-- read/write only on the SMM UP application database;
-- no cluster-admin role;
-- no access to unrelated databases;
-- no ability to manage Atlas users/network rules;
-- TLS required.
-
-### 24.2 Network controls
-
-- Prefer narrowly scoped Atlas networking where compatible with Railway networking.
-- If broad IP access is unavoidable, compensate with strong credentials, least privilege, monitoring and rotation.
-- Enable Atlas alerts for unusual connections.
-
-### 24.3 Backups
-
-Before financial mutation features are enabled:
-
-- automated Atlas backups must be enabled where plan permits;
-- restore procedure must be tested;
-- recovery point and recovery time expectations must be written down.
-
----
-
-## 25. Error handling and user experience
-
-### 25.1 Error categories
-
-The bot should distinguish:
-
-- validation error;
-- unauthorized update;
-- stale button;
-- expired confirmation;
-- document not found;
-- state changed since screen rendered;
-- provider failure;
-- database failure;
-- Telegram API failure;
-- IMAP failure;
-- internal programming error.
-
-### 25.2 Owner-facing messages
-
-Messages should be actionable but not expose stack traces or credentials.
-
-Example:
-
-```text
-Refund was not executed.
-Reason: This order was already claimed by another action.
-No wallet balance changed.
-Audit ID: ADM-20261005-00124
-```
-
-### 25.3 Logging
-
-Railway logs may include:
-
-- event type;
-- sanitized IDs;
-- timing;
-- success/failure;
-- error class;
-- audit event ID.
-
-They must not include raw secrets or full payment email content.
-
----
-
-## 26. Rate limiting
-
-Even owner-only actions should have limits to protect against loops and compromised sessions.
-
-Suggested controls:
-
-- maximum callback actions per minute;
-- maximum user searches per minute;
-- maximum manual IMAP scans per interval;
-- cooldown after financial action failures;
-- one active financial confirmation per owner;
-- alert flood suppression.
-
-Limits must be stored in a shared store or database if more than one bot replica can run.
-
----
-
-## 27. Pagination and message editing
-
-### 27.1 Pagination
-
-Lists should use stable pages and strict limits, for example 5–10 records per Telegram message.
-
-```text
-[ ◀ Previous ] [ 2 / 8 ] [ Next ▶ ]
-```
-
-### 27.2 Message editing
-
-Prefer editing the active dashboard message to reduce clutter.
-
-Send a new message only for:
-
-- urgent alert;
-- explicit exported report;
-- required ForceReply input;
-- operation receipt that should remain in history.
-
-### 27.3 Stale screens
-
-Before performing any action, reload the target from MongoDB. A screen is a snapshot, not authoritative state.
-
----
-
-## 28. Data privacy
-
-- Show the minimum personal data required.
-- Mask emails in overview/list screens.
-- Display full email only in a deliberate user-detail screen.
-- Avoid showing complete social target links in alerts unless needed.
-- Do not allow bulk user export to Telegram.
-- Do not send transaction histories as unencrypted attachments by default.
-- Follow the website privacy policy.
-
----
-
-## 29. Features explicitly not planned
-
-The bot will **not**:
-
-- become a public customer-support bot;
-- accept customer orders through Telegram;
-- ask customers for social-media passwords;
-- expose a web admin dashboard;
-- reveal wholesale supplier prices publicly;
-- reveal provider API credentials;
-- reveal raw user API keys;
-- show password hashes;
-- store bot state only in volatile memory for critical workflows;
-- automatically refund every provider error;
-- retry ambiguous provider submissions blindly;
-- disable security checks through a convenience button;
-- manage GitHub or Vercel using broad owner tokens;
-- edit customer review wording;
-- perform destructive actions with one tap;
-- support child panels/referrals unless separately approved later;
-- use AI to make unsupervised financial decisions;
-- run the full long-polling/IMAP worker as a Vercel Function.
-
----
-
-## 30. Testing strategy
-
-### 30.1 Unit tests
-
-- input validators;
-- amount parsing;
-- HTML escaping;
-- callback parser;
-- one-time token expiry;
-- wizard transitions;
-- authorization middleware;
-- idempotency helpers;
-- status normalization;
-- IMAP payment parser.
-
-### 30.2 Database integration tests
-
-- concurrent credit/debit attempts;
-- concurrent refund confirmations;
-- duplicate callback delivery;
-- duplicate UTR/transaction IDs;
-- stale order state;
-- expired action token;
-- hidden review edit;
-- user lock/session revocation;
-- worker lock acquisition and expiry.
-
-### 30.3 Telegram interaction tests
-
-- unauthorized sender rejection;
-- Main Menu navigation;
-- Back/Home/Close;
-- list pagination;
-- stale buttons;
-- ForceReply cancellation;
-- confirmation expiry;
-- message-edit failure fallback;
-- HTML special characters in user/review/provider content.
-
-### 30.4 Failure tests
-
-- MongoDB unavailable;
-- provider unavailable;
-- Telegram unavailable;
-- IMAP unavailable;
-- Railway restart during wizard;
-- Railway restart during scan;
-- process receives SIGTERM;
-- notification fails after successful financial mutation.
-
-### 30.5 Staging
-
-Use a separate staging bot token, staging owner/chat, staging database and test payment mailbox. Never test destructive financial workflows against production users.
-
----
-
-## 31. Deployment plan
-
-### Phase 0 — prerequisites
-
-Complete website security items and MongoDB backup verification.
-
-### Phase 1 — foundation
-
-- refactor current bot into modules;
-- configuration validation;
-- owner middleware;
-- HTML escaping helper;
-- callback router;
-- Main Menu;
-- wizard-state store;
-- action-token store;
-- audit logger;
-- graceful shutdown;
-- health heartbeat.
-
-### Phase 2 — read-only screens
+`/start` and `/help` send:
 
 - Overview;
-- Users lookup;
-- Orders lists/details;
-- Payments lists/details;
-- Reviews lists/details;
-- System health.
+- Users;
+- Orders;
+- Payments;
+- Security;
+- Reviews;
+- Close.
 
-No mutations yet.
+These buttons currently send command guidance. Close deletes the menu message. The richer inline surface begins after `/user <email>`:
 
-### Phase 3 — low-risk mutations
+- Sessions;
+- Support Access;
+- Account Controls;
+- API Keys;
+- Records;
+- Revoke All Sessions.
 
-- review hide/restore;
-- alert acknowledgement;
-- safe catalog refresh;
-- account lock/unlock after website support exists;
-- API-key revocation after website migration exists.
+### Command input
 
-### Phase 4 — financial actions
+Commands are appropriate where arbitrary values are needed. Reasoned commands use:
 
-- credit wizard;
-- debit wizard;
-- atomic refund workflow;
-- reconciliation;
-- high-value thresholds;
-- complete financial test suite.
+```text
+/<command> arguments | reason
+```
 
-### Phase 5 — worker hardening
+The generic parser requires a reason between 5 and 500 characters. Recovery has its own validation and identity-checklist prompt.
 
-- MongoDB lease;
-- exact pending-transaction binding;
-- idempotent settlement state machine;
-- heartbeat and stale-lock recovery;
-- alert deduplication.
+### Confirmation UX
 
-### Phase 6 — production cutover
+```mermaid
+flowchart LR
+  Cmd[Owner command] --> Validate[Validate input + target]
+  Validate --> Pending[(pending action; token hash; 5m)]
+  Pending --> Preview[Confirm / Cancel buttons]
+  Preview --> Claim{Actor + state + expiry claim}
+  Claim -->|cancel| Cancelled[Cancelled]
+  Claim -->|confirm| Tx[MongoDB transaction]
+  Tx --> Audit[Ledger / audit / event]
+  Audit --> Receipt[Edit confirmation with result]
+  Claim -->|stale / replay / wrong actor| Reject[No mutation]
+```
 
-- deploy staging;
-- test all flows;
-- deploy Railway production service;
-- verify only one long-polling instance;
-- monitor for 24–48 hours;
-- retire legacy direct commands only after inline replacements are proven.
-
----
-
-## 32. Railway configuration
-
-Recommended service configuration:
-
-- Root directory: `admin-bot`
-- Start command: `npm start`
-- Restart policy: on failure
-- One production replica during long-polling phase
-- No public domain required
-- Environment variables stored in Railway
-- Deployment connected to the selected branch
-- Logs and resource alerts enabled
-
-The bot must exit non-zero when critical configuration is absent so Railway restarts it or marks deployment unhealthy.
+Generic actions are limited to 20 newly pending records per owner per five-minute window.
 
 ---
 
-## 33. Graceful shutdown
+## 7. Command contract
 
-On `SIGTERM` or `SIGINT`:
+### Read commands
 
-1. stop accepting new wizard actions;
-2. stop Telegram polling;
-3. release/expire worker lease safely;
-4. finish or checkpoint current non-financial work;
-5. close IMAP connection;
-6. close MongoDB client;
-7. exit within Railway shutdown window.
+| Command | Fixed behavior |
+|---|---|
+| `/stats` | user/order/paid-deposit counts and aggregate balances/spend |
+| `/user <email>` | account, balance, API-key count, dates and inline controls |
+| `/userorders <email>` | newest 10 user orders |
+| `/deposits <email>` | newest 15 user transactions |
+| `/wallet <email>` | newest 20 wallet entries |
+| `/events <email>` | newest 15 security events + 10 notes |
+| `/orders [limit]` | newest orders, default 5/max 20 |
+| `/failed` | newest 10 failed/review-required orders |
+| `/pending` | newest 10 pending deposits |
+| `/checkmemo <memo>` | exact normalized memo lookup |
+| `/reviews [limit]` | buyer reviews, default 8/max 12 |
 
-A shutdown must never repeat a financial operation on restart.
+`/userorders`, `/deposits`, `/wallet` and `/events` do not currently implement the optional limit previously described by stale documentation.
 
----
+### Confirmed generic mutations
 
-## 34. Rollback and disaster recovery
+| Command | Action type | Transactional effects |
+|---|---|---|
+| `/credit` | `wallet_credit` | user balance + ledger + transaction + audit |
+| `/debit` | `wallet_debit` | guarded balance - ledger + transaction + audit |
+| `/refund` | `order_refund` | unique ledger + order refunded + balance/stat correction + transaction + audit |
+| `/lock` | `account_lock` | flag + session/restricted-session revocation + security event + audit |
+| `/unlock` | `account_unlock` | flag/reason/timestamps + event + audit |
+| `/orderhold` | `ordering_hold` | ordering flag + event + audit |
+| `/orderrelease` | `ordering_release` | clear flag + event + audit |
+| `/paymenthold` | `payment_hold` | deposit flag + event + audit |
+| `/paymentrelease` | `payment_release` | clear flag + event + audit |
+| `/keypause` | `api_pause` | key paused + key/admin audit |
+| `/keyresume` | `api_resume` | key active unless reissue remains required |
+| `/keyarchive` | `api_archive` | identity archived + active versions revoked |
+| `/keyreissue` | `api_reissue_required` | identity paused/reissue flag + versions revoked |
 
-### 34.1 Code rollback
+All amounts are converted to integer paise before mutation. Raw key secrets are not part of any bot operation.
 
-- Every production bot release gets a version/commit identifier.
-- Railway deployment history is retained.
-- Previous known-good deployment can be restored.
-- Database migrations must be backward-aware or have a rollback plan.
+### Immediate mutation
 
-### 34.2 Bot token compromise
-
-1. Revoke/regenerate token in BotFather.
-2. Replace Railway secret.
-3. Restart bot.
-4. Review admin audit logs.
-5. Rotate related credentials if exposure scope is uncertain.
-
-### 34.3 Telegram owner-account compromise
-
-1. Terminate unknown Telegram sessions.
-2. Change Telegram two-step password.
-3. Stop Railway bot immediately.
-4. Rotate bot token.
-5. Inspect all recent financial audit events.
-6. Lock or reconcile affected accounts/orders.
-
-### 34.4 Database credential compromise
-
-1. Disable compromised Atlas user.
-2. Create replacement least-privilege user.
-3. update Railway secret;
-4. inspect Atlas access logs;
-5. rotate website credential if shared;
-6. reconcile financial records.
+`/note <email> | <note>` inserts an owner note and audit record after validation but does not use Confirm/Cancel. Treat notes as operational records, not a place for credentials or unnecessary personal data.
 
 ---
 
-## 35. Website prerequisites related to bot safety
+## 8. Financial action model
 
-The following website work must happen before full bot development:
+### Wallet correction
 
-1. Stop storing raw reseller API keys.
-2. Bind manual payment verification to one exact pending transaction.
-3. Add distributed/persistent rate limiting.
-4. Make cron authentication fail closed.
-5. Remove public supplier force-refresh control.
-6. Add atomic refund claim/idempotency logic.
-7. Decide and implement server-revocable sessions.
-8. Add security-event recording that the bot can display.
-9. Define account lock behavior across website and reseller API.
-10. Verify MongoDB backups and restore.
+A confirmed credit/debit transaction:
 
----
+1. claims the pending action;
+2. reads current user state;
+3. enforces positive safe integer paise;
+4. for debit, enforces available balance;
+5. updates user balance;
+6. inserts unique `admin_wallet:<actionId>` ledger settlement;
+7. inserts matching transaction record;
+8. inserts administrative audit;
+9. completes pending action;
+10. sends success only after commit.
 
-## 36. Definition of done
+### Full order refund
 
-The admin bot is complete only when:
+A refund uses `order_refund:<orderId>` as unique settlement identity. It:
 
-- all planned menus are usable from inline buttons;
-- unauthorized users cannot access any data or action;
-- financial actions require expiring confirmation;
-- double-tapping cannot duplicate a financial operation;
-- every mutation has an audit record;
-- every list is bounded and paginated;
-- every stored/displayed untrusted string is escaped;
-- no raw secrets are displayed or logged;
-- Railway restarts do not corrupt wizard or worker state;
-- the payment worker is idempotent;
-- staging tests pass;
-- production backup/restore is verified;
-- operational runbooks exist;
-- the owner has tested Back, Home, Cancel and Close behavior;
-- the website remains fully functional without the bot online;
-- documentation matches actual behavior.
+- rejects absent/already-refunded/non-positive-charge orders;
+- inserts ledger with API-key attribution when present;
+- marks the exact order Refunded;
+- credits the wallet;
+- lowers total spent/orders without going below zero;
+- inserts a transaction and audit.
+
+The current command supports a full refund, not arbitrary partial refund. Provider refund and Razorpay dispute reconciliation remain separate concerns.
+
+### Failure rule
+
+A Telegram delivery/edit failure after commit does not reverse money. Inspect authoritative ledger, transaction, order/user and audit state before retrying an action.
 
 ---
 
-## 37. Open decisions for the future bot-development session
+## 9. Account and session controls
 
-These must be decided before implementation begins:
+### Account lock
 
-1. Should financial actions above a threshold require a second confirmation phrase?
-2. What are the maximum manual credit and debit amounts?
-3. Should a locked user be allowed to contact support or withdraw/refund balance?
-4. How long should financial and security audit logs be retained?
-5. Should full emails be visible only after a separate reveal button?
-6. Should service/markup configuration be moved to MongoDB?
-7. What provider-balance threshold triggers an alert?
-8. What defines a suspicious login/order/payment event?
-9. Is a read-only secondary admin role ever needed?
-10. What staging database and payment mailbox will be used?
+Lock sets account state, reason/timestamps, revokes normal/support sessions involving the user, invalidates restricted sessions and advances `sessions_revoked_before`. Website/API enforcement remains part of the shared application contract.
 
-Until those decisions are made, defaults must favor safety over convenience.
+Unlock clears the flag but does not resurrect revoked sessions.
+
+### Ordering and payment holds
+
+- Ordering hold blocks new website/reseller orders where enforced by server source.
+- Payment hold blocks new deposit/settlement paths where enforced.
+- Release requires a new owner reason/confirmation.
+- Holds preserve historical data.
+
+### Session inspection/revocation
+
+The user detail view exposes safe session metadata, not raw tokens. One-session revoke uses an inline confirmation. Global revoke:
+
+- revokes normal/support sessions where the user is subject or actor;
+- invalidates restricted sessions;
+- advances the user cutoff;
+- marks linked Support Access states for Telegram synchronization;
+- records a security event.
 
 ---
 
-## 38. Final operating principle
+## 10. Temporary-password recovery
 
-The bot is not merely a convenient remote control. It is a privileged financial administration system.
+### Preparation
 
-Therefore:
+```mermaid
+flowchart TD
+  Cmd[/resetpassword/] --> Mode{auto or custom}
+  Mode -->|auto| Token[Five-minute action token]
+  Mode -->|custom| Validate[10–128 chars; at least 3 categories]
+  Validate --> Protect[AES-256-GCM value + bcrypt hash]
+  Protect --> Token
+  Token --> Checklist[Owner identity checklist + Confirm]
+```
 
-- read operations should be fast;
-- write operations should be deliberate;
-- financial operations should be atomic and idempotent;
-- destructive actions should require confirmation;
-- every mutation should be attributable;
-- every failure should be recoverable;
-- no secret should be exposed for convenience;
-- the website must remain secure and operational even if the bot is offline.
+A generated value is created only at confirmation. A custom value exists in five-minute protected action state and is removed from that record during claim. It is never stored as a readable durable temporary credential.
+
+### Confirmation transaction
+
+- atomically claim the action;
+- supersede active temporary credentials;
+- insert bcrypt-hashed temporary credential;
+- default to 180 minutes and 2 uses;
+- revoke normal and Support Access sessions;
+- invalidate restricted sessions;
+- advance session cutoff;
+- write security event;
+- show plaintext once in Telegram.
+
+If initial Telegram delivery/edit fails after creation, the temporary credential is invalidated as delivery failed.
+
+### Consumption contract
+
+Website code owns atomic temporary-password verification and use counting. Temporary login creates only a restricted password-change session. Creating the permanent password invalidates the temporary credential, revokes sessions as designed and never returns the prior permanent password.
+
+### Status worker
+
+Every minute, Railway checks records requiring status updates or expiry transitions and edits the original Telegram message to show:
+
+- used count and remaining uses;
+- permanent password completed;
+- expired/exhausted/superseded state;
+- hidden credential after initial creation.
+
+Temporary reset messages do not require automatic deletion.
+
+---
+
+## 11. Support Access
+
+Issuance command:
+
+```text
+/supportaccess user@example.com | bounded operational reason
+```
+
+```mermaid
+sequenceDiagram
+  participant O as Owner bot
+  participant DB as MongoDB
+  participant W as Website
+
+  O->>DB: Invalidate prior active codes
+  O->>DB: Store SHA-256(code), subject, actor, reason, 5m expiry
+  O-->>O: Show raw code once
+  W->>DB: Authenticated owner exchanges exact unused code
+  DB->>DB: Consume once; create 15m support session
+  W-->>O: Status marked active for Telegram sync
+  O->>DB: Worker observes exchange/exit/expiry/revoke
+  O-->>O: Edit original status message; hide code
+```
+
+Support sessions:
+
+- use a separate cookie and MongoDB session;
+- preserve `actor_admin_id` and subject `user_id`;
+- show a banner and countdown;
+- are read-only in server APIs;
+- may inspect operational account/order/deposit/target/key/session/security state;
+- may not order, fund, change credentials, mutate keys or reveal raw secrets;
+- end after 15 minutes, explicit exit or revocation.
+
+The bot’s issuance command is not a normal login and never receives a website session token.
+
+---
+
+## 12. Named API-key controls
+
+The bot can display identity metadata, status, scopes, limits, expiry, spend/activity summaries and version hints through user detail controls.
+
+Mutation semantics:
+
+- **pause:** preserve existing hash-only secret versions;
+- **resume:** allowed only if `owner_reissue_required` is not true;
+- **archive:** permanent identity archive; revoke all active versions;
+- **reissue-required:** pause/restrict identity and revoke versions;
+- **secure rotate:** must occur on the website; one-time raw replacement secret never traverses Telegram.
+
+The bot does not charge/refund identity creation fees and cannot reconstruct a lost secret.
+
+---
+
+## 13. Review moderation
+
+`/reviews` excludes seeded homepage reviews. For buyer submissions:
+
+- display review operational metadata/text;
+- toggle approved/hidden status;
+- stamp moderation time and Telegram source;
+- write `admin_audit`;
+- do not edit customer wording;
+- keep website free of moderation endpoints.
+
+The six permanent homepage reviews stay unchanged by this queue.
+
+---
+
+## 14. IMAP settlement worker
+
+### Scheduling and lease
+
+- automatic loop interval: 20 seconds;
+- in-process overlap guard: one scan per process;
+- MongoDB lease ID: `imap_settlement`;
+- lease duration: 180 seconds at acquisition;
+- manual `/scan` uses the same guard and distributed lease;
+- IMAP mailbox: Gmail `imap.gmail.com:993` over TLS;
+- lookback: last 48 hours;
+- fetch bound: latest 30 matching messages.
+
+### Parsing
+
+Current source extracts:
+
+- memo shaped like `SUP` plus five alphanumeric characters;
+- optional 12-digit UTR/reference;
+- optional `FMPIB...` transaction ID;
+- amount from receipt language/subject.
+
+It searches mail from configured `FAMPAY_SENDER_FILTER` and does not mark messages as the accounting authority. Parsed content remains untrusted evidence.
+
+### Exact matching
+
+Before settlement:
+
+- memo must identify one unexpired pending `FAMPAY_UPI` record;
+- parsed amount must equal pending amount at paise precision;
+- the transaction’s exact `_id`, user, method, memo, amount, pending state and expiry are rechecked in the transaction;
+- memo and any parsed UTR/transaction ID must not be previously processed;
+- account payment hold must be absent.
+
+### Transactional settlement
+
+One MongoDB transaction:
+
+1. re-reads exact pending deposit;
+2. inserts processed identifier/memo record;
+3. transitions transaction from pending to paid;
+4. sets unique `direct_upi:<pendingId>` settlement key;
+5. credits exact user balance;
+6. inserts unique wallet ledger entry;
+7. inserts security event.
+
+Unique indexes on memo, optional UTR/TxID, Direct UPI settlement key and wallet settlement key enforce replay safety. Duplicate-key and stale-state races do not produce a second credit.
+
+### Reconciliation
+
+Missing/mismatched amount creates or updates an open issue keyed by memo/status/reason. Payment hold or unexpected settlement errors create issue records instead of guessing. Open issues reaching repeated attempts trigger owner alerting. Resolved settlements close matching issues.
+
+### Health
+
+`system_health/_id=imap_settlement_worker` records status, holder, heartbeat, last success/error and consecutive errors. The owner is alerted at three consecutive failures and then at each tenth failure.
+
+---
+
+## 15. Collection ownership
+
+| Collection | Bot use |
+|---|---|
+| `users` | read identity/stats; mutate balance/holds/lock/session cutoff |
+| `orders` | inspect and transactional full refund |
+| `transactions` | inspect; admin wallet records; Direct UPI state |
+| `wallet_ledger` | immutable/idempotent financial entries |
+| `sessions` | inspect/revoke normal and Support Access sessions |
+| `restricted_sessions` | recovery-session invalidation |
+| `temporary_passwords` | bcrypt temporary credential and Telegram status metadata |
+| `support_access_codes` | hash-only one-time exchange and status metadata |
+| `api_keys` | inspect and status/reissue mutations |
+| `api_key_versions` | revoke versions; never reveal secret/hash |
+| `api_key_audit` | key administrative audit |
+| `reviews` | buyer review visibility |
+| `admin_pending_actions` | generic five-minute confirmations |
+| `admin_action_tokens` | recovery five-minute action state |
+| `admin_audit` | administrative mutation/moderation records |
+| `admin_notes` | owner notes |
+| `security_events` | account/session/settlement events |
+| `processed_transactions` | Direct UPI replay prevention |
+| `payment_reconciliation` | unresolved/retried settlement issues |
+| `worker_leases` | distributed lease |
+| `system_health` | heartbeat/failure state |
+
+The bot should use a dedicated least-privilege MongoDB credential limited to the application database when operationally feasible.
+
+---
+
+## 16. Index contract
+
+Bot startup awaits index creation for:
+
+- unique generic confirmation token hash;
+- generic confirmation cleanup/history expiry and actor/time lookup;
+- unique recovery action token hash and TTL;
+- admin audit time/subject lookups;
+- notes/events user/time lookups;
+- one open reconciliation per memo/reason;
+- unique sparse processed UTR, transaction ID and memo;
+- unique sparse transaction memo;
+- unique Direct UPI settlement key;
+- unique wallet settlement key.
+
+Support Access code indexes are also created by issuance flow. Index conflicts are production-data incidents; do not remove uniqueness to bypass them.
+
+---
+
+## 17. Error and message policy
+
+### Owner-facing
+
+- Distinguish validation, not found, stale/replayed action, insufficient balance and safe transaction failure.
+- Send success only after authoritative commit.
+- Do not expose stack traces or secrets.
+- Treat Telegram messages as notification/UI, not accounting truth.
+- Reload state before mutation.
+
+### Logs
+
+Allowed: event category, bounded internal/public identifier, error class, timestamp and health count.
+
+Forbidden: passwords/hashes, temporary plaintext, API secrets/hashes, raw session tokens/cookies, auth headers, database/bot/mailbox/provider credentials, complete receipt bodies and private pricing.
+
+Current source still has legacy direct error/list interpolation paths. Before production, complete an encoding/redaction audit rather than assuming every upstream error/string is safe.
+
+---
+
+## 18. Validation matrix
+
+### Automated local suite
+
+```bash
+cd admin-bot
+npm ci
+npx tsc --noEmit
+npm run test:admin-actions
+npm audit --omit=dev
+```
+
+The integration suite covers:
+
+- confirmed wallet credit/debit and negative-balance protection;
+- full refund idempotency;
+- account/order/payment controls;
+- API-key state actions and secret-version revocation;
+- callback/action replay/concurrency properties through exported helpers;
+- exact Direct UPI worker settlement;
+- concurrent settlement winner and rollback on payment hold.
+
+### Required Railway/Telegram staging
+
+- correct/wrong owner behavior;
+- expected bot identity;
+- stale/replayed/wrong-actor buttons;
+- real message edit behavior;
+- recovery and Support Access status synchronization;
+- two replicas with one active lease;
+- leader restart/takeover;
+- mailbox authentication, parsing and mismatch cases;
+- Telegram outage after committed mutation;
+- SIGTERM/restart safety;
+- no secret leakage in messages/logs/audits.
+
+Local tests do not prove these provider/runtime behaviors.
+
+---
+
+## 19. Deployment and rollback
+
+### Deployment owner checklist
+
+1. Separate staging bot/owner/database/mailbox.
+2. Owner Telegram two-step verification enabled.
+3. Railway secret values configured; no `.env` committed.
+4. Production MongoDB backup/PITR verified.
+5. Index gate passed on production-shaped data.
+6. Website and bot point to the same intended environment database.
+7. Exactly one intended worker service has `ENABLE_IMAP_WORKER=true`.
+8. Telegram webhook is absent for this long-polling bot.
+9. Staging matrix passed.
+10. Source commit and Railway deployment recorded.
+
+### Rollback
+
+Stop the service immediately for authorization, credential or duplicate-financial risk. Roll back Railway only after confirming schema compatibility. Do not delete ledger/audit/transaction evidence, and do not assume rollback reverses a committed balance/refund/settlement. Reconcile first; rotate bot/state/mailbox/database credentials when exposure is possible.
+
+See [`../SECURITY_DEPLOYMENT_RUNBOOK.md`](../SECURITY_DEPLOYMENT_RUNBOOK.md) for full incident procedures.
+
+---
+
+## 20. Approved future evolution
+
+Each item requires explicit approval and tests.
+
+### Interface
+
+- Convert guidance-only menu sections into full paginated inline views.
+- Add stable Back/Home/Refresh behavior and persisted wizard navigation.
+- Add bounded search by user ID/username where useful.
+- Standardize every owner-facing value through one HTML renderer.
+
+### Administration
+
+- Multi-admin roles with explicit owner/finance/support/observer separation.
+- Two-person approval for high-value wallet corrections.
+- Database-backed maintenance mode enforced by website APIs.
+- Structured acknowledgement/resolution for security and reconciliation events.
+
+### Operations
+
+- External metrics/alert destination.
+- Deployment version in health output.
+- Documented RTO/RPO and automated restore drills.
+- Explicit audit/financial retention policy.
+- More granular worker metrics without receipt-body logging.
+
+### Supplier controls
+
+- Read-only provider health/balance only after safe source integration.
+- Service overrides in a dedicated collection.
+- No bot-managed private markup until versioned secure pricing configuration and rollback exist.
+- Never use broad Vercel/GitHub tokens for convenience.
+
+---
+
+## 21. Explicit exclusions
+
+- Website admin panel.
+- Public customer use of this bot.
+- Telegram order placement.
+- Raw password/hash/API-secret/session-token display.
+- Generic database queries or environment dumps.
+- One-tap destructive/financial operations.
+- Blind retry of ambiguous provider orders.
+- Automatic refund of every provider error.
+- Unsanctioned multi-admin equal-power list.
+- AI-autonomous financial decisions.
+- Telegram webhook migration without a separately approved need.
+- Running the long-polling/IMAP process as a Vercel Function.
+
+---
+
+## 22. Change discipline
+
+Any bot behavior change must update:
+
+1. `bot.ts` and the affected `src/` modules;
+2. integration tests;
+3. this specification;
+4. quick-start `README.md`;
+5. the `BOT-*` and relevant `SYS-*` architecture entries;
+6. deployment/runbook steps if configuration or failure modes change.
+
+Review especially for financial idempotency, actor/subject confusion, stale confirmation, Telegram HTML injection, secret logging, worker overlap and website enforcement drift.

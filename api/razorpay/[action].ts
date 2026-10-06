@@ -79,7 +79,7 @@ async function sendSuccessLog(
   }).catch((error) => console.error("Razorpay Telegram log error:", error));
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handleRazorpayRequest(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action || "");
   const db = await getDb();
   const authUser = await getUserFromRequest(req, db);
@@ -416,4 +416,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   return res.status(404).json({ error: "Razorpay action not found." });
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    return await handleRazorpayRequest(req, res);
+  } catch (error: any) {
+    console.error("handleRazorpayRequest uncaught error:", error?.message || error);
+    if (res.headersSent) return;
+    return res.status(503).json({ error: "Service temporarily unavailable. Please try again shortly." });
+  }
 }

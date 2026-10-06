@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "./lib/apiResponse";
 import Navbar from "./components/Navbar";
 import NewOrder from "./components/NewOrder";
 import MassOrder from "./components/MassOrder";
@@ -171,7 +172,7 @@ export default function App() {
   const checkAuth = async () => {
     try {
       const res = await fetch("/api/auth/me");
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (res.ok && data.authenticated) {
         setUser(data.user);
       } else {
@@ -223,7 +224,7 @@ export default function App() {
   const loadServices = async () => {
     try {
       const res = await fetch("/api/services/list");
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (res.ok && data.services) {
         setServices(
           data.services.map((s: any) => ({
@@ -243,7 +244,7 @@ export default function App() {
     setLoadingOrders(true);
     try {
       const res = await fetch("/api/orders/list");
-      const data = await res.json();
+      const data = await readApiPayload(res);
       if (res.ok && data.orders) {
         setOrders(
           data.orders.map((o: any) => ({
