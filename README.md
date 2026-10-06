@@ -60,6 +60,7 @@ flowchart LR
 - There is no website admin panel.
 - Permanent passwords remain bcrypt hashes and are never retrievable.
 - Raw API secrets and session tokens are never stored.
+- Opaque 30-day sessions persist in shared MongoDB across Vercel deployments; transient `/api/auth/me` failures show a retrying availability state and never clear or imitate logout.
 - No UPI PIN, OTP, CVV or banking password is requested or stored.
 - Private pricing configuration must not be disclosed.
 
@@ -97,6 +98,8 @@ npm run test:direct-upi
 npm run test:imap-receipts
 npm run test:email-delivery
 npm run test:email-auth
+npm run test:session-bootstrap
+npm run test:session-redeploy
 npm run test:core-indexes
 npm run test:order-reservations
 npm audit --omit=dev

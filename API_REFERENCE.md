@@ -376,6 +376,8 @@ Telemetry excludes raw secrets, passwords, authorization headers, cookies, OTPs 
 
 Password creation/reset requires 10–128 characters and at least three of lowercase, uppercase, number and symbol categories. Login does not reapply creation complexity and allows bounded legacy password input.
 
+Normal sessions are opaque random `sms_` credentials whose SHA-256 hashes, expiry and revocation state live in shared MongoDB for 30 days. They do not depend on server-process memory and therefore survive Vercel deployments and instance replacement. Browser bootstrap retries deployment/network/5xx failures and treats only an authoritative unauthenticated response as logout; after exhausted retries it preserves the cookie and shows a recoverable session-service state.
+
 ### Support Access
 
 | Method | Endpoint | Access | Purpose |
@@ -553,6 +555,8 @@ npm run test:direct-upi
 npm run test:imap-receipts
 npm run test:email-delivery
 npm run test:email-auth
+npm run test:session-bootstrap
+npm run test:session-redeploy
 npm run test:core-indexes
 npm run test:order-reservations
 npm audit --omit=dev

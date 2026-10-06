@@ -109,7 +109,9 @@ Never translate a GitHub push into a production-complete claim. GitHub, Vercel, 
 
 ### Phase 4 — revocable sessions and Support Access
 
-- [x] Hash-only MongoDB normal sessions.
+- [x] Hash-only 30-day MongoDB normal sessions that survive Vercel process replacement/redeployment.
+- [x] Browser retries for transient deployment/network/5xx auth checks without false logout.
+- [x] Exhausted-retry session-unavailable state that preserves the cookie and offers retry.
 - [x] Bounded legacy-JWT cutover.
 - [x] Safe session device/activity/purpose metadata.
 - [x] Account single-session revocation.
@@ -227,6 +229,8 @@ The post-implementation suite has passed locally:
 - [x] receipt MIME parsing test;
 - [x] email-delivery test;
 - [x] email-auth lifecycle test;
+- [x] deployment-resilient browser session-bootstrap test;
+- [x] opaque-session cross-instance/redeploy persistence test;
 - [x] critical-index test;
 - [x] clean admin dependency install;
 - [x] admin TypeScript;

@@ -16,6 +16,8 @@
     "test:imap-receipts": "tsx tests/imapReceiptParsing.ts",
     "test:email-delivery": "tsx tests/emailDelivery.integration.ts",
     "test:email-auth": "tsx tests/emailAuthFlows.integration.ts",
+    "test:session-bootstrap": "tsx tests/sessionBootstrap.ts",
+    "test:session-redeploy": "tsx tests/sessionRedeploy.integration.ts",
     "test:core-indexes": "tsx tests/coreIndexes.integration.ts",
     "test:order-reservations": "tsx tests/orderReservations.integration.ts",
     "test:presets": "tsx tests/presets.integration.ts",

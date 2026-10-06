@@ -200,6 +200,8 @@ npm run test:direct-upi
 npm run test:imap-receipts
 npm run test:email-delivery
 npm run test:email-auth
+npm run test:session-bootstrap
+npm run test:session-redeploy
 npm run test:core-indexes
 npm run test:search-appearance
 npm audit --omit=dev
@@ -292,6 +294,9 @@ Deploy the candidate commit against an isolated database.
 10. Confirm lock state blocks normal login.
 11. Confirm temporary-password use creates only a restricted password-change session.
 12. Confirm permanent-password completion revokes restricted and old sessions.
+13. Keep an ordinary user signed in across a Vercel redeployment and confirm the same opaque MongoDB session remains valid.
+14. Inject transient network/HTML/5xx responses from `/api/auth/me`; confirm browser retry succeeds without sign-in redirect or cookie clearing.
+15. Exhaust transient retries; confirm the UI shows session-service unavailability with retry, not a false signed-out state.
 
 ### Sessions and Support Access
 

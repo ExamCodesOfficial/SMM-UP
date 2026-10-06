@@ -425,7 +425,7 @@ sequenceDiagram
 
 - **SYS-0180** — Permanent passwords are bcrypt hashes and are never retrievable by owner or user.
 - **SYS-0181** — Password complexity runs on registration and password creation/reset, never as a login rejection rule.
-- **SYS-0182** — Normal sessions are random hash-only MongoDB records in HttpOnly SameSite cookies.
+- **SYS-0182** — Normal sessions are random 30-day hash-only MongoDB records in HttpOnly SameSite cookies; they survive Vercel process replacement/redeployment, while browser bootstrap retries transient auth-service failure without false logout.
 - **SYS-0183** — Legacy JWT acceptance is bounded by per-user revocation cutoffs during migration.
 - **SYS-0184** — Support Access uses a separate cookie and cannot replace or destroy the owner normal session.
 - **SYS-0185** — Support actor and subject IDs are preserved independently on every support audit/session record.
@@ -948,7 +948,7 @@ sequenceDiagram
 - **WEB-0280** — `App.tsx` implements intercepts same-origin real anchors while retaining crawlable href values.
 - **WEB-0281** — `App.tsx` implements handles history back/forward.
 - **WEB-0282** — `App.tsx` implements applies route SEO and structured data.
-- **WEB-0283** — `App.tsx` implements loads authentication, services and orders.
+- **WEB-0283** — `App.tsx` loads authentication, services and orders; auth bootstrap retries deployment/network/5xx failures and shows a cookie-preserving retry state instead of false logout.
 - **WEB-0284** — `App.tsx` implements enforces guarded-page fallback.
 - **WEB-0285** — `App.tsx` implements keeps the static top haze orb.
 - **WEB-0286** — `App.tsx` implements updates local user wallet/order totals.
@@ -1648,7 +1648,7 @@ sequenceDiagram
 
 - **WEB-0660** — Permanent passwords are bcrypt hashes and are never retrievable by owner or user.
 - **WEB-0661** — Password complexity runs on registration and password creation/reset, never as a login rejection rule.
-- **WEB-0662** — Normal sessions are random hash-only MongoDB records in HttpOnly SameSite cookies.
+- **WEB-0662** — Normal sessions are random 30-day hash-only MongoDB records in HttpOnly SameSite cookies; shared persistence survives Vercel process replacement/redeployment and is independent of JWT signing-key changes.
 - **WEB-0663** — Legacy JWT acceptance is bounded by per-user revocation cutoffs during migration.
 - **WEB-0664** — Support Access uses a separate cookie and cannot replace or destroy the owner normal session.
 - **WEB-0665** — Support actor and subject IDs are preserved independently on every support audit/session record.
@@ -1657,7 +1657,7 @@ sequenceDiagram
 - **WEB-0668** — API-key pause preserves the secret; archive and reissue revoke versions.
 - **WEB-0669** — Owner-required reissue cannot resume until secure website rotation completes.
 - **WEB-0670** — Wallet charges/refunds/credits use settlement keys and replica-set transactions.
-- **WEB-0671** — Direct UPI requires exact user, pending ID, unexpired status, amount-in-paise and receipt memo.
+- **WEB-0671** — Direct UPI requires exact user, pending ID, amount-in-paise and receipt reference; only exact website manual verification may recover recently expired state inside the bounded window.
 - **WEB-0672** — UTR, transaction ID and memo have independent sparse uniqueness constraints.
 - **WEB-0673** — Razorpay checkout orders are server-created in paise and signatures are server verified.
 - **WEB-0674** — Razorpay webhooks require raw-body HMAC and provider event deduplication.
@@ -1715,7 +1715,7 @@ sequenceDiagram
 - **WEB-0720** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
 - **WEB-0721** — npm run test:direct-upi and test:imap-receipts: exact, held, expired, bounded late-manual recovery, concurrent settlement and MIME parsing.
 - **WEB-0722** — npm run test:email-delivery: hash-only token and provider payload.
-- **WEB-0723** — npm run test:email-auth: immediate registration/session with zero email delivery, legacy pending-account recovery, reset/email-change and replay protection.
+- **WEB-0723** — npm run test:email-auth/session-bootstrap/session-redeploy: immediate registration, zero signup delivery, recovery/action replay, transient bootstrap retry and opaque cross-instance session persistence.
 - **WEB-0724** — npm run test:core-indexes: critical index availability/options.
 - **WEB-0725** — admin: npx tsc --noEmit: bot TypeScript.
 - **WEB-0726** — admin: npm run test:admin-actions: wallet/refund/control/API/worker transactional checks.

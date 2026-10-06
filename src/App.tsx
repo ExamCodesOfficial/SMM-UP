@@ -1,5 +1,6 @@
 import React from "react";
 import { readApiPayload } from "./lib/apiResponse";
+import { probePersistentSession } from "./lib/sessionBootstrap";
 import Navbar from "./components/Navbar";
 import NewOrder from "./components/NewOrder";
 import MassOrder from "./components/MassOrder";
@@ -95,6 +96,7 @@ export default function App() {
   const [currentTab, setCurrentTab] = React.useState<string>(tabFromPath());
   const [user, setUser] = React.useState<any>(null);
   const [authChecked, setAuthChecked] = React.useState(false);
+  const [authUnavailable, setAuthUnavailable] = React.useState(false);
   const [services, setServices] = React.useState<any[]>([]);
   const [orders, setOrders] = React.useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = React.useState<boolean>(false);
@@ -195,21 +197,25 @@ export default function App() {
   }, [currentTab, user?.supportSession?.active]);
 
   const checkAuth = async () => {
-    try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
-      const data = await readApiPayload(res);
-      if (res.ok && data.authenticated) {
-        setUser(data.user);
-        return data.user;
-      }
-      setUser(null);
-      return null;
-    } catch {
-      setUser(null);
-      return null;
-    } finally {
+    setAuthUnavailable(false);
+    setAuthChecked(false);
+    const result = await probePersistentSession();
+    if (result.status === "authenticated") {
+      setUser(result.user);
       setAuthChecked(true);
+      return result.user;
     }
+    if (result.status === "anonymous") {
+      setUser(null);
+      setAuthChecked(true);
+      return null;
+    }
+
+    // A redeploy, cold start or temporary network/provider failure is not a
+    // logout. Keep the secure cookie and MongoDB session untouched and show a
+    // recoverable availability state instead of redirecting to sign-in.
+    setAuthUnavailable(true);
+    return null;
   };
 
   const handleAuthSuccess = React.useCallback((forcedDestination?: string) => {
@@ -325,6 +331,32 @@ export default function App() {
     setPreselectedServiceId(serviceId);
     navigate("order");
   };
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-[#050505] text-white relative flex items-center justify-center px-4 font-sans">
+        {/* Preserve the permanent top haze orb while session state is unresolved. */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[70vw] h-[350px] bg-white/[0.02] rounded-full blur-[140px] pointer-events-none" />
+        <div className="relative z-10 max-w-md w-full border border-white/10 bg-black/70 p-7 text-center">
+          <div className="text-[11px] tracking-[0.3em] text-zinc-500 uppercase mb-4">SMM UP · Secure Session</div>
+          <div className="flex items-center justify-center gap-3 text-sm text-zinc-300 font-mono" role="status" aria-live="polite">
+            {!authUnavailable && <span className="w-4 h-4 border border-zinc-600 border-t-white rounded-full animate-spin" aria-hidden="true" />}
+            <span>{authUnavailable ? "SESSION SERVICE IS UPDATING" : "RESTORING YOUR SESSION…"}</span>
+          </div>
+          <p className="mt-4 text-xs leading-relaxed text-zinc-500">
+            {authUnavailable
+              ? "Your session has not been cleared. A deployment or temporary service interruption prevented confirmation."
+              : "Please wait while the existing secure session is confirmed."}
+          </p>
+          {authUnavailable && (
+            <button type="button" onClick={() => { void checkAuth(); }} className="btn-up btn-up-solid mt-5 mx-auto">
+              Retry session check
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   const platformConfig = PLATFORM_PAGES.find((p) => p.tab === currentTab);
   const authContinueTab = currentTab === "auth" ? guardedNextTab() : null;

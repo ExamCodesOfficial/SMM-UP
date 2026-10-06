@@ -136,7 +136,9 @@ Other service platforms may appear in the live catalog without receiving dedicat
 
 ### Phase 4 — sessions and Support Access
 
-- Hash-only revocable MongoDB sessions.
+- Hash-only revocable 30-day MongoDB sessions that survive Vercel process replacement and redeployment.
+- Browser session bootstrap retries transient deployment/network/5xx failures and never converts them into logout.
+- Exhausted retries preserve the cookie and show a recoverable unavailable state; only authoritative unauthenticated responses clear user state.
 - Safe JWT cutover/revocation.
 - Session inventory and revocation.
 - One-time five-minute Support Access exchange.
@@ -311,6 +313,8 @@ flowchart LR
 - Receipt parsing across plain, quoted-printable and base64 MIME with fail-closed malformed/outgoing cases.
 - Email token storage/delivery/replay.
 - Immediate registration/session plus password-reset and email-change lifecycles.
+- Opaque-session survival across independent deployment instances and signing-key changes.
+- Browser retry across transient auth failures, authoritative logout handling and exhausted-retry availability state.
 - Critical indexes.
 - Telegram wallet/refund/control/key operations.
 - IMAP worker concurrent settlement and payment-hold rollback.

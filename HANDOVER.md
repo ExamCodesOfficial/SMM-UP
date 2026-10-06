@@ -113,7 +113,8 @@ Those are explicit operational gates in the deployment runbook.
 
 ### Sessions and Support Access
 
-- Normal sessions are random opaque values; MongoDB stores only hashes.
+- Normal sessions are random opaque 30-day values; shared MongoDB stores only hashes, expiry and revocation state, so Vercel process replacement/redeployment does not invalidate them.
+- Browser bootstrap retries deployment/network/5xx failures; only authoritative unauthenticated responses cause signed-out state, while prolonged outages preserve the cookie and show a retry action.
 - Raw session tokens never appear in Telegram or audit records.
 - Support Access exchange codes are one-time and hash-only.
 - Exchange window is five minutes.
@@ -264,6 +265,8 @@ npm run test:direct-upi
 npm run test:imap-receipts
 npm run test:email-delivery
 npm run test:email-auth
+npm run test:session-bootstrap
+npm run test:session-redeploy
 npm run test:core-indexes
 npm run test:order-reservations
 npm audit --omit=dev
