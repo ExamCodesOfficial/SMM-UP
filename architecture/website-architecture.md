@@ -651,7 +651,7 @@ stateDiagram-v2
 
 ### Component/module: AddFundsPage
 
-- **WEB-0324** — `AddFundsPage` implements Direct UPI state machine.
+- **WEB-0324** — `AddFundsPage` implements the Direct UPI state machine and displays safe receipt-lookup reference codes for support without exposing mailbox data.
 - **WEB-0325** — `AddFundsPage` implements Razorpay checkout state machine.
 - **WEB-0326** — `AddFundsPage` implements polling and timers.
 - **WEB-0327** — `AddFundsPage` implements manual verification.
@@ -1018,7 +1018,7 @@ stateDiagram-v2
 ### Endpoint: POST /api/payments/verify-identifier
 
 - **WEB-0519** — `POST /api/payments/verify-identifier` access boundary: Normal session.
-- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Independently of the Railway bot, the Vercel API requires an account-owned payment ID and exact amount/reference, searches the trusted receipt mailbox by UTR/transaction ID plus bounded recent fallback, decodes plain/quoted-printable/base64 MIME, distinguishes mailbox outage from no match, optionally recovers a recently expired request inside the bounded window, and transactionally claims identifiers and credits once.
+- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Independently of Railway, the Vercel API requires an account-owned payment ID and exact amount/reference; it searches bounded exact-sender receipts in Inbox then provider-declared All Mail, parses plain/quoted-printable/base64 MIME and alternate reference labels, distinguishes outage/no-alert/unreadable/missing-ID/amount-mismatch outcomes, optionally recovers a recently expired request inside the bounded window, and transactionally claims identifiers and credits once.
 - **WEB-0521** — `POST /api/payments/verify-identifier` is covered by the central no-store/noindex API response policy.
 - **WEB-0522** — `POST /api/payments/verify-identifier` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1351,7 +1351,7 @@ stateDiagram-v2
 - **WEB-0718** — npm run test:recovery: temporary credential and session concurrency.
 - **WEB-0719** — npm run test:support-access: actor/subject, read-only and one-time exchange.
 - **WEB-0720** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
-- **WEB-0721** — npm run test:direct-upi: exact, held, expired, bounded late-manual recovery and concurrent settlement.
+- **WEB-0721** — npm run test:direct-upi and test:imap-receipts: exact/held/expired/late/concurrent settlement plus MIME, current-wording, alternate-reference and safe failure classification.
 - **WEB-0722** — npm run test:email-delivery: hash-only token and provider payload.
 - **WEB-0723** — npm run test:email-auth/session-bootstrap/session-redeploy: immediate registration, zero signup delivery, recovery/action replay, transient bootstrap retry and opaque cross-instance session persistence.
 - **WEB-0724** — npm run test:core-indexes: critical index availability/options.
@@ -1398,7 +1398,7 @@ stateDiagram-v2
 | `POST /api/orders/cancel` | Normal session | Validates ownership/cancel policy; forwards request and supports safe refund accounting. |
 | `POST /api/payments/create-order` | Normal session | Payment-hold and shared-rate checks; validates bounded two-decimal amount; creates exact expiring Direct UPI pending record and dynamic memo/QR. |
 | `GET /api/payments/check-status` | Authenticated normal session | Exact owned pending-ID polling; returns paid/pending/expired state and triggers bounded delayed alert. |
-| `POST /api/payments/verify-identifier` | Normal session | Vercel independently checks exact UTR/TxID, owned request, amount, time and receipt reference across supported MIME forms; it distinguishes mailbox outage, allows bounded late recovery and credits transactionally once. |
+| `POST /api/payments/verify-identifier` | Normal session | Vercel independently checks exact UTR/TxID, owned request, amount, time and receipt reference across supported MIME forms and bounded Inbox/All-Mail fallback; outage/no-alert/unreadable/missing-ID/amount-mismatch outcomes remain distinct, late recovery is bounded, and exact settlement credits once. |
 | `POST /api/payments/verify-utr` | Normal session | Compatibility alias for exact identifier verification with identical safeguards. |
 | `GET /api/payments/history` | Authenticated/read-only support | Returns bounded owned transaction history. |
 | `GET /api/razorpay/config` | Authenticated/read-only support | Returns safe enabled/mode/test-credit configuration without provider secrets. |
@@ -1492,7 +1492,7 @@ erDiagram
 | `server/lib/directUpiSettlement.ts` | Exact transaction-safe Direct UPI settlement |
 | `server/lib/email.ts` | Resend adapter and hash-only action-token issuance |
 | `server/lib/http.ts` | Shared Vercel request/response types |
-| `server/lib/imap.ts` | Bounded manual payment-email parser/search |
+| `server/lib/imap.ts` | Bounded Inbox/All-Mail payment parser/search with exact identifier matching and safe lookup diagnostics |
 | `server/lib/rateLimit.ts` | Shared persistent HMAC-key fixed-window limiter |
 | `server/lib/razorpay.ts` | Razorpay signing, client and mode helpers |
 | `server/lib/recovery.ts` | Temporary-password restricted-session lifecycle |
@@ -1615,7 +1615,7 @@ erDiagram
 | `npm run test:support-access` | actor/subject, read-only and one-time exchange |
 | `npm run test:rate-limit` | shared limiter concurrency and raw-key exclusion |
 | `npm run test:direct-upi` | exact, held, expired, bounded late-manual recovery and concurrent settlement |
-| `npm run test:imap-receipts` | plain, quoted-printable, base64, alternate-reference and fail-closed receipt parsing |
+| `npm run test:imap-receipts` | plain/quoted-printable/base64 MIME, current FamApp wording, alternate references, exact identifier matching and safe failure classification |
 | `npm run test:email-delivery` | hash-only token and provider payload |
 | `npm run test:email-auth` | immediate signup/session, zero signup delivery, legacy pending login, reset/email-change/replay |
 | `npm run test:session-bootstrap` | transient deployment/network/5xx retry, authoritative anonymous handling and exhausted-retry unavailable state |

@@ -501,7 +501,10 @@ export default function AddFundsPage({
 
       const data = await readApiPayload(res);
       if (!res.ok || data.error) {
-        setVerifyError(data.error || "Payment verification failed.");
+        const supportCode = typeof data.errorCode === "string" && data.errorCode
+          ? ` Reference: ${data.errorCode}.`
+          : "";
+        setVerifyError(`${data.error || "Payment verification failed."}${supportCode}`);
       } else {
         stopPolling();
         setVerifySuccess(data.message || "Payment verified and credited!");

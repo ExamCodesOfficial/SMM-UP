@@ -5,7 +5,7 @@ import { ensureDirectUpiIndexes, getDb, getMongoClient } from "../../server/lib/
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
 import { settleDirectUpiPayment } from "../../server/lib/directUpiSettlement.js";
-import { searchFamPayPayment } from "../../server/lib/imap.js";
+import { searchFamPayPaymentDetailed } from "../../server/lib/imap.js";
 import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../../server/lib/telegram.js";
 
 /**
@@ -327,16 +327,56 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: "The payment memo does not match this pending deposit." });
       }
 
-      const parsedPayment = await searchFamPayPayment({
+      const receiptLookup = await searchFamPayPaymentDetailed({
         identifier: cleanInput,
         memo: storedMemo,
         expectedAmount: requestedAmount,
         minDate: new Date(pendingDeposit.created_at),
       });
+      const parsedPayment = receiptLookup.payment;
       if (!parsedPayment) {
-        return res.status(404).json({
-          error: "No exact matching bank receipt is available yet. Do not pay again. Wait briefly and retry this same UTR, or contact support with the payment receipt.",
-        });
+        const reconciliationReason = `receipt_${receiptLookup.reason}`;
+        await db.collection("payment_reconciliation").updateOne(
+          {
+            pending_transaction_id: pendingId,
+            identifier: cleanInput,
+            status: "open",
+            reason: reconciliationReason,
+          },
+          {
+            $set: {
+              user_id: userObjectId,
+              expected_amount: requestedAmount,
+              memo: storedMemo,
+              trusted_receipt_count: receiptLookup.trustedReceiptCount,
+              parsed_receipt_count: receiptLookup.parsedReceiptCount,
+              mailboxes_scanned: receiptLookup.mailboxesScanned,
+              last_seen_at: new Date(),
+            },
+            $inc: { attempts: 1 },
+            $setOnInsert: { created_at: new Date(), status: "open" },
+          },
+          { upsert: true },
+        );
+
+        const failure = receiptLookup.reason === "no_trusted_receipts"
+          ? {
+              status: 404,
+              errorCode: "TRUSTED_RECEIPT_NOT_DELIVERED",
+              error: "The payment mailbox is reachable, but no trusted FamApp receipt is present in Inbox or All Mail for this payment yet. Do not pay again. Check that the receiving FamApp account sent its email alert, then retry this same UTR.",
+            }
+          : receiptLookup.reason === "trusted_receipts_unreadable"
+            ? {
+                status: 422,
+                errorCode: "TRUSTED_RECEIPT_FORMAT_UNREADABLE",
+                error: "A trusted FamApp alert exists, but its current receipt format could not be read safely. The payment is flagged for reconciliation; do not pay again and contact support with the receipt.",
+              }
+            : {
+                status: 404,
+                errorCode: "EXACT_IDENTIFIER_NOT_FOUND",
+                error: "Trusted FamApp receipts were found, but none contains this exact UTR or transaction ID. Recheck the identifier from the successful payment receipt; do not pay again.",
+              };
+        return res.status(failure.status).json({ error: failure.error, errorCode: failure.errorCode });
       }
       if (Math.round(parsedPayment.amount * 100) !== Math.round(requestedAmount * 100)) {
         return res.status(400).json({
@@ -353,7 +393,10 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
           },
           { upsert: true },
         );
-        return res.status(409).json({ error: "The trusted bank receipt was found, but it did not contain the exact payment reference. The payment has been flagged for reconciliation; do not pay again and contact support with this receipt." });
+        return res.status(409).json({
+          errorCode: "RECEIPT_REFERENCE_MISSING",
+          error: "The trusted bank receipt was found, but it did not contain the exact payment reference. The payment has been flagged for reconciliation; do not pay again and contact support with this receipt.",
+        });
       }
       const receiptMemo = String(parsedPayment.purpose).trim().toUpperCase();
       if (receiptMemo !== storedMemo) {

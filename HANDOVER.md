@@ -140,6 +140,8 @@ Those are explicit operational gates in the deployment runbook.
 - Never request or store a UPI PIN, OTP, CVV or banking password.
 - Direct UPI settlement must bind to one exact user-owned pending transaction; only exact website verification may recover a recently expired request inside the bounded window.
 - Pending ID, amount in paise and receipt memo must match.
+- Website lookup checks bounded trusted receipts in Inbox and provider-declared All Mail, but never Spam or Trash.
+- Exact-ID amount mismatches and no-alert/unreadable-format/missing-ID outcomes remain distinct reconciliation reasons.
 - UTR, transaction ID and memo anti-replay identities are uniquely indexed.
 - Wallet mutation, pending claim, anti-replay record and ledger entry commit together.
 - Missing/mismatched receipt data creates reconciliation state; it must not trigger a guessed credit.

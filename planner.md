@@ -239,8 +239,9 @@ flowchart LR
 - Enforce unique memo, UTR, transaction ID and settlement key.
 - Use MongoDB transactions for claim and wallet settlement.
 - Website manual verification connects to the trusted mailbox directly and never depends on Railway bot/worker availability.
-- Decode plain-text, quoted-printable and base64 MIME receipts; fall back from Gmail BODY search to a bounded recent trusted-sender scan.
-- Distinguish mailbox unavailability from a genuine no-match result.
+- Decode plain-text, quoted-printable and base64 MIME receipts; fall back from Gmail BODY search to bounded trusted-sender scans of Inbox and provider-declared All Mail, never Spam/Trash.
+- Return an exact UTR/TxID candidate before amount filtering so a real mismatch is reported rather than hidden as no receipt.
+- Distinguish mailbox unavailability, no trusted alert, unreadable trusted format, missing exact identifier and amount mismatch.
 - Allow only website manual verification to recover a recently expired request inside the bounded 1–72-hour window after all exact evidence checks.
 - Worker and website verifier retain equivalent exactness, sender allowlisting and idempotency rules.
 - Reconciliation records missing/mismatched evidence.

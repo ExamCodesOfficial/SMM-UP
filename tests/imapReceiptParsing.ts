@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { extractReceiptText, parseFamAppEmailBody } from "../server/lib/imap.js";
+import {
+  classifyPaymentReceiptLookup,
+  extractReceiptText,
+  parseFamAppEmailBody,
+  paymentReceiptMatchesIdentifier,
+} from "../server/lib/imap.js";
 
 function mimeBase64(html: string) {
   const encoded = Buffer.from(html, "utf8").toString("base64").match(/.{1,72}/g)?.join("\r\n") || "";
@@ -52,6 +57,42 @@ assert.equal(base64Parsed.utr, "654862319655");
 assert.equal(base64Parsed.transactionId, "FMPIB6043122105");
 assert.equal(base64Parsed.purpose, "SUPA1B2C");
 
+// Sanitized form of FamApp's current multipart receipt wording. The payer app
+// can replace the QR note with "Paid via CRED"; that generic text must never be
+// invented into the server-generated SUP binding.
+const currentFamAppReceipt = [
+  "From: FamApp <no-reply@famapp.in>",
+  "Subject: =?UTF-8?Q?You_received_=E2=82=B91.07_in_your_FamX_account?=",
+  "Content-Type: text/plain; charset=UTF-8",
+  "Content-Transfer-Encoding: quoted-printable",
+  "",
+  "You have successfully received =E2=82=B91.07 from REDACTED PAYER at 06:29 PM IST",
+  "with transaction id FMPIB6043122105. Your updated balance is =E2=82=B99.99.",
+  "UTR: 999999999999. Purpose: Paid via CRED.",
+].join("\r\n");
+const currentParsed = parseFamAppEmailBody(currentFamAppReceipt);
+assert.ok(currentParsed);
+assert.equal(currentParsed.amount, 1.07);
+assert.equal(currentParsed.utr, "999999999999");
+assert.equal(currentParsed.transactionId, "FMPIB6043122105");
+assert.equal(currentParsed.purpose, undefined, "generic payer-app text is not an order-binding SUP reference");
+assert.equal(paymentReceiptMatchesIdentifier(currentParsed, "999999999999"), true);
+assert.equal(paymentReceiptMatchesIdentifier(currentParsed, "FMPIB6043122105"), true);
+assert.equal(paymentReceiptMatchesIdentifier(currentParsed, "999999999998"), false);
+
+const alternateUtrLabels = [
+  "You received INR 22.00. UPI Ref ID: 623456789012.",
+  "Money credited: Rs. 22.00. UTR ID # 623456789013.",
+  "Deposited ₹22.00. Reference Number: 623456789014.",
+];
+assert.equal(parseFamAppEmailBody(alternateUtrLabels[0])?.utr, "623456789012");
+assert.equal(parseFamAppEmailBody(alternateUtrLabels[1])?.utr, "623456789013");
+assert.equal(parseFamAppEmailBody(alternateUtrLabels[2])?.utr, "623456789014");
+
+assert.equal(classifyPaymentReceiptLookup(0, 0), "no_trusted_receipts");
+assert.equal(classifyPaymentReceiptLookup(2, 0), "trusted_receipts_unreadable");
+assert.equal(classifyPaymentReceiptLookup(2, 2), "identifier_not_found");
+
 const rrnReceipt = `Money credited. Amount: INR 75.00. RRN # 606839321030. Note: SUPZ9Y8X.`;
 const rrnParsed = parseFamAppEmailBody(rrnReceipt);
 assert.ok(rrnParsed);
@@ -76,4 +117,4 @@ assert.equal(
   "receipt evidence without an amount must fail closed",
 );
 
-console.log("Plain, quoted-printable, base64, alternate-reference, and fail-closed receipt parsing checks passed.");
+console.log("MIME, current FamApp wording, alternate-reference, identifier, and failure-class receipt checks passed.");

@@ -156,6 +156,7 @@ This repository intentionally has no MIT, Apache, GPL or other open-source licen
 - Authentication deliberately fails closed when Vercel `JWT_SECRET` is absent or shorter than 32 characters. Configure a high-entropy Production value and redeploy before treating sign-in as restored.
 - Status synchronization deliberately returns `503` when `CRON_SECRET` is absent/short. Configure a separate 32+ character value and redeploy.
 - Direct UPI QR images are generated in the browser; payment URIs are not sent to a public QR-rendering service.
+- Website UTR/TxID verification scans bounded trusted receipts in Gmail Inbox and provider-declared All Mail, reports delivered/unreadable/identifier/amount failures separately, and never guesses a credit.
 - Website and reseller order creation reserve the wallet debit, ledger entry and local `Submitting` order transactionally before contacting the supplier. An uncertain provider response must be reconciled, not blindly retried or automatically refunded.
 - The emergency PAT lacked workflow-write scope. The pushed feature branch contains no Actions workflow; a `workflow_dispatch`-only workflow remains an isolated local commit.
 

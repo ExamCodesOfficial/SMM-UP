@@ -120,7 +120,7 @@ Prefer synthetic accounts, deposits and orders. If production-shaped records are
 | `FAMPAY_SENDER_FILTER` | One exact trusted receipt sender address |
 | `DIRECT_UPI_IMAP_SCAN_LIMIT` | Bounded 10–100 recent-receipt fallback scan; defaults to 40 |
 
-A submitted UTR is checked by the Vercel API itself. Railway worker or Telegram long-polling availability must not affect this manual path. Validate plain, quoted-printable and base64 receipt fixtures; exact sender, identifier, amount, time and memo matching; temporary mailbox failure signaling; duplicate rejection; and recently expired-request recovery before release.
+A submitted UTR is checked by the Vercel API itself. Railway worker or Telegram long-polling availability must not affect this manual path. Lookup scans Inbox first and the provider-declared Gmail All Mail folder only as a bounded archive fallback; it never scans Spam or Trash. Validate plain, quoted-printable and base64 receipt fixtures; alternate UTR labels; exact sender, identifier, amount, time and memo matching; distinct no-alert/unreadable-format/missing-ID/amount-mismatch responses; temporary mailbox failure signaling; duplicate rejection; and recently expired-request recovery before release.
 
 ### Razorpay
 
@@ -335,10 +335,11 @@ Create exact pending deposits and test:
 - wrong amount;
 - missing/wrong memo;
 - duplicate UTR/transaction/memo;
-- plain-text, quoted-printable and base64 trusted-sender receipts;
-- Gmail BODY-search miss followed by bounded recent-receipt fallback;
+- plain-text, quoted-printable and base64 trusted-sender receipts, including current `Purpose: Paid via …` wording that must not be mistaken for an SUP reference;
+- alternate UTR/RRN/UPI-reference labels;
+- Gmail BODY-search miss followed by bounded Inbox and provider-declared All Mail fallback, including an archived receipt;
 - manual website verification while the Railway bot/worker is stopped;
-- distinct mailbox-unavailable response rather than a false UTR-not-found response;
+- distinct mailbox-unavailable, no-trusted-alert, unreadable-format, exact-ID-not-found and exact-ID/amount-mismatch responses;
 - recently expired request inside and outside the bounded manual recovery window;
 - concurrent website/worker settlement;
 - account payment hold;
