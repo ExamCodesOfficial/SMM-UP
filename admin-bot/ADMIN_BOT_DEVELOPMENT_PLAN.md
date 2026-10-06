@@ -776,3 +776,19 @@ Website and Railway implement related but separate controls. A change to shared 
 - index names, TTL and uniqueness assumptions.
 
 Do not copy website code into the bot blindly. Preserve equivalent invariants while keeping the Railway long-running worker lifecycle explicit.
+
+## 25. Website full-audit coordination delta
+
+The website release at `3220567` changes shared records and owner expectations without changing the bot's long-polling transport:
+
+- profile updates may change `users.username`, `username_normalized`, `display_name` and `avatar_color`; owner lookups must continue to anchor on immutable user ID/email as applicable;
+- self-service deletion locks/pseudonymizes the user, revokes sessions/key versions, removes non-seed reviews/favourites/templates and strips order target/comment fields; bot detail views must tolerate those fields being absent;
+- website cancellation creates `Cancel requested`; bot actions must continue to present it as a supplier request, not an assured refund;
+- website failed/uncertain order states remain owner-reviewable and must not be auto-refunded from HTTP outcome alone;
+- review list GET is read-only; approve/hide/delete controls remain exclusively in owner Telegram flows;
+- Direct UPI maximum is server configuration; bot settlement validation and owner output must agree with the same environment policy rather than a UI constant;
+- new `service_favorites` and `order_templates` collections are user convenience data, not administrative authority. They hold no target/comment data and are erased on account deletion.
+
+### Bot regression cases
+
+Add/retain fixtures for pseudonymized users, absent order targets, archived keys after deletion, `Cancel requested`, `Submission uncertain`, hidden reviews edited by users and payment bounds at configured extremes. Owner views may show retained operational details where present, but must never reconstruct or promise erased personal data.

@@ -1,6 +1,6 @@
 # Razorpay Activation, Verification and Recovery Runbook
 
-> **Implementation checkpoint:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
+> **Current implementation checkpoint:** `32205672bd8a1c7ea4d243c72391248cf57fdd26` (`improvement/full-audit-remediation`)
 > **Production verification:** pending
 > **Canonical webhook URL:** `https://smmup.co.in/api/razorpay-webhook`
 
@@ -343,3 +343,23 @@ Code rollback alone does not refund a payment, reverse a wallet, rotate a secret
 ### Deployment-variable source
 
 Use `vercel.env.example` for the complete Vercel inventory. Razorpay values are server-only. `RAZORPAY_MODE` must agree with the key prefix, and `RAZORPAY_ALLOW_TEST_WALLET_CREDIT` stays false outside an isolated disposable test environment. A changed secret or mode requires a new deployment and a recorded smoke test.
+
+## 13. Add Funds configuration ownership after the full audit
+
+The Add Funds screen now treats limits as runtime configuration, not browser constants:
+
+1. `GET /api/payments/config` supplies authenticated Direct UPI minimum/maximum values.
+2. `GET /api/razorpay/config` supplies Razorpay enabled state, mode and minimum/maximum values.
+3. The amount entry step remains disabled until both configuration requests settle.
+4. A failed Direct UPI config response disables that method and exposes retry; it does not substitute a copied environment maximum.
+5. Each method independently displays its accepted range and is disabled when the selected amount is outside that range.
+6. Server creation/verification remains authoritative even after browser eligibility passes.
+
+### Preview smoke additions
+
+- choose an amount valid for both rails and confirm both are eligible;
+- choose amounts valid for only one rail and confirm only that method is enabled;
+- simulate malformed/missing limits and confirm fail-closed UI with no invented maximum;
+- alter `DIRECT_UPI_MAX_AMOUNT_INR`, redeploy and confirm the browser reflects the new server value;
+- alter `RAZORPAY_MAX_AMOUNT_INR`, redeploy and confirm Razorpay config/creation agree;
+- verify success/error feedback is announced without requesting OTP, UPI PIN, CVV or banking password.

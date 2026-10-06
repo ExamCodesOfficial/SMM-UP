@@ -6,7 +6,7 @@
 
 > **Private and proprietary repository.** No open-source license is granted. Do not copy, redistribute, publish, sublicense or reuse this source without the copyright owner’s written permission.
 >
-> **Release truth (2026-10-06):** audited application/bot changes are pushed to `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201` and pass the local release suite. Production sign-in still requires a strong Vercel `JWT_SECRET` and redeployment; `CRON_SECRET` must also be at least 32 characters. GitHub state alone does not prove provider or production readiness.
+> **Release truth (2026-10-06):** full audit remediation is pushed to `improvement/full-audit-remediation` at `32205672bd8a1c7ea4d243c72391248cf57fdd26` and passes the local release suite. The earlier bot modularization remains at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`. Production sign-in still requires a strong Vercel `JWT_SECRET` and redeployment; `CRON_SECRET` must also be at least 32 characters. GitHub state alone does not prove provider or production readiness.
 
 ## System overview
 
@@ -155,3 +155,17 @@ This repository intentionally has no MIT, Apache, GPL or other open-source licen
 - The emergency PAT lacked workflow-write scope. The pushed feature branch contains no Actions workflow; a `workflow_dispatch`-only workflow remains an isolated local commit.
 
 See [`HANDOVER.md`](HANDOVER.md) for the exact Git/push state and [`API_REFERENCE.md`](API_REFERENCE.md) for retry semantics.
+
+## Full-audit remediation checkpoint
+
+The `improvement/full-audit-remediation` branch is pushed at `32205672bd8a1c7ea4d243c72391248cf57fdd26`. It adds explicit SPA/404 routing, guarded-auth resolution, URL-secret scrubbing, accessible mobile navigation, expanded Order History actions/states, read-only review feeds, server-owned payment limits, profile erasure controls, service favourites and privacy-safe templates. It is not proof of a deployment.
+
+Additional validation entry points:
+
+```bash
+npm run test:presets
+# With Vite running on port 3000 and Playwright Chromium installed:
+node tests/manualBrowserAudit.mjs
+```
+
+The static `public/404.html` is an intentionally self-contained owner-supplied experience. Vite must copy it byte-for-byte to `dist/404.html`; Vercel must serve it only for unknown routes with an HTTP 404 response. Known SPA routes remain enumerated explicitly in `vercel.json`.

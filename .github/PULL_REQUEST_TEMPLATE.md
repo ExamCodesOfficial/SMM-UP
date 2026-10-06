@@ -63,3 +63,17 @@ commands/evidence here
 - Database migration/index precondition:
 - Manual-only workflow policy preserved: [ ]
 - Production evidence still pending:
+
+## Full-audit regression gate
+
+- [ ] Auth/reset/verification secrets are copied to memory and removed from the URL before any request
+- [ ] Guarded routes wait for session resolution and accept only allowlisted `next` destinations
+- [ ] Every known SPA path is explicit in `vercel.json`; an unknown path returns the static HTTP 404
+- [ ] Mobile modal navigation traps/restores focus, closes on Escape and inerts the background
+- [ ] Async errors use alert semantics; non-urgent success/progress uses polite status semantics
+- [ ] Payment amount bounds come from authenticated server configuration; no environment-dependent browser maximum was added
+- [ ] Reorder/templates preserve only safe service identity and optional quantity, never targets or comments
+- [ ] Review-list reads perform no seed or moderation write; review moderation remains Telegram-only
+- [ ] Account deletion requires reauthentication, exact-name confirmation, settlement checks and session/key revocation
+- [ ] `public/404.html` remains `noindex,nofollow`, self-contained and present byte-for-byte in the production build
+- [ ] Browser smoke covers public routes, guarded redirect metadata, token scrubbing, mobile dialog behavior and key authenticated pages

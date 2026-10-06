@@ -1,7 +1,7 @@
 # SMM UP — Completed Roadmap and Post-Launch Upgrades
 
 > **Roadmap checkpoint:** 2026-10-06
-> **Pushed implementation commit:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
+> **Current pushed audit commit:** `32205672bd8a1c7ea4d243c72391248cf57fdd26`; historical bot-modularization checkpoint: `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Meaning of “complete”:** code and local automated validation are complete; deployment-dependent items stay open until provider/staging evidence exists.
 > **Detailed architecture:** [`architecture/full-architecture.md`](architecture/full-architecture.md)
 
@@ -400,3 +400,31 @@ These items are not silently approved for implementation. Each requires a separa
 ### Updated release evidence
 
 The complete release run now also includes `npm run test:order-reservations`, environment-template completeness checks, manual-workflow trigger parsing and working-tree/history credential scans. The latest local run passed root/bot TypeScript, Vite build, search checks, every root integration suite, bot administrative integration, production dependency audits with zero reported vulnerabilities, and `git diff --check`.
+
+## 10. Phase 8 — full audit remediation (source complete, deployment pending)
+
+### Completed and pushed
+
+- [x] Immediate reset/verification-token URL scrubbing.
+- [x] Explicit session-check state, neutral guarded loading and allowlisted `next` redirects.
+- [x] Explicit deployment rewrites plus a real static 404 fallback.
+- [x] Keyboard-operable mobile modal navigation with focus restoration.
+- [x] Responsive Order History states, supplier cancellation requests, safe reorder and refill/status feedback.
+- [x] Read-only public review feed with persistent limiting; homepage review preservation and Telegram-only moderation.
+- [x] Server-owned Direct UPI limits and per-method Add Funds eligibility.
+- [x] Reauthenticated profile editing and settlement-gated account erasure.
+- [x] Service favourites and templates that never store targets/comments.
+- [x] Browser regression coverage for public, guarded, authenticated and 404 workflows.
+- [x] Feature branch pushed at `32205672bd8a1c7ea4d243c72391248cf57fdd26`.
+
+### Still operational
+
+- [ ] Review and merge through the normal protected process.
+- [ ] Deploy a Vercel Preview and verify unknown routes return HTTP 404 rather than the SPA shell.
+- [ ] Prove Direct UPI and Razorpay configured bounds in the deployed environment.
+- [ ] Test account deletion only with a disposable staging identity and redacted retained records.
+- [ ] Confirm review Telegram moderation against the same database used by the website.
+- [ ] Capture accessibility smoke evidence on iOS/Android and desktop keyboard navigation.
+- [ ] Revoke the one-push PAT used for this branch.
+
+Local success does not change the deployment state. Keep status claims conservative until external telemetry exists and Preview/Production evidence is recorded.

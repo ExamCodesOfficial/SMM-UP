@@ -1,7 +1,7 @@
 # SMM UP API Reference
 
 > **Canonical origin:** `https://smmup.co.in`
-> **Source baseline:** feature branch `improvement/private-repo-and-bot-modules`, remote commit `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
+> **Source baseline:** feature branch `improvement/full-audit-remediation`, remote commit `32205672bd8a1c7ea4d243c72391248cf57fdd26`; the earlier bot-modularization baseline remains in history at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Last reconciled:** 2026-10-06
 > **Audience:** authorized engineers, operators and reseller-API integrators
 > **Security:** examples contain placeholders only. Never place real credentials in URLs, source, browser code, screenshots, logs or support messages.
@@ -583,3 +583,39 @@ Any API change must update, as applicable:
 8. rate-limit, index, retention and privacy documentation.
 
 Do not add a field merely because a provider returns it. Document why it is needed, who may read it, retention, sanitization and whether it contains personal, financial or supplier-sensitive data.
+
+---
+
+## 22. Full-audit endpoint delta (2026-10-06)
+
+### Profile and erasure
+
+| Endpoint | Auth and method | Contract |
+|---|---|---|
+| `/api/auth/update-profile` | normal account session, `POST`, same-origin when `Origin` exists | Requires the current password. Accepts a 3–40 character unique username, a sanitized display name up to 60 characters and an allowlisted avatar colour. Updates active session display metadata and non-seed review attribution. Limited to five attempts per account per hour. |
+| `/api/auth/delete-account` | normal account session, `POST`, same-origin when `Origin` exists | Requires the current password and exact `DELETE <username>` confirmation. Rejects non-zero wallet balances, active orders and pending deposits. Pseudonymizes identity, erases order targets/comments, removes reviews/favourites/templates, archives keys, revokes key versions/sessions/recovery records and retains only necessary pseudonymous financial/operational evidence. |
+
+Support Access is read-only and cannot call either mutation. A deleted account is locked and cannot restore the prior password, email, username, API secret or session.
+
+### Server-owned payment configuration
+
+`GET /api/payments/config` requires an account session and returns only Direct UPI `minAmount` and `maxAmount`. The maximum is resolved server-side from `DIRECT_UPI_MAX_AMOUNT_INR`, clamped to the implemented safety range. The browser must fail closed if this response is unavailable or malformed; it must not recreate an environment-dependent fallback maximum. Razorpay bounds remain owned by `GET /api/razorpay/config`.
+
+### Favourites and privacy-safe templates
+
+| Endpoint | Method | Behavior |
+|---|---|---|
+| `/api/presets/list` | `GET` | Returns up to 50 service IDs and 25 templates owned by the signed-in account. |
+| `/api/presets/toggle-favorite` | `POST` | Adds or removes one validated service ID. |
+| `/api/presets/save-template` | `POST` | Stores a sanitized name, service ID and optional positive integer quantity only. Target links, usernames and comments are ignored and never persisted. |
+| `/api/presets/delete-template` | `POST` or `DELETE` | Deletes only the authenticated user's valid template ID. |
+
+Preset mutations are same-origin when `Origin` is present, rate-limited, blocked in Support Access and ownership-scoped by `user_id`. Current catalog data remains authoritative when a favourite/template is opened.
+
+### Read-only review feed and order actions
+
+`GET /api/reviews/list` is read-only, excludes homepage seed records, returns at most 12 approved community records, uses persistent IP limiting and may be edge-cached briefly. It never seeds or moderates. Website order cancellation is a supplier request, not a cancellation/refund guarantee. Reorder carries only the service identity and revalidates against the current catalog before the user supplies a new target and quantity.
+
+### Browser-origin defense
+
+Cookie-authenticated non-read mutations in auth, orders, Direct UPI payments, reviews and presets reject a mismatched `Origin` host when the header is supplied. SameSite cookies remain the primary browser boundary; origin checking is defense in depth and does not replace authentication, ownership, rate limits or transaction controls.

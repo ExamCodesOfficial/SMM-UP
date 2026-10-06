@@ -3,7 +3,7 @@
 > **Canonical production origin:** `https://smmup.co.in`
 > **Repository:** `ExamCodesOfficial/SMM-UP`
 > **Active branch:** `improvement/private-repo-and-bot-modules`
-> **Remote feature-branch checkpoint pushed on 2026-10-06:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
+> **Current remote feature-branch checkpoint pushed on 2026-10-06:** `32205672bd8a1c7ea4d243c72391248cf57fdd26` (`improvement/full-audit-remediation`)
 > **Architecture index:** [`architecture/full-architecture.md`](architecture/full-architecture.md)
 > **Status:** the audited application/bot hardening is pushed to the feature branch and locally validated; the manual-only workflow is local-only because the authorized PAT lacked workflow scope; provider staging and production repair remain.
 
@@ -48,7 +48,7 @@ The remote `improvement/private-repo-and-bot-modules` branch at `2c60e65` includ
 
 ### Documentation and workflow state after the emergency push
 
-The exhaustive Markdown/API-documentation pass is retained as a separate local commit and remains unpushed until explicitly authorized. A manual-only GitHub Actions workflow is retained as a separate local commit because the emergency PAT cannot update `.github/workflows/ci.yml`. The pushed feature branch introduces no workflow file and therefore no push/PR-triggered Actions execution.
+The earlier exhaustive Markdown/API-documentation pass remained a separate local commit at that checkpoint. The current post-audit documentation pass is again local-only until a separate push is authorized. A manual-only GitHub Actions workflow is retained as a separate local commit because the emergency PAT cannot update `.github/workflows/ci.yml`. The pushed feature branch introduces no workflow file and therefore no push/PR-triggered Actions execution.
 
 The emergency credential was supplied only through transient HTTP authorization and was not persisted in repository files, Git configuration, remotes or shell history. Revocation must be confirmed in the provider UI without recording the value.
 
@@ -362,11 +362,47 @@ The observed production authentication family returned Vercel `FUNCTION_INVOCATI
 
 ### Git topology
 
-- Remote feature branch: `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`.
+- Historical emergency baseline: `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`; current full-audit branch: `32205672bd8a1c7ea4d243c72391248cf57fdd26`.
 - The emergency PAT cannot create/update `.github/workflows/ci.yml` because it lacks workflow scope.
 - The manual-only `workflow_dispatch` file is retained in a separate local commit and must not be replaced with automatic triggers.
-- This Markdown/API reconciliation is retained in a separate local commit and remains unpushed until explicitly authorized.
+- Documentation reconciliation remains a separate local-only follow-up until a new push is explicitly authorized; the completed one-push PAT must not be reused.
 
 ### Remaining design note
 
 Concurrent email-token issuance can still require a stronger deterministic active-record or transaction/uniqueness design. Do not add a naïve unique partial index or lock without migration and concurrency analysis. Existing token use remains one-time and transactional.
+
+## 13. Full-audit remediation release checkpoint — 2026-10-06
+
+### Source state
+
+- Branch: `improvement/full-audit-remediation`
+- Pushed commit: `32205672bd8a1c7ea4d243c72391248cf57fdd26`
+- Commit author: `ExamCodesOfficial <examcodesofficial@gmail.com>`
+- Remote branch and local commit were verified equal after push.
+- The temporary push PAT was used only through `GIT_ASKPASS`; it was not stored in the remote URL, Git configuration, workspace files or shell history. The owner should revoke it because the authorized push is complete.
+- This checkpoint is source evidence only. No Vercel or Railway deployment was performed.
+
+### Material website changes
+
+- Auth query secrets are scrubbed before requests; guarded routes have explicit auth resolution and allowlisted continuation handling.
+- Vercel has 35 explicit SPA rewrites, `/profile` redirects to `/account`, and unknown paths fall through to the self-contained static 404.
+- The supplied `public/404.html` is retained exactly and is `noindex,nofollow`.
+- Mobile navigation now behaves as an accessible modal dialog.
+- Order History distinguishes loading/account-empty/filter-empty/error, supports supplier cancellation requests, responsive cards, status/refill feedback and safe reorder.
+- Direct UPI limits are server-owned; method eligibility is calculated separately for Direct UPI and Razorpay.
+- Public review reads no longer mutate/seed; homepage reviews remain separate and Telegram owns moderation.
+- Account profile editing, initials-avatar colour, settlement-gated erasure, favourites and privacy-safe templates were added.
+- Dead `SupportModal` code was removed and internal links use the central route registry.
+
+### Validation evidence
+
+The pushed commit passed `npm ci` with zero reported package vulnerabilities, root TypeScript, all API-key/recovery/Support Access/rate-limit/Direct-UPI/email/index/order-reservation/preset integration suites, search appearance checks, Vite production build, byte-for-byte 404 build verification, `git diff --check`, route-map parity checks, secret/markup scans and the Playwright browser audit. The browser audit covers public routes, guarded redirects/metadata, auth-token scrubbing, mobile modal focus behavior, the animated 404 interaction and authenticated Account/Order History/New Order/Add Funds rendering with bounded mocks.
+
+### Next operator actions
+
+1. create/review the GitHub pull request for the pushed feature branch;
+2. inspect the large `index.html` JSON-LD formatting diff semantically, not only visually;
+3. deploy to Vercel Preview and prove real 404 status/headers, API routing precedence and CSP behavior;
+4. execute authentication, payment-config, cancellation, reorder, profile and deletion staging workflows;
+5. retain deployment ID and redacted evidence;
+6. do not merge or deploy solely because local validation passed.

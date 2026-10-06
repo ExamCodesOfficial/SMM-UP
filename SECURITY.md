@@ -2,7 +2,7 @@
 
 ## Supported code
 
-Security fixes target the maintained deployment branch and reviewed candidates. The current audited candidate is `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`. Historical commits and unmaintained forks are not supported releases.
+Security fixes target the maintained deployment branch and reviewed candidates. The current audited candidate is `improvement/full-audit-remediation` at `32205672bd8a1c7ea4d243c72391248cf57fdd26`. The earlier bot-modularization checkpoint is `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`; historical commits and unmaintained forks are not supported releases.
 
 ## Report privately
 
@@ -85,3 +85,19 @@ Controls must fail closed. Availability work may not bypass authentication, tran
 ## Coordinated remediation record
 
 A private remediation record should include affected deployment/commit, detection time, bounded evidence, containment, credentials rotated, data/financial scope, migration or reconciliation performed, tests, deployment IDs, monitoring period and final owner sign-off. Never put exploit details or sensitive evidence in a public issue.
+
+## Full-audit security controls (2026-10-06)
+
+- Reset and verification query credentials are copied to component memory and immediately removed with `history.replaceState` before verification/reset network traffic.
+- Guarded navigation waits for explicit session resolution. Continuation targets are mapped from an allowlist; arbitrary/external `next` values are ignored.
+- Cookie-authenticated mutations in auth, orders, payments, reviews and presets perform same-origin host checking whenever the browser supplies `Origin`.
+- Profile changes require the current password. Account erasure additionally requires exact-name confirmation, zero wallet balance, no active order and no pending deposit.
+- Erasure revokes normal/restricted/support sessions, recovery tokens, API key identities/versions and removes public reviews, favourites/templates and sensitive order targets/comments while retaining pseudonymous required records.
+- Templates accept only a sanitized name, service identity and optional quantity. They never store links, usernames or comments.
+- Public review listing performs no seed/moderation write and returns no order target. Moderation remains in the owner-only Telegram path.
+- Payment-limit endpoints expose safe numeric bounds only; gateway/UPI secrets and internal pricing remain server-only.
+- Unknown routes do not receive the authenticated SPA shell; `public/404.html` is `noindex,nofollow` and contains no account data.
+
+### New test obligations
+
+Run `test:email-auth` for profile/erasure behavior, `test:presets` for ownership/privacy/origin behavior and `manualBrowserAudit.mjs` for token scrubbing, guarded metadata, modal navigation and 404 runtime behavior. A production release must additionally prove session/key revocation and target erasure against a disposable staging account.

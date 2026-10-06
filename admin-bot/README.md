@@ -309,3 +309,18 @@ The first modularization is intentionally behavior-preserving. Moving code acros
 Use `../railway.env.example`; `admin-bot/.env.example` is synchronized with it. Before startup, verify variable presence by name only, confirm the bot identity with Telegram `getMe`, establish MongoDB/index readiness, then start polling and the optional lease-controlled worker. `ADMIN_BOT_DISABLE_AUTOSTART` is test-only and must not accidentally disable the production process.
 
 A healthy process is not enough to prove settlement safety. Test wrong-user denial, stale/replayed callbacks, two-replica lease behavior, exact receipt matching and one-ledger/one-balance convergence in staging.
+
+## Coordination with website audit release `3220567`
+
+The website now supports reauthenticated profile updates, settlement-gated self-erasure, favourites/templates, cancellation requests and safe reorder. The bot remains the exclusive review-moderation surface and the comprehensive owner control plane.
+
+Operational implications:
+
+- tolerate deleted users whose email/username are pseudonymous and whose order target/comment fields are absent;
+- show `Cancel requested` and uncertain supplier submissions without implying automatic refund;
+- keep review approve/hide/delete callbacks owner-only and audited;
+- never store favourites/templates targets—those collections contain only service metadata and optional quantity;
+- compare Direct UPI evidence with server-owned configured limits, not copied frontend numbers;
+- use immutable IDs for administrative actions even after a username change.
+
+No webhook or website admin panel was introduced. Railway still uses long polling, distributed worker leases and owner-only Telegram authorization.

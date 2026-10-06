@@ -1,7 +1,7 @@
 # SMM UP — Implementation Planner and Source-of-Truth Index
 
 > **Updated:** 2026-10-06
-> **Pushed feature-branch checkpoint:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
+> **Current pushed feature-branch checkpoint:** `32205672bd8a1c7ea4d243c72391248cf57fdd26` (`improvement/full-audit-remediation`); historical bot baseline: `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Canonical domain:** `https://smmup.co.in`
 > **Current stage:** audited application/bot hardening is pushed and locally validated; exhaustive docs/API reference are committed locally but unpushed; Vercel/Railway staging and production repair remain.
 
@@ -383,3 +383,32 @@ Do not implement these by implication; each needs an explicit requirement and se
 ### Definition of done
 
 “Fixed” requires source commit, provider deployment ID, successful negative/positive smoke tests, index readiness, provider evidence, monitoring window and rollback owner. A successful GitHub push or local test suite satisfies only the source gate.
+
+## 14. Phase 8 — full-audit remediation ledger
+
+### Source gate completed
+
+- [x] Auth URL-secret scrubbing and explicit auth-resolution state.
+- [x] Allowlisted continuation redirects and neutral guarded metadata.
+- [x] Exact deployment route map with real static 404 fallback.
+- [x] Modal mobile navigation accessibility.
+- [x] Order History state separation, cancellation, refill/status and safe reorder.
+- [x] Read-only review feed and Telegram-only moderation boundary.
+- [x] Server-owned payment limits and method eligibility.
+- [x] Reauthenticated profile mutation and settlement-gated erasure.
+- [x] Favourites and target-free order templates.
+- [x] Integration/browser/build/security/route validation.
+- [x] Push `32205672bd8a1c7ea4d243c72391248cf57fdd26` to `improvement/full-audit-remediation`.
+
+### Deployment gate pending
+
+1. review the feature-branch PR and semantic metadata/routing diff;
+2. deploy Vercel Preview;
+3. verify exact known routes and random HTTP 404s;
+4. run disposable-account auth/profile/delete and order/payment workflows;
+5. confirm Telegram review moderation and deleted-record tolerance;
+6. capture accessibility, CSP, response-header and rollback evidence;
+7. merge/deploy only after explicit owner approval;
+8. revoke the completed one-push PAT.
+
+The post-push documentation pass is local until a separate push is authorized. It must not reuse the completed PAT.

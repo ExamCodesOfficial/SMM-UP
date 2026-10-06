@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">SMM UP Website Architecture</h1>
 <p align="center"><strong>Source-derived architecture snapshot · 2026-10-06</strong></p>
-<p align="center"><code>FEATURE BRANCH @ 2c60e65</code> · <code>DOC/API RECONCILIATION LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
+<p align="center"><code>FULL AUDIT @ 3220567</code> · <code>POST-PUSH DOCS LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
 
 
 > **Inventory size:** 730 source-derived atomic capabilities and controls.
@@ -39,7 +39,7 @@ SYSTEM STREAM
 ## Purpose and truth rules
 
 1. This is a codebase architecture document, not marketing copy.
-2. The audited implementation baseline is pushed on `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`; this documentation/API reconciliation is committed locally and remains unpushed until explicitly authorized.
+2. Full audit remediation is pushed on `improvement/full-audit-remediation` at `32205672bd8a1c7ea4d243c72391248cf57fdd26`; this post-push documentation reconciliation is local and remains unpushed until separately authorized. The prior bot baseline remains `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`.
 3. A pushed implementation is not proof of Vercel, Railway, provider, domain or production validation.
 4. Provider/dashboard operations are explicitly marked as deployment gates.
 5. Secrets and private pricing values are named by variable only and never copied here.
@@ -1627,7 +1627,7 @@ erDiagram
 
 ### Current release truth
 
-- Phases 0–6 plus the emergency hardening delta are pushed on `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`.
+- Phases 0–8, including the earlier bot/hardening work, are pushed on `improvement/full-audit-remediation` at `32205672bd8a1c7ea4d243c72391248cf57fdd26`; deployment proof remains separate.
 - Root build, static checks, audits and replica-set integration suites passed for that implementation workstream.
 - This exhaustive Markdown and customer-facing `/api` reconciliation is a separate local change set until explicitly pushed.
 - Vercel/Railway staging, production provider checks, Search Console and production smoke tests remain mandatory.
@@ -1734,3 +1734,38 @@ The root release suite includes `test:order-reservations` in addition to API-key
 ---
 
 **End of website registry: 730 atomic entries.**
+
+## 2026-10-06 full-audit website delta
+
+### Added/changed HTTP contracts
+
+- `POST /api/auth/update-profile`: password-reauthenticated username/display-name/avatar-colour update with uniqueness, sanitization, limiting and support-session mutation denial.
+- `POST /api/auth/delete-account`: exact-confirmation destructive transaction with wallet/order/deposit gates, pseudonymization, personal-target erasure and broad credential/session/key revocation.
+- `GET /api/payments/config`: authenticated safe Direct UPI bounds.
+- `GET /api/presets/list`: current user's favourites/templates.
+- `POST /api/presets/toggle-favorite`: ownership-scoped favourite toggle.
+- `POST /api/presets/save-template`: stores name/service/optional quantity only.
+- `POST|DELETE /api/presets/delete-template`: ownership-scoped deletion.
+- non-read cookie mutations in auth/orders/payments/reviews/presets reject mismatched supplied origins.
+
+### Added collections and fields
+
+`service_favorites` owns `user_id`, `service_id`, `created_at` with a unique user/service index and 50-item cap. `order_templates` owns `user_id`, sanitized `name`, `service_id`, optional integer `quantity`, timestamps and a 25-item cap. Neither collection stores targets, usernames, links or comments.
+
+Optional user fields now include `display_name`, `avatar_color`, `profile_updated_at` and `username_normalized`. Erasure sets `account_deleted_at`, lock/revocation fields and pseudonymous identity. Orders may gain `personal_target_deleted_at` and lose all personal target/comment fields.
+
+### Browser behavior
+
+- initial guarded routes render neutral checking state and metadata until auth resolves;
+- reset/verification credentials are removed from URL history before requests;
+- mobile navigation is a modal dialog with initial focus, trap, Escape, inert background, scroll lock and focus restoration;
+- Order History has skeleton, first-order empty, filter-miss, failure, desktop table and mobile-card states;
+- cancellation copy distinguishes a request from a guarantee;
+- reorder/template application clears target/comments and reuses current catalog data only;
+- review submission/feed feedback uses persistent accessible status/error regions;
+- Add Funds renders server bounds and per-method eligibility;
+- the owner-supplied static 404 is self-contained, interactive, noindex and served only after explicit known-route rewrites fail.
+
+### Validation trace
+
+`test:email-auth` covers profile update and erasure; `test:presets` covers privacy, ownership and cross-origin rejection; `manualBrowserAudit.mjs` covers static 404 interaction, public routes, guarded metadata/token scrubbing, mobile dialog and authenticated Account/Logs/Order/Add Funds rendering. The pushed source commit is `3220567`; deployment behavior remains unproven until Preview checks.

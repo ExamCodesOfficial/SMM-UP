@@ -1,6 +1,6 @@
 # SMM UP Security, Deployment, Rollback and Incident Runbook
 
-> **Code checkpoint:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
+> **Code checkpoint:** `32205672bd8a1c7ea4d243c72391248cf57fdd26` (`improvement/full-audit-remediation`)
 > **Last documentation review:** 2026-10-06
 > **Production state:** not verified by this document
 > **Rule:** environment names and procedures belong here; credential values never do.
@@ -735,3 +735,34 @@ Before any future workflow push:
 - `.env.example` and `admin-bot/.env.example` are synchronized convenience copies.
 - A release must compare source `process.env` references to the correct template and fail review on missing names.
 - Templates document names and safe placeholders only; production values remain in provider secret stores.
+
+## 22. Full-audit Preview and production gate
+
+### Routing and metadata
+
+- request all 35 known SPA paths directly and confirm they resolve to the app;
+- request at least three random unknown paths and confirm HTTP 404, the supplied static page, and `X-Robots-Tag`/meta noindex behavior;
+- confirm API filesystem routes still take precedence over the exact `/api` documentation rewrite;
+- confirm `/profile` permanently redirects to `/account`;
+- confirm `/status` and private routes send noindex headers and do not claim live health.
+
+### Authentication and account lifecycle
+
+- open a guarded URL signed out and verify neutral checking UI before the allowlisted auth continuation;
+- verify reset/verification secrets disappear from the address/history entry before the request;
+- reject external, protocol-relative and unknown `next` values;
+- update username/display name only after correct-password reauthentication;
+- test deletion rejection for wallet funds, active orders and pending deposits;
+- with a disposable eligible account, verify deletion pseudonymization, order-target/comment removal and session/key/recovery revocation.
+
+### Orders, reviews and payments
+
+- prove Order History loading, no-orders, filter-miss and API-error states separately;
+- request cancellation and verify copy says supplier request—not guaranteed cancellation/refund;
+- reorder and prove only live service identity is carried while target, quantity and comments are blank;
+- prove review feed GET creates/updates no database record and Telegram remains the only moderation control;
+- verify Direct UPI/Razorpay method ranges against their server config endpoints and fail closed on malformed config.
+
+### Release evidence for commit `3220567`
+
+Retain: Preview deployment ID, response status/header captures, redacted database before/after evidence, desktop/mobile keyboard recordings, payment configuration values by name/range (never secrets), integration/browser test logs, reviewer sign-off and rollback owner. The commit has been pushed but has not been deployed by this documentation update.

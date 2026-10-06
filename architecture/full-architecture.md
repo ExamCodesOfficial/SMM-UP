@@ -3,12 +3,12 @@
 </p>
 <h1 align="center">SMM UP Full-System Architecture</h1>
 <p align="center"><strong>Source-derived architecture snapshot · 2026-10-06</strong></p>
-<p align="center"><code>FEATURE BRANCH @ 2c60e65</code> · <code>BOT REFACTOR PUSHED</code> · <code>DEPLOYMENT PENDING</code></p>
+<p align="center"><code>FULL AUDIT @ 3220567</code> · <code>BOT REFACTOR INCLUDED</code> · <code>DEPLOYMENT PENDING</code></p>
 
 
 > **Master registry:** 290 cross-system capabilities plus the complete embedded 730-entry website registry and 147-entry bot registry.
 > **Total explicitly enumerated entries in this document:** 1167.
-> **Implementation baseline:** pushed on `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`; provider/staging/production verification remains open.
+> **Implementation baseline:** full audit remediation pushed on `improvement/full-audit-remediation` at `32205672bd8a1c7ea4d243c72391248cf57fdd26`; provider/staging/production verification remains open. Historical bot baseline: `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`.
 > **Documentation state:** this exhaustive API/Markdown reconciliation is committed locally and remains unpushed until explicitly authorized.
 > **Specialized views:** [Website architecture](website-architecture.md) · [Bot architecture](bot-architecture.md)
 
@@ -2096,3 +2096,27 @@ The remote feature branch is source evidence, not deployment evidence. Productio
 ---
 
 **Master totals:** 290 system entries + 730 website entries + 147 bot entries = **1167 explicitly enumerated architecture entries**.
+
+## Full-audit remediation cross-system delta — commit `3220567`
+
+### Routing and browser trust boundary
+
+Known SPA routes are explicit deployment rewrites. Unknown routes fall through to a standalone noindex 404 rather than receiving `index.html` with HTTP 200. `/profile` remains a permanent `/account` redirect. Guarded pages wait for `/api/auth/me`; protected metadata is not applied during unresolved auth. Auth query credentials are copied to memory and scrubbed before network verification.
+
+### Account/data lifecycle
+
+Profile mutation is password-reauthenticated and ownership-scoped. Self-erasure is a destructive transaction gated by exact confirmation, zero balance, no active orders and no pending deposits. It pseudonymizes the user, strips personal order targets/comments, removes review/preset convenience data and revokes sessions, recovery/support access and API key material while retaining pseudonymous financial/operational evidence required for reconciliation. Telegram/admin readers must tolerate erased fields.
+
+### Order/review/payment boundary
+
+Order History exposes existing supplier cancellation/refill/status capabilities with accurate uncertainty wording. Reorder passes only a live service identity. Public review listing is read-only, edge-cacheable and excludes the six homepage records; Telegram owns moderation. Direct UPI and Razorpay expose separate safe amount ranges from server config, and the browser disables each method independently.
+
+### New persistence
+
+- `service_favorites`: unique `(user_id, service_id)`, capped at 50 per user.
+- `order_templates`: user-owned name/service/optional quantity, capped at 25; no target/comment fields.
+- existing user/order/session/key/review collections gain deletion/profile metadata described in the website architecture.
+
+### Release truth
+
+The branch `improvement/full-audit-remediation` is pushed at `32205672bd8a1c7ea4d243c72391248cf57fdd26`. Root typecheck, all listed integration suites, production build, 404 byte equality, route/security scans and browser audit passed. No Vercel/Railway deployment is implied; provider staging, real status/header checks and production observation remain required.

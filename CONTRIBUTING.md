@@ -123,3 +123,20 @@ Workflows must use explicit `workflow_dispatch` only. Do not add `push`, `pull_r
 ## Complete release command set
 
 Run the relevant commands sequentially in constrained environments, including `npm run test:order-reservations`. A green build does not replace provider staging, and an audit result is time-bound to the resolved lockfile.
+
+## Audit-remediation regression checklist
+
+When changing routing, authentication, account, review, payment or order-history code, include all applicable evidence below:
+
+1. compare `TAB_PATHS` with explicit Vercel rewrites and prove there is no universal SPA catch-all;
+2. test a real unknown deployment path separately from the in-app not-found component;
+3. prove guarded pages do not render protected metadata/content before `/api/auth/me` resolves;
+4. prove URL credentials are scrubbed before verification/reset network activity;
+5. exercise keyboard-only open, focus trap, Escape close and opener-focus restoration for modal navigation;
+6. validate loading, first-use empty, filter miss and API failure as different UI states;
+7. verify payment methods are disabled outside their server-returned bounds;
+8. prove reorder/templates do not retain targets, usernames or comments;
+9. run account-erasure tests against a MongoDB replica set, including session/key revocation and target removal;
+10. preserve the supplied static 404 unchanged unless the owner explicitly requests design changes.
+
+The manual browser suite is intentionally separate from TypeScript and integration tests. Start Vite on port 3000, install the Playwright Chromium runtime, then run `node tests/manualBrowserAudit.mjs`. A moving/animated control may require programmatic activation in the test; do not disable production motion merely to satisfy Playwright's stationary-element heuristic.

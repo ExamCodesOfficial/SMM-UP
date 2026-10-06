@@ -516,3 +516,18 @@ For structural changes, compare registered commands, callbacks, middleware order
 ---
 
 **End of bot registry: 147 atomic entries.**
+
+## 2026-10-06 website-audit compatibility registry
+
+The bot code is not modified by commit `3220567`, but its shared MongoDB readers must support these website-created states:
+
+1. `users.display_name` and `users.avatar_color` are optional presentation fields; `username_normalized` may be added on profile update.
+2. Deleted users have a pseudonymous email/username, `account_deleted_at`, `account_locked` and `account_lock_reason=self_service_deletion`.
+3. Deleted-account orders retain accounting/supplier identity while personal target/comment fields may be missing and `personal_target_deleted_at` is set.
+4. Key identities may be archived with `archive_reason=account_deleted`; versions are revoked independently.
+5. `service_favorites` and `order_templates` are website convenience collections with no bot authority.
+6. `Cancel requested` is a non-final supplier workflow state.
+7. Review feed reads never seed; review moderation continues through Telegram callbacks only.
+8. Owner detail output must tolerate absent personal fields and must not attempt to reverse pseudonymization.
+
+These compatibility requirements belong in shared-fixture tests whenever bot database projections or serializers change.
