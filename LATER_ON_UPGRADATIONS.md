@@ -69,57 +69,60 @@
 - [x] Account UI includes per-key lifetime financial summaries and 90-day action/date/outcome/service/order/amount filters.
 - [x] Authenticated endpoint smoke tests verify archived-key reporting, complete target/order attribution and filtered activity responses.
 
-### Phase 3 — account recovery and temporary passwords
+### Phase 3 — account recovery and temporary passwords (code complete and validated)
 
-- [ ] Store permanent passwords only as bcrypt hashes.
-- [ ] Server-generated temporary password (recommended default).
-- [ ] Optional owner-selected temporary password.
-- [ ] Store temporary credential only as a hash.
-- [ ] Default temporary lifetime: 3 hours.
-- [ ] Environment override: `TEMP_PASSWORD_TTL_MINUTES`.
-- [ ] Default temporary maximum uses: 2.
-- [ ] Environment override: `TEMP_PASSWORD_MAX_USES` (bounded to 1–2).
-- [ ] Every successful temporary-password login increments an atomic use counter.
-- [ ] Telegram reset message is edited with ✅, usage count, time and remaining uses.
-- [ ] Reaching the use limit or expiry invalidates the temporary credential.
-- [ ] Temporary login receives only a restricted password-change session.
-- [ ] User must create a new permanent password before normal access.
-- [ ] Permanent-password completion invalidates the temporary credential immediately.
-- [ ] Existing sessions are revoked when the owner initiates reset.
-- [ ] Full email and recovery evidence are visible in the owner-only Telegram bot.
-- [ ] Manual identity-verification checklist and admin reason.
-- [ ] Five-minute Telegram confirmation for initiating reset.
-- [ ] Website “Forgot password? Contact support” route/copy until verified email recovery exists.
+- [x] Permanent passwords remain bcrypt hashes; registration/change enforce the new-password policy.
+- [x] Server-generated temporary password (recommended default).
+- [x] Optional owner-selected temporary password held only in five-minute process memory until confirmation.
+- [x] Persist only the bcrypt hash of every temporary credential.
+- [x] Default temporary lifetime: 3 hours.
+- [x] Environment override: `TEMP_PASSWORD_TTL_MINUTES` with server bounds.
+- [x] Default temporary maximum uses: 2.
+- [x] Environment override: `TEMP_PASSWORD_MAX_USES` bounded to 1–2.
+- [x] Every successful temporary-password login increments an atomic use counter.
+- [x] Telegram reset message is edited with ✅, usage count, IST time and remaining uses; Railway retries failed edits.
+- [x] Use exhaustion or expiry invalidates the temporary credential.
+- [x] Temporary login receives only a hash-token restricted password-change session.
+- [x] User must create a new permanent password before normal access.
+- [x] Permanent-password completion invalidates all temporary credentials and restricted sessions immediately.
+- [x] Existing MongoDB sessions and migration-era JWTs are revoked when the owner initiates reset.
+- [x] Full email and private recovery checklist are visible only in the owner Telegram flow.
+- [x] Manual identity checklist attestation and mandatory admin reason are audited.
+- [x] Five-minute hash-only Telegram confirmation token for initiating reset.
+- [x] Website “Forgot password? Contact support” copy remains until verified email recovery exists.
+- [x] Reproducible `npm run test:recovery` replica-set gate covers wrong-password non-use, 2-use exhaustion, concurrent one-use enforcement, restricted sessions, permanent completion and hash-only tokens.
 
-### Phase 4 — MongoDB sessions and owner support access
+### Phase 4 — MongoDB sessions and owner support access (code complete and validated)
 
-- [ ] Hash-only, server-side revocable login sessions.
-- [ ] Session ID, user ID, username snapshot, creation, activity, expiry, device and purpose.
-- [ ] Revoke one session or all sessions.
-- [ ] `[BOT]` Owner can inspect session metadata; raw session tokens are never shown.
-- [ ] `[BOT]` One-time Support Access code; five-minute exchange window.
-- [ ] Dedicated `/support-access` website route.
-- [ ] Fifteen-minute read-only support/impersonation session.
-- [ ] Preserve actor admin ID separately from subject user ID.
-- [ ] Persistent “Support Session” banner and countdown.
-- [ ] Manual exit and automatic expiry.
-- [ ] Read account, orders, deposits, targets, key metadata and security state.
-- [ ] Block spending, deposits, key mutation and password mutation by default.
-- [ ] Page/view audit trail; no existing API secret or user password access.
+- [x] Hash-only, server-side revocable MongoDB login sessions with safe legacy-JWT cutover.
+- [x] Session ID, user ID, username snapshot, creation, activity, expiry, device and purpose.
+- [x] Account UI can revoke one session or all other sessions immediately.
+- [x] `[BOT]` Owner session inspection/revocation controls with inline confirmation; raw session tokens are never shown.
+- [x] `[BOT]` Hash-only, 80-bit one-time Support Access code with a five-minute exchange window and single-active-code enforcement.
+- [x] Dedicated owner-only `/support-access` website route.
+- [x] Fifteen-minute hash-only read-only support/impersonation session in a separate cookie.
+- [x] Actor admin ID and subject user ID are preserved and validated separately.
+- [x] Persistent “Support Session” banner and live countdown.
+- [x] Transactional manual exit, automatic expiry and owner-session preservation.
+- [x] Read account, orders, deposits, targets, key metadata and security state without legacy-key migration side effects.
+- [x] Central server-side block across orders, deposits, reviews, key/session mutation, login/registration and password mutation.
+- [x] Fail-closed request/page-view audit trail; no existing API secret, user password, authorization header or cookie access.
+- [x] Replica-set `npm run test:support-access` gate covers one-time/concurrent exchange, hash-only storage, cookie separation, actor/subject resolution, all write surfaces, page-view audit, exit and actor revocation.
+- [x] Removed the dev-only Vercel build-tool dependency chain; full root and bot `npm audit` now report zero vulnerabilities.
 
 ### Phase 5 — Telegram owner control plane
 
-- [ ] `[BOT]` Authorize by immutable Telegram numeric owner ID.
+- [x] `[BOT]` Authorize every command and callback by immutable Telegram numeric owner ID.
 - [ ] `[BOT]` Verify Telegram webhook secret token.
 - [ ] `[BOT]` Use inline buttons for confirmations and workflows.
 - [ ] `[BOT]` Five-minute financial and sensitive-action confirmations.
-- [ ] `[BOT]` Full user lookup with full email and account metadata.
+- [x] `[BOT]` Full user lookup with full email, account metadata and inline session/Support Access controls.
 - [ ] `[BOT]` Complete order, deposit, wallet, refund and dispute inspection.
 - [ ] `[BOT]` Suspend/reactivate users; place ordering/payment holds.
 - [ ] `[BOT]` Audited wallet corrections with exact reason.
 - [ ] `[BOT]` Pause, rotate/reissue and archive API keys.
-- [ ] `[BOT]` Initiate temporary-password resets and receive usage notifications.
-- [ ] `[BOT]` Revoke user sessions and create Support Access sessions.
+- [x] `[BOT]` Initiate temporary-password resets and receive usage notifications.
+- [x] `[BOT]` Inspect/revoke user sessions and create one-time Support Access sessions.
 - [ ] `[BOT]` Administrative notes and bounded security events.
 - [ ] No website admin panel.
 - [ ] No raw password, password hash, API secret, cookie, authorization header, OTP or UPI PIN in Telegram.

@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { getDb } from "../../server/lib/db.js";
 import { checkOrderStatusMulti } from "../../server/lib/smm.js";
 

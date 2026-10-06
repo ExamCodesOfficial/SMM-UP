@@ -52,8 +52,16 @@ export const PAGE_META: Record<string, PageMeta> = {
     description: "Purchased from SMM UP? Sign in and share one verified, editable review. Only accounts with a valid past order can publish feedback.",
   },
   account: {
-    title: "My Account — Wallet, Activity & API Key | SMM UP",
-    description: "Manage your SMM UP account, wallet activity, order and deposit history, API-key generation and revocation, account security and sign-out.",
+    title: "My Account — Wallet, Activity & API Keys | SMM UP",
+    description: "Manage your SMM UP account, wallet activity, order and deposit history, named API keys, sessions, account security and sign-out.",
+  },
+  "password-change": {
+    title: "Complete Password Recovery | SMM UP",
+    description: "Restricted SMM UP account-recovery step for creating a permanent password after owner-verified support recovery.",
+  },
+  "support-access": {
+    title: "Owner Support Access | SMM UP",
+    description: "Private owner-only exchange for time-limited, read-only customer support access.",
   },
   transactions: {
     title: "Deposit & Transaction History | SMM UP",
@@ -163,6 +171,15 @@ export function applySeo(tab: string) {
     document.head.appendChild(tag);
   }
   tag.setAttribute("content", meta.description);
+
+  const privateTabs = new Set(["auth", "account", "password-change", "support-access", "transactions", "add-funds", "logs"]);
+  let robots = document.querySelector('meta[name="robots"]');
+  if (!robots) {
+    robots = document.createElement("meta");
+    robots.setAttribute("name", "robots");
+    document.head.appendChild(robots);
+  }
+  robots.setAttribute("content", privateTabs.has(tab) ? "noindex,nofollow" : "index,follow");
 
   const path = window.location.pathname === "/" ? "/" : window.location.pathname;
   const absUrl = "https://smmup.co.in" + path;

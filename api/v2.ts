@@ -1,4 +1,4 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../server/lib/http.js";
 import { ObjectId } from "mongodb";
 import { ensureApiKeyIndexes, getDb } from "../server/lib/db.js";
 import {

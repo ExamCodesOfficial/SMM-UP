@@ -208,7 +208,18 @@ Verify the live deployment at `https://smmup.vercel.app`.
 
 ---
 
-## 6. PROJECT REPOSITORY & ENVIRONMENT CONFIGURATION
+## 6. CURRENT SECURITY ARCHITECTURE UPDATE (OCTOBER 6, 2026)
+
+- Normal website authentication now uses 256-bit opaque `sms_` tokens; MongoDB stores SHA-256 token hashes only. Migration-era JWTs remain revocable during the bounded cutover.
+- Account recovery uses bcrypt temporary-password hashes and separate hash-only `smr_` restricted sessions. Temporary credentials default to 180 minutes and two successful uses, then permanent-password completion revokes every old session transactionally.
+- Owner Support Access is separate from user login: Telegram issues a one-time 80-bit code that expires in five minutes; exchange creates a hash-only `smi_` cookie and 15-minute read-only session while preserving the owner's normal cookie.
+- Support sessions store/validate the owner actor and customer subject separately, write fail-closed request/page-view audit records, show a countdown banner, and support transactional exit/automatic expiry.
+- Central server enforcement blocks support-session writes across registration/login switching, passwords, sessions, API keys, reviews, orders and both deposit systems. API secrets, passwords, cookies and authorization headers are not returned.
+- `/user <email>` in Telegram exposes inline active-session inspection, confirmed individual/global revocation and Support Access guidance. `/supportaccess <email> | <reason>` creates the one-time code.
+- Security gates are `npm run test:api-keys`, `npm run test:recovery`, `npm run test:support-access`, root/admin-bot `npx tsc --noEmit`, `npm run build`, `git diff --check`, and full root/admin-bot `npm audit`.
+- `@vercel/node` was removed because it was used only for TypeScript interfaces but pulled a vulnerable dev build-tool chain. Minimal runtime-compatible HTTP interfaces now live in `server/lib/http.ts`; both npm audit trees are clean.
+
+## 7. PROJECT REPOSITORY & ENVIRONMENT CONFIGURATION
 
 ### Key Files:
 - `.env` & `.env.local`:
@@ -217,6 +228,10 @@ Verify the live deployment at `https://smmup.vercel.app`.
   - `API_ACTIVITY_HASH_SECRET`: Optional dedicated HMAC key for API-activity IP pseudonyms.
   - `API_KEY_CREATION_FEE_INR`: New named-key identity fee; defaults to `29`.
   - `API_KEY_MAX_IDENTITIES`: Maximum non-archived key identities per user; defaults to `10`.
+  - `SESSION_METADATA_HASH_SECRET`: Optional dedicated HMAC key for session IP pseudonyms.
+  - `TEMP_PASSWORD_TTL_MINUTES`: Temporary-password lifetime; defaults to `180`.
+  - `TEMP_PASSWORD_MAX_USES`: Successful temporary logins allowed; only `1` or `2`, default `2`.
+  - `TEMP_PASSWORD_SESSION_TTL_MINUTES`: Restricted password-change session; defaults to `15`.
   - `SMM_API_KEY`: Wholesale SMM provider key.
   - `PANEL_URL`: Wholesale SMM API endpoint (supplied via environment variable, never hardcoded).
   - `IMAP_USER`: Gmail address for automated UTR payment verification.

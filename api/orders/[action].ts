@@ -1,7 +1,7 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { ObjectId } from "mongodb";
 import { getDb } from "../../server/lib/db.js";
-import { getUserFromRequest } from "../../server/lib/auth.js";
+import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import {
   fetchAllServices,
   calculateOrderTotal,
@@ -16,12 +16,12 @@ import { sendFailedOrderAlert } from "../../server/lib/telegram.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
-  const authUser = getUserFromRequest(req);
+  const db = await getDb();
+  const authUser = await getUserFromRequest(req, db);
   if (!authUser) {
     return res.status(401).json({ error: "Unauthorized. Please sign in." });
   }
-
-  const db = await getDb();
+  if (denySupportMutation(authUser, res, action === "list" && req.method === "GET")) return;
   const userObjectId = new ObjectId(authUser.userId);
 
   // ── 1. CREATE ORDER ──────────────────────────────────────────
@@ -196,13 +196,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 2. LIST ORDERS ───────────────────────────────────────────
   if (action === "list") {
-    const limit = parseInt(String(req.query.limit || "50"), 10);
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    const requestedLimit = Number.parseInt(String(req.query.limit || "50"), 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 100)) : 50;
     const statusFilter = String(req.query.status || "").trim();
 
     try {
       const query: any = { user_id: userObjectId };
       if (statusFilter && statusFilter !== "All") {
-        query.status = { $regex: new RegExp(`^${statusFilter}$`, "i") };
+        const escapedStatus = statusFilter.slice(0, 40).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        query.status = { $regex: new RegExp(`^${escapedStatus}$`, "i") };
       }
 
       const orders = await db
@@ -242,6 +246,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 3. STATUS RECHECK ────────────────────────────────────────
   if (action === "status") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: "Order ID required" });
 

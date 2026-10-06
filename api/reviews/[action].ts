@@ -1,7 +1,7 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { ObjectId } from "mongodb";
 import { getDb } from "../../server/lib/db.js";
-import { getUserFromRequest } from "../../server/lib/auth.js";
+import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
 import { sendReviewSubmittedAlert } from "../../server/lib/telegram.js";
 
@@ -124,13 +124,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const db = await getDb();
   const col = db.collection("reviews");
 
-  await ensureSeed(db);
-
   // ── Public: latest approved community submissions ────────────
   // The six established reviews remain permanently on the homepage; this
   // deliberately isn't an aggregate or paginated review directory.
   if (action === "list" && req.method === "GET") {
     try {
+      await ensureSeed(db);
       const reviews = await col
         .find({ status: "approved", seed: { $ne: true } })
         .sort({ created_at: -1 })
@@ -147,7 +146,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Public: can the signed-in visitor write one? ─────────────
   if (action === "eligibility" && req.method === "GET") {
-    const u = getUserFromRequest(req);
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    const u = await getUserFromRequest(req, db);
     if (!u) return res.status(200).json({ eligible: false, reason: "Sign in to continue." });
     try {
       const orderCount = await userStats(db, new ObjectId(u.userId));
@@ -165,8 +165,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Authed: create or update own review ──────────────────────
   if (action === "submit" && req.method === "POST") {
-    const u = getUserFromRequest(req);
+    const u = await getUserFromRequest(req, db);
     if (!u) return res.status(401).json({ error: "Sign in to write a review." });
+    if (denySupportMutation(u, res, false)) return;
     const rl = checkRateLimit(`review_${u.userId}`, 5, 600);
     if (!rl.allowed) {
       return res.status(429).json({ error: `Too many edits. Try again in ${rl.remainingSec}s.` });

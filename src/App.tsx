@@ -5,6 +5,8 @@ import MassOrder from "./components/MassOrder";
 import OrderHistory from "./components/OrderHistory";
 import ServicesCatalog from "./components/ServicesCatalog";
 import AuthPage from "./components/AuthPage";
+import PasswordChangePage from "./components/PasswordChangePage";
+import SupportAccessPage from "./components/SupportAccessPage";
 import AddFundsPage from "./components/AddFundsPage";
 import MobileBottomNav from "./components/MobileBottomNav";
 import FaqSection from "./components/FaqSection";
@@ -47,11 +49,39 @@ import { applySeo, applyStructuredData } from "./lib/seo";
 import { TAB_PATHS, PATH_TABS } from "./lib/routes";
 
 // Pages that require a signed-in user
-const GUARDED = new Set(["logs", "account", "transactions", "add-funds"]);
+const GUARDED = new Set(["logs", "account", "transactions", "add-funds", "support-access"]);
 
 function tabFromPath(): string {
   const p = window.location.pathname.replace(/\/+$/, "") || "/";
   return PATH_TABS[p] || "notfound";
+}
+
+function SupportSessionBanner({ user, onExit }: { user: any; onExit: () => void }) {
+  const [remaining, setRemaining] = React.useState(0);
+  const expired = React.useRef(false);
+  React.useEffect(() => {
+    const update = () => {
+      const milliseconds = new Date(user.supportSession.expiresAt).getTime() - Date.now();
+      setRemaining(Math.max(0, Math.ceil(milliseconds / 1000)));
+      if (milliseconds <= 0 && !expired.current) {
+        expired.current = true;
+        onExit();
+      }
+    };
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [user.supportSession.expiresAt, onExit]);
+  const minutes = Math.floor(remaining / 60);
+  const seconds = remaining % 60;
+  return (
+    <div className="fixed top-[72px] inset-x-0 z-40 border-y border-white/20 bg-white text-black px-4 py-2.5">
+      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div><strong>Support Session · Read-only</strong><span className="ml-2">Viewing @{user.username} as owner · actor and subject are audited separately.</span></div>
+        <div className="flex items-center gap-3 font-mono"><span>{minutes}:{String(seconds).padStart(2, "0")}</span><button type="button" onClick={onExit} className="px-3 py-1 border border-black/30 hover:bg-black hover:text-white">Exit support</button></div>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -129,6 +159,15 @@ export default function App() {
     }
   }, [user]);
 
+  React.useEffect(() => {
+    if (!user?.supportSession?.active) return;
+    fetch("/api/auth/support-page-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: window.location.pathname }),
+    }).catch(() => {});
+  }, [currentTab, user?.supportSession?.active]);
+
   const checkAuth = async () => {
     try {
       const res = await fetch("/api/auth/me");
@@ -143,13 +182,39 @@ export default function App() {
     }
   };
 
-  const handleAuthSuccess = React.useCallback(() => {
+  const handleAuthSuccess = React.useCallback((forcedDestination?: string) => {
+    if (forcedDestination === "password-change") {
+      navigate("password-change");
+      return;
+    }
     const destination = GUARDED.has(currentTab) ? currentTab : "home";
     checkAuth().then(() => {
       loadOrders();
       navigate(destination);
     });
   }, [currentTab, navigate]);
+
+  const handlePasswordRecoveryCompleted = React.useCallback((recoveredUser: any) => {
+    setUser(recoveredUser);
+    loadOrders();
+    navigate("account");
+  }, [navigate]);
+
+  const handleSupportAccessActivated = React.useCallback(() => {
+    checkAuth().then(() => {
+      loadOrders();
+      navigate("account");
+    });
+  }, [navigate]);
+
+  const exitSupportAccess = React.useCallback(async () => {
+    try {
+      await fetch("/api/auth/exit-support-access", { method: "POST" });
+    } finally {
+      await checkAuth();
+      navigate("support-access");
+    }
+  }, [navigate]);
 
   const handleUserUpdate = React.useCallback((patch: any) => {
     setUser((previous: any) => ({ ...previous, ...patch }));
@@ -246,7 +311,9 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 pt-18 pb-20 md:pb-12 relative z-10">
+      {user?.supportSession?.active && <SupportSessionBanner user={user} onExit={exitSupportAccess} />}
+
+      <main className={`flex-1 ${user?.supportSession?.active ? "pt-28" : "pt-18"} pb-20 md:pb-12 relative z-10`}>
         {/* ── Home: landing experience ── */}
         {currentTab === "home" && (
           <>
@@ -337,12 +404,27 @@ export default function App() {
           />
         )}
 
+        {currentTab === "password-change" && (
+          <PasswordChangePage
+            onNavigate={navigate}
+            onCompleted={handlePasswordRecoveryCompleted}
+          />
+        )}
+
+        {!guardedBlocked && currentTab === "support-access" && (
+          <SupportAccessPage
+            user={user}
+            onNavigate={navigate}
+            onActivated={handleSupportAccessActivated}
+          />
+        )}
+
         {/* ── Auth page (also the guard landing) ── */}
         {(currentTab === "auth" || guardedBlocked) && (
           <AuthPage
             initialMode={authPageMode}
             onAuthSuccess={handleAuthSuccess}
-              />
+          />
         )}
 
         {/* ── Platform pages ── */}

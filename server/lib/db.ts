@@ -32,6 +32,7 @@ export async function getMongoClient(): Promise<MongoClient> {
 let indexesCreated = false;
 let razorpayIndexesPromise: Promise<void> | null = null;
 let apiKeyIndexesPromise: Promise<void> | null = null;
+let sessionIndexesPromise: Promise<void> | null = null;
 
 /** Financial uniqueness indexes are awaited by Razorpay writes (fail closed). */
 export async function ensureRazorpayIndexes(): Promise<void> {
@@ -130,6 +131,43 @@ export async function ensureApiKeyIndexes(): Promise<void> {
     });
   }
   return apiKeyIndexesPromise;
+}
+
+/** Session/token uniqueness and expiry indexes are awaited before issuance. */
+export async function ensureSessionIndexes(): Promise<void> {
+  if (!sessionIndexesPromise) {
+    sessionIndexesPromise = clientPromise.then(async (client) => {
+      const db = client.db(dbName);
+      await Promise.all([
+        db.collection("sessions").createIndex({ token_hash: 1 }, { unique: true }),
+        db.collection("sessions").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("sessions").createIndex({ actor_admin_id: 1, created_at: -1 }),
+        db.collection("sessions").createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
+        db.collection("restricted_sessions").createIndex({ token_hash: 1 }, { unique: true }),
+        db.collection("restricted_sessions").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("restricted_sessions").createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
+        db.collection("temporary_passwords").createIndex({ user_id: 1, created_at: -1 }),
+        db.collection("temporary_passwords").createIndex({ expires_at: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 }),
+        db.collection("support_access_codes").createIndex({ code_hash: 1 }, { unique: true }),
+        db.collection("support_access_codes").createIndex(
+          { subject_user_id: 1 },
+          {
+            unique: true,
+            partialFilterExpression: { consumed_at: null, invalidated_at: null },
+            name: "one_active_support_code_per_subject",
+          },
+        ),
+        db.collection("support_access_codes").createIndex({ expires_at: 1 }, { expireAfterSeconds: 60 * 60 * 24 }),
+        db.collection("support_access_audit").createIndex({ actor_admin_id: 1, created_at: -1 }),
+        db.collection("support_access_audit").createIndex({ subject_user_id: 1, created_at: -1 }),
+        db.collection("support_access_audit").createIndex({ session_id: 1, created_at: -1 }),
+      ]);
+    }).catch((error) => {
+      sessionIndexesPromise = null;
+      throw error;
+    });
+  }
+  return sessionIndexesPromise;
 }
 
 export async function getDb(): Promise<Db> {

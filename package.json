@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:api-keys": "tsx tests/apiKeys.integration.ts"
+    "test:api-keys": "tsx tests/apiKeys.integration.ts",
+    "test:recovery": "tsx tests/recovery.integration.ts",
+    "test:support-access": "tsx tests/supportAccess.integration.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -31,7 +33,6 @@
     "@types/node": "^22.13.1",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
-    "@vercel/node": "^5.1.7",
     "@vitejs/plugin-react": "^4.3.4",
     "mongodb-memory-server-core": "^10.2.3",
     "playwright-core": "^1.63.0",
