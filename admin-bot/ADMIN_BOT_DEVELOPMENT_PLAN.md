@@ -284,6 +284,7 @@ Generic actions are limited to 20 newly pending records per owner per five-minut
 | `/failed` | newest 10 failed/review-required orders |
 | `/pending` | newest 10 pending deposits |
 | `/checkmemo <memo>` | exact normalized memo lookup |
+| `/settleupi <memo> <amount> <UTR> <TxID> \| reason` | owner-confirmed atomic recovery for a trusted legacy receipt whose provider removed SUP |
 | `/reviews [limit]` | buyer reviews, default 8/max 12 |
 
 `/userorders`, `/deposits`, `/wallet` and `/events` do not currently implement the optional limit previously described by stale documentation.
@@ -539,7 +540,7 @@ One MongoDB transaction:
 6. inserts unique wallet ledger entry;
 7. inserts security event.
 
-Unique indexes on memo, optional UTR/TxID, Direct UPI settlement key and wallet settlement key enforce replay safety. Duplicate-key and stale-state races do not produce a second credit.
+Unique indexes on memo, optional UTR/TxID, Direct UPI settlement key and wallet settlement key enforce replay safety. Duplicate-key and stale-state races do not produce a second credit. For legacy receipts where FamApp removed SUP before unique-paise reservation existed, `/settleupi` stages exact memo, amount, UTR and TxID with a mandatory reason, then re-reads current state and commits the processed claim, pending transition, wallet credit, ledger, security event and audit together after owner inline confirmation.
 
 ### Reconciliation
 

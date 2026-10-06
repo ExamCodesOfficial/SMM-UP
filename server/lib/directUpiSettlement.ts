@@ -20,23 +20,45 @@ interface SettlementInput {
   expectedMemo: string;
   receivedAmount: number;
   receiptMemo?: string;
+  receiptDate?: Date;
   utr: string;
   transactionId: string;
   sender?: string;
   source: "manual_identifier_verify" | "railway_imap_worker";
   /** Manual website verification may recover a recently expired request only after exact receipt checks. */
   allowExpiredWithinHours?: number;
+  /** Missing memo is allowed only for a server-reserved globally unique paise quote. */
+  allowMissingMemoWithUniqueAmount?: boolean;
+}
+
+export function normalizeDirectUpiReceiptMemo(value?: string): string | undefined {
+  const memo = String(value || "").trim().toUpperCase();
+  return /^SUP[A-Z0-9]{5}$/.test(memo) ? memo : undefined;
 }
 
 /** Atomically claims one exact Direct UPI deposit and credits it once. */
 export async function settleDirectUpiPayment(input: SettlementInput): Promise<{ newBalance: number }> {
   const expectedMemo = input.expectedMemo.trim().toUpperCase();
-  const receiptMemo = input.receiptMemo?.trim().toUpperCase();
-  if (!expectedMemo || !receiptMemo || Math.round(input.receivedAmount * 100) !== Math.round(input.expectedAmount * 100)) {
+  // FamApp may replace the submitted SUP note with text such as "Paid via
+  // CRED". That is not a mismatching SUP; it is an absent usable SUP and may
+  // use only the independently guarded unique-amount path.
+  const receiptMemo = normalizeDirectUpiReceiptMemo(input.receiptMemo);
+  const receivedAmountPaise = Math.round(input.receivedAmount * 100);
+  const expectedAmountPaise = Math.round(input.expectedAmount * 100);
+  if (!expectedMemo || receivedAmountPaise !== expectedAmountPaise) {
     throw new DirectUpiSettlementError("RECEIPT_MISMATCH", "Receipt amount or memo is invalid.");
   }
-  if (receiptMemo !== expectedMemo) {
+  if (receiptMemo && receiptMemo !== expectedMemo) {
     throw new DirectUpiSettlementError("RECEIPT_MISMATCH", "Receipt memo does not match the pending deposit.");
+  }
+  if (!receiptMemo && !input.allowMissingMemoWithUniqueAmount) {
+    throw new DirectUpiSettlementError("RECEIPT_MISMATCH", "Receipt memo is missing and the amount is not uniquely reserved.");
+  }
+  const receiptDate = input.receiptDate instanceof Date && Number.isFinite(input.receiptDate.getTime())
+    ? input.receiptDate
+    : null;
+  if (!receiptMemo && input.allowMissingMemoWithUniqueAmount && !receiptDate) {
+    throw new DirectUpiSettlementError("RECEIPT_MISMATCH", "A dated trusted receipt is required for unique-amount settlement.");
   }
 
   const settlementKey = `direct_upi:${input.pendingId.toString()}`;
@@ -52,6 +74,18 @@ export async function settleDirectUpiPayment(input: SettlementInput): Promise<{ 
   let newBalance = 0;
   try {
     await session.withTransaction(async () => {
+      if (!receiptMemo && input.allowMissingMemoWithUniqueAmount) {
+        const reservation = await input.db.collection("direct_upi_amount_reservations").findOne({
+          _id: input.pendingId,
+          amount_paise: expectedAmountPaise,
+          expires_at: { $gt: now },
+          created_at: { $lte: receiptDate! },
+        }, { session });
+        if (!reservation) {
+          throw new DirectUpiSettlementError("RECEIPT_MISMATCH", "Unique payable amount reservation is missing or expired.");
+        }
+      }
+
       const pending: any = await input.db.collection("transactions").findOne({
         _id: input.pendingId,
         user_id: input.userId,
@@ -60,6 +94,9 @@ export async function settleDirectUpiPayment(input: SettlementInput): Promise<{ 
         memo: expectedMemo,
         status: eligibleStatus,
         ...eligibleTime,
+        ...(!receiptMemo && input.allowMissingMemoWithUniqueAmount
+          ? { unique_amount_reservation: true, quoted_amount_paise: expectedAmountPaise }
+          : {}),
       }, { session });
       if (!pending) {
         throw new DirectUpiSettlementError("PENDING_DEPOSIT_STALE", "Pending deposit is missing, expired, or already settled.");

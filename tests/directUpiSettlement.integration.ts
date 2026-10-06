@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { MongoClient, ObjectId } from "mongodb";
 import { MongoMemoryReplSet } from "mongodb-memory-server-core";
-import { settleDirectUpiPayment } from "../server/lib/directUpiSettlement.js";
+import { normalizeDirectUpiReceiptMemo, settleDirectUpiPayment } from "../server/lib/directUpiSettlement.js";
+import { buildUniquePayableCandidates, reserveUniqueDirectUpiAmount } from "../server/lib/directUpiQuote.js";
 
 async function run() {
   const repl = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: "wiredTiger" } });
@@ -15,7 +16,25 @@ async function run() {
       db.collection("processed_transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
       db.collection("transactions").createIndex({ direct_upi_settlement_key: 1 }, { unique: true, sparse: true }),
       db.collection("wallet_ledger").createIndex({ settlement_key: 1 }, { unique: true }),
+      db.collection("direct_upi_amount_reservations").createIndex({ amount_paise: 1 }, { unique: true }),
+      db.collection("direct_upi_amount_reservations").createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
     ]);
+
+    assert.deepEqual(buildUniquePayableCandidates(5_000, 1_000, 100_000, 0).slice(0, 3), [5_001, 5_002, 5_003]);
+    assert.equal(buildUniquePayableCandidates(100_000, 1_000, 100_000, 0)[0], 99_999, "maximum quote must safely fall below the cap");
+    assert.equal(buildUniquePayableCandidates(5_050, 1_000, 100_000, 49).some((value) => value % 100 === 0), false, "legacy whole-rupee amounts must never become reserved fallback quotes");
+    assert.equal(normalizeDirectUpiReceiptMemo("SUPAB123"), "SUPAB123");
+    assert.equal(normalizeDirectUpiReceiptMemo("Paid via CRED"), undefined, "a provider replacement purpose is an absent SUP, not a mismatching SUP");
+    const reservedUntil = new Date(Date.now() + 24 * 60 * 60_000);
+    const quoteIds = [new ObjectId(), new ObjectId()];
+    const concurrentQuotes = await Promise.all(quoteIds.map((pendingId) => reserveUniqueDirectUpiAmount(db, {
+      pendingId,
+      requestedAmountPaise: 5_000,
+      minAmountPaise: 1_000,
+      maxAmountPaise: 100_000,
+      reservedUntil,
+    })));
+    assert.notEqual(concurrentQuotes[0].amountPaise, concurrentQuotes[1].amountPaise, "concurrent deposits must receive globally distinct payable paise");
 
     const userId = new ObjectId();
     const otherUserId = new ObjectId();
@@ -91,6 +110,49 @@ async function run() {
     });
     assert.equal(lateResult.newBalance, 120);
     assert.equal((await db.collection("transactions").findOne({ _id: latePendingId }))?.status, "paid");
+
+    const uniquePendingId = new ObjectId();
+    const uniqueQuote = await reserveUniqueDirectUpiAmount(db, {
+      pendingId: uniquePendingId,
+      requestedAmountPaise: 3_000,
+      minAmountPaise: 1_000,
+      maxAmountPaise: 100_000,
+      reservedUntil,
+    });
+    await db.collection("transactions").insertOne({
+      _id: uniquePendingId, user_id: userId, method: "FAMPAY_UPI", amount: uniqueQuote.amount,
+      quoted_amount_paise: uniqueQuote.amountPaise, unique_amount_reservation: true,
+      memo: "SUPUNIQ1", status: "expired", created_at: new Date(Date.now() - 30 * 60_000),
+      expires_at: new Date(Date.now() - 5 * 60_000),
+    });
+    await assert.rejects(() => settleDirectUpiPayment({
+      ...exact,
+      pendingId: uniquePendingId,
+      expectedAmount: uniqueQuote.amount,
+      receivedAmount: uniqueQuote.amount,
+      expectedMemo: "SUPUNIQ1",
+      receiptMemo: "Paid via CRED",
+      receiptDate: new Date(Date.now() - 60 * 60_000),
+      utr: "123456789018",
+      transactionId: "FMPIBLEGACY1",
+      allowExpiredWithinHours: 24,
+      allowMissingMemoWithUniqueAmount: true,
+    }), /reservation is missing or expired/, "a receipt predating its reservation must never be rebound by amount");
+    const uniqueResult = await settleDirectUpiPayment({
+      ...exact,
+      pendingId: uniquePendingId,
+      expectedAmount: uniqueQuote.amount,
+      receivedAmount: uniqueQuote.amount,
+      expectedMemo: "SUPUNIQ1",
+      receiptMemo: "Paid via CRED",
+      receiptDate: new Date(),
+      utr: "123456789019",
+      transactionId: "FMPIBUNIQUE1",
+      allowExpiredWithinHours: 24,
+      allowMissingMemoWithUniqueAmount: true,
+    });
+    assert.equal(uniqueResult.newBalance, 120 + uniqueQuote.amount);
+    assert.equal((await db.collection("transactions").findOne({ _id: uniquePendingId }))?.status, "paid");
 
     await assert.rejects(() => settleDirectUpiPayment({
       ...exact, pendingId, userId: otherUserId,

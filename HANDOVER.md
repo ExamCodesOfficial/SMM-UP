@@ -138,9 +138,10 @@ Those are explicit operational gates in the deployment runbook.
 ### Payments and wallet
 
 - Never request or store a UPI PIN, OTP, CVV or banking password.
-- Direct UPI settlement must bind to one exact user-owned pending transaction; only exact website verification may recover a recently expired request inside the bounded window.
-- Pending ID, amount in paise and receipt memo must match.
-- Website lookup checks bounded trusted receipts in Inbox and provider-declared All Mail, but never Spam or Trash.
+- Direct UPI creation atomically reserves a globally unique exact paise quote for the full late-verification window; the full quoted payment is credited and the adjustment is not a fee.
+- Direct UPI settlement must bind to one exact user-owned pending/expired transaction. The SUP memo is primary; a missing provider memo may fall back only to an unexpired global amount reservation created before the trusted receipt, never a loose amount match.
+- Website lookup checks bounded trusted receipts in Inbox and provider-declared All Mail, but never Spam or Trash, and an exact UTR may recover its original request after browser refresh/redeployment.
+- Legacy whole-rupee receipts without SUP require owner-confirmed `/settleupi <memo> <amount> <UTR> <TxID> | reason` reconciliation.
 - Exact-ID amount mismatches and no-alert/unreadable-format/missing-ID outcomes remain distinct reconciliation reasons.
 - UTR, transaction ID and memo anti-replay identities are uniquely indexed.
 - Wallet mutation, pending claim, anti-replay record and ledger entry commit together.

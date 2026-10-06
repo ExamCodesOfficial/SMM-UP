@@ -310,12 +310,12 @@ sequenceDiagram
 - **SYS-0091** — Direct UPI step: normal account and payment-hold check.
 - **SYS-0092** — Direct UPI step: shared creation limiter checked.
 - **SYS-0093** — Direct UPI step: bounded two-decimal amount validated.
-- **SYS-0094** — Direct UPI step: unique memo and exact pending transaction stored.
-- **SYS-0095** — Direct UPI step: QR/deep link contains amount and memo.
+- **SYS-0094** — Direct UPI step: unique memo, globally unique payable-paise reservation and exact pending transaction stored.
+- **SYS-0095** — Direct UPI step: QR/deep link and UI show the exact payable quote and memo; the full quote is wallet funding, not a fee.
 - **SYS-0096** — Direct UPI step: browser polls exact transaction ID.
-- **SYS-0097** — Direct UPI step: the Vercel manual path independently searches the trusted mailbox by exact UTR/TxID with MIME-aware bounded Inbox then provider-declared All Mail fallback; Railway worker availability is not required.
-- **SYS-0098** — Direct UPI step: receipt amount matches exact paise.
-- **SYS-0099** — Direct UPI step: receipt reference matches pending reference; exact manual verification may recover a recently expired request only inside the bounded window.
+- **SYS-0097** — Direct UPI step: Vercel independently searches bounded trusted Inbox/All-Mail receipts by exact UTR/TxID; SUP binds normally and provider-removed SUP falls back only to the still-valid globally unique amount reservation.
+- **SYS-0098** — Direct UPI step: receipt amount matches exact integer paise and resolves the original account-owned reservation after browser-state loss.
+- **SYS-0099** — Direct UPI step: receipt SUP or unique reservation matches the pending reference; exact manual verification may recover a recently expired request only inside the bounded window.
 - **SYS-0100** — Direct UPI step: UTR/TxID/memo anti-replay inserts.
 - **SYS-0101** — Direct UPI step: wallet/pending/ledger/security commit together.
 - **SYS-0102** — Direct UPI step: concurrent retry cannot double credit.
@@ -434,7 +434,7 @@ sequenceDiagram
 - **SYS-0188** — API-key pause preserves the secret; archive and reissue revoke versions.
 - **SYS-0189** — Owner-required reissue cannot resume until secure website rotation completes.
 - **SYS-0190** — Wallet charges/refunds/credits use settlement keys and replica-set transactions.
-- **SYS-0191** — Direct UPI requires exact user, pending ID, amount-in-paise and receipt memo; only exact website verification may recover recently expired state inside the bounded window.
+- **SYS-0191** — Direct UPI requires exact user, pending ID, UTR/TxID, time and either SUP or an unexpired globally unique payable-paise reservation; legacy ambiguity requires owner-confirmed reconciliation.
 - **SYS-0192** — UTR, transaction ID and memo have independent sparse uniqueness constraints.
 - **SYS-0193** — Razorpay checkout orders are server-created in paise and signatures are server verified.
 - **SYS-0194** — Razorpay webhooks require raw-body HMAC and provider event deduplication.
@@ -533,7 +533,7 @@ sequenceDiagram
 - **SYS-0278** — npm run test:recovery: temporary credential and session concurrency.
 - **SYS-0279** — npm run test:support-access: actor/subject, read-only and one-time exchange.
 - **SYS-0280** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
-- **SYS-0281** — npm run test:direct-upi and test:imap-receipts: exact/held/expired/late/concurrent settlement plus plain, quoted-printable, base64 and fail-closed parsing.
+- **SYS-0281** — npm run test:direct-upi/test:imap-receipts plus admin tests cover concurrent unique quotes, missing-SUP settlement, late recovery, MIME diagnostics and owner reconciliation replay denial.
 - **SYS-0282** — npm run test:email-delivery: hash-only token and provider payload.
 - **SYS-0283** — npm run test:email-auth: immediate registration/session with zero signup delivery, legacy pending-account login, reset/email-change and replay protection.
 - **SYS-0284** — npm run test:core-indexes: critical index availability/options.
@@ -1013,7 +1013,7 @@ sequenceDiagram
 
 ### Component/module: AddFundsPage
 
-- **WEB-0324** — `AddFundsPage` implements the Direct UPI state machine and displays safe receipt-lookup reference codes for support without exposing mailbox data.
+- **WEB-0324** — `AddFundsPage` displays the exact unique payable amount, explains that its full value is credited, preserves the SUP reference, and shows safe receipt-lookup support codes without exposing mailbox data.
 - **WEB-0325** — `AddFundsPage` implements Razorpay checkout state machine.
 - **WEB-0326** — `AddFundsPage` implements polling and timers.
 - **WEB-0327** — `AddFundsPage` implements manual verification.
@@ -1366,7 +1366,7 @@ sequenceDiagram
 ### Endpoint: POST /api/payments/create-order
 
 - **WEB-0511** — `POST /api/payments/create-order` access boundary: Normal session.
-- **WEB-0512** — `POST /api/payments/create-order` behavior: Payment-hold and shared-rate checks; validates bounded two-decimal amount; creates exact expiring Direct UPI pending record and dynamic memo/QR.
+- **WEB-0512** — `POST /api/payments/create-order` behavior: Payment-hold and shared-rate checks; validates the requested bound, atomically reserves a globally unique payable-paise amount for the late-verification window, and creates the exact expiring Direct UPI pending record, memo and QR; the full quote is credited with no fee.
 - **WEB-0513** — `POST /api/payments/create-order` is covered by the central no-store/noindex API response policy.
 - **WEB-0514** — `POST /api/payments/create-order` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1380,7 +1380,7 @@ sequenceDiagram
 ### Endpoint: POST /api/payments/verify-identifier
 
 - **WEB-0519** — `POST /api/payments/verify-identifier` access boundary: Normal session.
-- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Independently of Railway, the Vercel API requires an account-owned payment ID and exact amount/reference; it searches bounded exact-sender receipts in Inbox then provider-declared All Mail, parses plain/quoted-printable/base64 MIME and alternate reference labels, distinguishes outage/no-alert/unreadable/missing-ID/amount-mismatch outcomes, optionally recovers a recently expired request inside the bounded window, and transactionally claims identifiers and credits once.
+- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Independently of Railway, Vercel searches bounded exact-sender Inbox/All-Mail receipts by exact UTR/TxID across supported MIME/reference forms. SUP binds normally; if FamApp removed it, only an unexpired globally unique payable-paise reservation owned by the account may bind. The original request can be recovered after browser-state loss; distinct diagnostics remain reconciliation-only and exact settlement credits once.
 - **WEB-0521** — `POST /api/payments/verify-identifier` is covered by the central no-store/noindex API response policy.
 - **WEB-0522** — `POST /api/payments/verify-identifier` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1657,7 +1657,7 @@ sequenceDiagram
 - **WEB-0668** — API-key pause preserves the secret; archive and reissue revoke versions.
 - **WEB-0669** — Owner-required reissue cannot resume until secure website rotation completes.
 - **WEB-0670** — Wallet charges/refunds/credits use settlement keys and replica-set transactions.
-- **WEB-0671** — Direct UPI requires exact user, pending ID, amount-in-paise and receipt reference; only exact website manual verification may recover recently expired state inside the bounded window.
+- **WEB-0671** — Direct UPI requires exact user, pending ID, UTR/TxID, receipt time and either SUP or an unexpired globally unique payable-paise reservation; only exact website verification may recover recently expired/original state inside the bounded window.
 - **WEB-0672** — UTR, transaction ID and memo have independent sparse uniqueness constraints.
 - **WEB-0673** — Razorpay checkout orders are server-created in paise and signatures are server verified.
 - **WEB-0674** — Razorpay webhooks require raw-body HMAC and provider event deduplication.
@@ -1713,7 +1713,7 @@ sequenceDiagram
 - **WEB-0718** — npm run test:recovery: temporary credential and session concurrency.
 - **WEB-0719** — npm run test:support-access: actor/subject, read-only and one-time exchange.
 - **WEB-0720** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
-- **WEB-0721** — npm run test:direct-upi and test:imap-receipts: exact/held/expired/late/concurrent settlement plus MIME, current-wording, alternate-reference and safe failure classification.
+- **WEB-0721** — npm run test:direct-upi/test:imap-receipts plus admin tests cover concurrent unique-paise allocation, missing-SUP fallback, exact/late settlement, MIME diagnostics and owner reconciliation replay denial.
 - **WEB-0722** — npm run test:email-delivery: hash-only token and provider payload.
 - **WEB-0723** — npm run test:email-auth/session-bootstrap/session-redeploy: immediate registration, zero signup delivery, recovery/action replay, transient bootstrap retry and opaque cross-instance session persistence.
 - **WEB-0724** — npm run test:core-indexes: critical index availability/options.
@@ -1908,6 +1908,7 @@ sequenceDiagram
 - **BOT-0145** — Tests cover credit/debit rollback, replay safety, refund idempotency, holds and API-key controls.
 - **BOT-0146** — Tests cover concurrent IMAP settlement and payment-hold rollback.
 - **BOT-0147** — Production dependency audit must report zero known vulnerabilities before release.
+- **BOT-0148** — `/settleupi <memo> <amount> <UTR> <TxID> | reason` requires owner-only five-minute inline confirmation, revalidates exact pending/expired state, claims memo/UTR/TxID and atomically credits once; replay or payment hold rolls back.
 
 </details>
 
@@ -1928,8 +1929,9 @@ sequenceDiagram
 | `api_key_activity` | API-v2/key activity domain | Account/support reports | 90-day detailed TTL; excludes secret/header/cookie/password. |
 | `api_key_audit` | Vercel key domain; Railway bot controls | Account/support/owner investigations | Key/user/time attribution with bounded reasons, no secret. |
 | `orders` | Website/API-v2 order APIs; cron status sync; Railway refund | Account/order APIs; API reports; owner bot | Local source of truth with provider/key attribution; refund and charge remain idempotent. |
-| `transactions` | Vercel Direct UPI/Razorpay/wallet APIs; Railway bot/worker | Account payment APIs; owner bot | Exact owned deposit/payment binding; unique memo/provider/settlement identifiers. |
-| `processed_transactions` | Vercel Direct UPI settlement; Railway IMAP worker | Payment verification/reconciliation | Sparse unique UTR, transaction ID and memo prevent replay. |
+| `transactions` | Vercel Direct UPI/Razorpay/wallet APIs; Railway bot/worker | Account payment APIs; owner bot | Exact owned deposit/payment binding; requested/quoted amount; unique memo/provider/settlement identifiers. |
+| `direct_upi_amount_reservations` | Vercel Direct UPI creation/verification | Payment verification only | Globally unique payable paise with TTL through late recovery; missing-SUP fallback resolves by pending ID and owner. |
+| `processed_transactions` | Vercel Direct UPI settlement; Railway IMAP worker; owner `/settleupi` | Payment verification/reconciliation | Sparse unique UTR, transaction ID and memo prevent replay. |
 | `wallet_ledger` | Order/key/payment/wallet domain; Railway bot/worker | Account reports; API-key reports; owner bot | Unique settlement key is the idempotency anchor; financial evidence is retained. |
 | `payment_events` | Razorpay webhook/wallet domain | Payment reconciliation/support | Unique provider/event ID; duplicate webhook cannot remutate wallet. |
 | `payment_reconciliation` | Vercel Direct UPI API; Railway worker | Payment owner/bot | One open memo/status/reason issue; ambiguity never auto-credits. |

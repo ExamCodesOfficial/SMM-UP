@@ -61,6 +61,10 @@ export function registerAdminActionCallbacks(bot: Telegraf<any>) {
         ORDER_NOT_FOUND: "The order no longer exists.",
         ALREADY_REFUNDED: "The order was already refunded.",
         INVALID_REFUND_AMOUNT: "The order has no refundable amount.",
+        PENDING_DEPOSIT_STALE: "The Direct UPI request is no longer eligible or was already settled.",
+        RECEIPT_AMOUNT_MISMATCH: "The receipt amount no longer matches the stored Direct UPI request.",
+        PAYMENT_HOLD_ACTIVE: "This account has an active payment hold; no credit was committed.",
+        INVALID_REASON: "The reconciliation reason is missing or invalid.",
         API_KEY_NOT_FOUND: "The API key no longer exists.",
         API_REISSUE_PENDING: "The user must securely rotate this key on the website before it can resume.",
       };

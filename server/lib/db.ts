@@ -241,14 +241,24 @@ export async function ensureDirectUpiIndexes(suppliedDb?: Db): Promise<void> {
   if (!directUpiIndexesPromise) {
     directUpiIndexesPromise = (async () => {
       const db = suppliedDb || (await clientConnection()).db(dbName);
-      await db.collection("transactions").createIndex(
-        { memo: 1 },
-        {
-          name: "transactions_memo_unique_v2",
-          unique: true,
-          partialFilterExpression: { memo: { $type: "string" } },
-        },
-      );
+      await Promise.all([
+        db.collection("transactions").createIndex(
+          { memo: 1 },
+          {
+            name: "transactions_memo_unique_v2",
+            unique: true,
+            partialFilterExpression: { memo: { $type: "string" } },
+          },
+        ),
+        db.collection("direct_upi_amount_reservations").createIndex(
+          { amount_paise: 1 },
+          { name: "direct_upi_reserved_amount_unique", unique: true },
+        ),
+        db.collection("direct_upi_amount_reservations").createIndex(
+          { expires_at: 1 },
+          { name: "direct_upi_reserved_amount_expiry", expireAfterSeconds: 0 },
+        ),
+      ]);
     })().catch((error) => {
       directUpiIndexesPromise = null;
       throw error;

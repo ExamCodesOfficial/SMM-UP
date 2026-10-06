@@ -40,6 +40,8 @@ async function run() {
       ["users", "users_legacy_api_key_unique_v2", true],
       ["users", "users_legacy_api_key_hash_unique_v2", true],
       ["transactions", "transactions_memo_unique_v2", true],
+      ["direct_upi_amount_reservations", "direct_upi_reserved_amount_unique", true],
+      ["direct_upi_amount_reservations", "direct_upi_reserved_amount_expiry", false],
       ["processed_transactions", "utr_1", true],
       ["processed_transactions", "transaction_id_1", true],
       ["processed_transactions", "memo_1", true],
@@ -57,6 +59,8 @@ async function run() {
     }
     const tokenIndexes: any[] = await db.collection("email_verification_tokens").indexes();
     assert.equal(tokenIndexes.find((item) => item.name === "expires_at_1")?.expireAfterSeconds, 0);
+    const quoteIndexes: any[] = await db.collection("direct_upi_amount_reservations").indexes();
+    assert.equal(quoteIndexes.find((item) => item.name === "direct_upi_reserved_amount_expiry")?.expireAfterSeconds, 0);
     console.log("Critical MongoDB index validation checks passed.");
   } finally {
     if (dbLib) await (await dbLib.getMongoClient()).close().catch(() => {});

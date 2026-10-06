@@ -81,6 +81,7 @@ flowchart LR
 | `/credit <email> <amount> \| reason` | queues transactional wallet credit |
 | `/debit <email> <amount> \| reason` | queues non-negative transactional debit |
 | `/pending` | lists recent pending Direct UPI deposits |
+| `/settleupi <memo> <amount> <UTR> <TxID> \| reason` | queues exact owner-confirmed legacy receipt reconciliation |
 | `/orders [limit]` | lists recent provider orders |
 | `/failed` | lists failures requiring review |
 | `/refund <orderId> \| reason` | queues idempotent transactional refund |
@@ -336,6 +337,7 @@ flowchart TB
 - **BOT-0145** — Tests cover credit/debit rollback, replay safety, refund idempotency, holds and API-key controls.
 - **BOT-0146** — Tests cover concurrent IMAP settlement and payment-hold rollback.
 - **BOT-0147** — Production dependency audit must report zero known vulnerabilities before release.
+- **BOT-0148** — `/settleupi <memo> <amount> <UTR> <TxID> | reason` requires owner-only five-minute inline confirmation, revalidates exact pending/expired state, claims memo/UTR/TxID and atomically credits once; replay or payment hold rolls back.
 
 ## Telegram data boundaries
 

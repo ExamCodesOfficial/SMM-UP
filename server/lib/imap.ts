@@ -147,6 +147,10 @@ export function parseFamAppEmailBody(bodyText: string): ParsedFamPayPayment | nu
   ]);
 
   let transactionId = firstMatch(normalized, [
+    // Gmail-rendered table cells may collapse into `FMPIB...Date` when copied.
+    // Current FamApp transaction IDs use a numeric suffix, so stop before the
+    // next known field label instead of swallowing it into the identifier.
+    /\b(FMPIB[0-9]{8,18})(?=Date\b|UTR\b|Purpose\b|Updated\b|[^A-Za-z0-9]|$)/i,
     /(?:transaction|txn)\s*(?:id|reference|ref(?:erence)?\s*(?:id|no\.?|number)?)\s*[:#-]?\s*([A-Za-z0-9][A-Za-z0-9_-]{7,39})\b/i,
     /\b(FMPIB[0-9A-Za-z]+)\b/i,
   ]);

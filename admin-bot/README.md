@@ -80,6 +80,7 @@ Use `/start` or `/help` for the inline entry menu. The menu currently routes to 
 | `/failed` | Last 10 failed/review-required orders |
 | `/pending` | Last 10 pending deposits |
 | `/checkmemo <memo>` | Exact memo lookup |
+| `/settleupi <memo> <amount> <UTR> <TxID> \| reason` | Owner-confirmed exact receipt reconciliation when a provider removed the SUP note |
 | `/reviews [limit]` | Buyer-submitted reviews; default 8, maximum 12, with inline hide/show |
 
 ### Account and wallet mutations
@@ -90,6 +91,7 @@ All commands below require the literal `|` separator and an exact reason.
 /credit user@example.com 250 | correction reason
 /debit user@example.com 250 | correction reason
 /refund <orderObjectId> | reviewed refund reason
+/settleupi SUPABCDE 50.00 987654321012 FMPIB1234567890 | trusted incoming receipt verified; provider removed SUP note
 /lock user@example.com | security reason
 /unlock user@example.com | reviewed release reason
 /orderhold user@example.com | hold reason
@@ -99,7 +101,7 @@ All commands below require the literal `|` separator and an exact reason.
 /note user@example.com | owner-only note
 ```
 
-`/credit`, `/debit`, `/refund`, account lock/hold commands and key controls create Confirm/Cancel messages. The bot re-reads current database state during confirmation. Cancelled, expired, wrong-owner and replayed callbacks cannot perform the mutation.
+`/credit`, `/debit`, `/refund`, `/settleupi`, account lock/hold commands and key controls create Confirm/Cancel messages. The bot re-reads current database state during confirmation. `/settleupi` requires exact memo, amount, 12-digit UTR and FamApp transaction ID, atomically claims the pending/expired request, records all anti-replay identities and credits once. Cancelled, expired, wrong-owner and replayed callbacks cannot perform the mutation.
 
 `/note` is immediately recorded with an audit record; it does not use the five-minute financial confirmation path.
 

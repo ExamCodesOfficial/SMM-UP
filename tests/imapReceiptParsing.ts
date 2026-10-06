@@ -80,6 +80,14 @@ assert.equal(paymentReceiptMatchesIdentifier(currentParsed, "999999999999"), tru
 assert.equal(paymentReceiptMatchesIdentifier(currentParsed, "FMPIB6043122105"), true);
 assert.equal(paymentReceiptMatchesIdentifier(currentParsed, "999999999998"), false);
 
+const collapsedCurrentReceipt = "You have successfully received ₹50.0 from CUSTOMER Transaction ID :FMPIB1234567890Date :08:29 PM IST, 06 October 2026Updated Balance :₹345.67UTR :987654321012";
+const collapsedParsed = parseFamAppEmailBody(collapsedCurrentReceipt);
+assert.ok(collapsedParsed);
+assert.equal(collapsedParsed.amount, 50);
+assert.equal(collapsedParsed.transactionId, "FMPIB1234567890");
+assert.equal(collapsedParsed.utr, "987654321012");
+assert.equal(collapsedParsed.purpose, undefined);
+
 const alternateUtrLabels = [
   "You received INR 22.00. UPI Ref ID: 623456789012.",
   "Money credited: Rs. 22.00. UTR ID # 623456789013.",

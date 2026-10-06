@@ -103,6 +103,7 @@ export default function AddFundsPage({
     upiUrl: string;
     memo: string;
     transactionId: string;
+    requestedAmount: number;
     amount: number;
     upiVpa: string;
   } | null>(null);
@@ -330,6 +331,7 @@ export default function AddFundsPage({
           upiUrl: data.upiUrl,
           memo: data.memo,
           transactionId: data.transactionId,
+          requestedAmount: Number(data.requestedAmount ?? num),
           amount: Number(data.amount),
           upiVpa: data.upiVpa,
         });
@@ -816,9 +818,13 @@ export default function AddFundsPage({
                   />
                 </div>
 
+                <div className="text-[10px] tracking-[0.22em] uppercase text-zinc-500 mb-1">Pay this exact unique amount</div>
                 <div className="text-xl font-bold text-white mb-1">
                   {formatINR(qrData.amount)}
                 </div>
+                <p className="max-w-md text-[11px] leading-relaxed text-zinc-400 mb-3">
+                  You requested {formatINR(qrData.requestedAmount)}. The small paise adjustment is not a fee—the full {formatINR(qrData.amount)} is credited to your wallet and safely identifies this receipt if the UPI app removes the note.
+                </p>
 
                 <div className="text-xs text-zinc-400 flex items-center gap-2 mb-3">
                   <span>UPI ID: <strong className="text-zinc-200">{qrData.upiVpa}</strong></span>
@@ -929,7 +935,7 @@ export default function AddFundsPage({
                   className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500 tracking-wider text-center font-semibold uppercase"
                 />
                 <p className="text-[11px] text-zinc-400 mt-2 text-center leading-relaxed">
-                  The website checks the trusted bank receipt directly using the exact identifier, amount, time and payment reference. Telegram bot availability is not required.
+                  The website checks the trusted receipt using the exact identifier, time and either its SUP reference or server-reserved unique paise amount. Telegram bot availability is not required.
                 </p>
               </div>
 

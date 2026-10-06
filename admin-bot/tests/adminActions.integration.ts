@@ -70,6 +70,33 @@ async function run() {
     await assert.rejects(() => execute("order_refund", { order_id: orderId.toString(), reason: "Duplicate refund" }));
     assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 175.5);
 
+    const reconciliationPendingId = new ObjectId();
+    await db.collection("transactions").insertOne({
+      _id: reconciliationPendingId, user_id: userId, user_email: "admin-target@example.com",
+      method: "FAMPAY_UPI", amount: 50, memo: "SUPRECN1", status: "expired",
+      expires_at: new Date(Date.now() - 60_000), created_at: new Date(Date.now() - 10 * 60_000),
+    });
+    await assert.rejects(() => execute("direct_upi_reconcile", {
+      pending_id: reconciliationPendingId.toString(), user_id: userId.toString(), amount_paise: 5000,
+      memo: "SUPRECN1", utr: "223456789012", transaction_id: "FMPIBRECON1", reason: "x",
+    }), /INVALID_REASON/);
+    assert.equal((await db.collection("transactions").findOne({ _id: reconciliationPendingId }))?.status, "expired");
+    assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 175.5);
+    const reconciled = await execute("direct_upi_reconcile", {
+      pending_id: reconciliationPendingId.toString(), user_id: userId.toString(), amount_paise: 5000,
+      memo: "SUPRECN1", utr: "223456789012", transaction_id: "FMPIBRECON1",
+      reason: "Trusted FamApp receipt checked; provider removed the SUP note",
+    });
+    assert.match(reconciled.text, /Reconciled Direct UPI/);
+    assert.equal((await db.collection("transactions").findOne({ _id: reconciliationPendingId }))?.status, "paid");
+    assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 225.5);
+    assert.equal(await db.collection("processed_transactions").countDocuments({ utr: "223456789012" }), 1);
+    await assert.rejects(() => execute("direct_upi_reconcile", {
+      pending_id: reconciliationPendingId.toString(), user_id: userId.toString(), amount_paise: 5000,
+      memo: "SUPRECN1", utr: "223456789012", transaction_id: "FMPIBRECON1", reason: "Replay",
+    }));
+    assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 225.5, "owner reconciliation replay must not double-credit");
+
     const pendingId = new ObjectId();
     await db.collection("transactions").insertOne({
       _id: pendingId, user_id: userId, user_email: "admin-target@example.com",
@@ -85,7 +112,7 @@ async function run() {
       actions.settleImapPendingPayment(db, client, workerInput),
     ]);
     assert.equal(workerRace.filter((item) => item.status === "fulfilled").length, 1, "worker settlement must commit once");
-    assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 215.5);
+    assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 265.5);
     assert.equal(await db.collection("wallet_ledger").countDocuments({ transaction_id: pendingId }), 1);
     assert.equal(await db.collection("processed_transactions").countDocuments({ pending_transaction_id: pendingId }), 1);
 
@@ -101,7 +128,22 @@ async function run() {
       amount: 20, utr: "123456789013", transactionId: "FMPIBWORKER2",
     }), /PAYMENT_HOLD_ACTIVE/);
     assert.equal((await db.collection("transactions").findOne({ _id: heldPendingId }))?.status, "pending");
-    assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 215.5);
+    assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 265.5);
+
+    const heldReconciliationId = new ObjectId();
+    await db.collection("transactions").insertOne({
+      _id: heldReconciliationId, user_id: userId, user_email: "admin-target@example.com",
+      method: "FAMPAY_UPI", amount: 30, memo: "SUPHLD02", status: "expired",
+      expires_at: new Date(Date.now() - 60_000), created_at: new Date(Date.now() - 10 * 60_000),
+    });
+    await assert.rejects(() => execute("direct_upi_reconcile", {
+      pending_id: heldReconciliationId.toString(), user_id: userId.toString(), amount_paise: 3000,
+      memo: "SUPHLD02", utr: "323456789012", transaction_id: "FMPIBRECON2",
+      reason: "Trusted receipt checked while account payment hold remains active",
+    }), /PAYMENT_HOLD_ACTIVE/);
+    assert.equal((await db.collection("transactions").findOne({ _id: heldReconciliationId }))?.status, "expired");
+    assert.equal(await db.collection("processed_transactions").countDocuments({ utr: "323456789012" }), 0);
+    assert.equal((await db.collection("users").findOne({ _id: userId }))?.balance, 265.5);
 
     assert.ok(await db.collection("admin_audit").countDocuments() >= 6);
     console.log("Telegram administrative action integration checks passed.");

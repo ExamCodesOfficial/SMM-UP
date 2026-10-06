@@ -120,7 +120,7 @@ Prefer synthetic accounts, deposits and orders. If production-shaped records are
 | `FAMPAY_SENDER_FILTER` | One exact trusted receipt sender address |
 | `DIRECT_UPI_IMAP_SCAN_LIMIT` | Bounded 10–100 recent-receipt fallback scan; defaults to 40 |
 
-A submitted UTR is checked by the Vercel API itself. Railway worker or Telegram long-polling availability must not affect this manual path. Lookup scans Inbox first and the provider-declared Gmail All Mail folder only as a bounded archive fallback; it never scans Spam or Trash. Validate plain, quoted-printable and base64 receipt fixtures; alternate UTR labels; exact sender, identifier, amount, time and memo matching; distinct no-alert/unreadable-format/missing-ID/amount-mismatch responses; temporary mailbox failure signaling; duplicate rejection; and recently expired-request recovery before release.
+A submitted UTR is checked by the Vercel API itself. Railway worker or Telegram long-polling availability must not affect this manual path. Each new request reserves one globally unique non-whole-rupee exact amount in `direct_upi_amount_reservations` for the entire bounded late-verification window; MongoDB uniqueness arbitrates concurrent creators and TTL removes expired reservations. Lookup scans Inbox first and provider-declared Gmail All Mail only as a bounded archive fallback; it never scans Spam or Trash. SUP remains primary, while a provider-removed memo may fall back only to the still-valid unique reservation that predates the trusted receipt and is owned by the signed-in account. Validate MIME/alternate-reference parsing, distinct diagnostics, duplicate rejection, refresh/redeployment recovery, owner `/settleupi` confirmation and recently expired-request recovery before release.
 
 ### Razorpay
 
@@ -332,10 +332,12 @@ Create exact pending deposits and test:
 - wrong/expired transaction ID;
 - wrong user;
 - wrong method/state;
+- globally unique payable-paise reservation under concurrent creation, expiry cleanup and configured min/max boundaries;
+- full quoted amount credited with no fee/skimming;
 - wrong amount;
-- missing/wrong memo;
-- duplicate UTR/transaction/memo;
-- plain-text, quoted-printable and base64 trusted-sender receipts, including current `Purpose: Paid via …` wording that must not be mistaken for an SUP reference;
+- missing/wrong memo, including automatic success only for a still-valid account-owned unique reservation;
+- duplicate UTR/transaction/memo/settlement and reserved amount;
+- plain-text, quoted-printable and base64 trusted-sender receipts, including current `Purpose: Paid via …` replacement wording, which is treated as no usable SUP rather than as a mismatching SUP;
 - alternate UTR/RRN/UPI-reference labels;
 - Gmail BODY-search miss followed by bounded Inbox and provider-declared All Mail fallback, including an archived receipt;
 - manual website verification while the Railway bot/worker is stopped;
@@ -344,9 +346,10 @@ Create exact pending deposits and test:
 - concurrent website/worker settlement;
 - account payment hold;
 - transaction rollback on induced failure;
+- owner `/settleupi` exact memo/amount/UTR/TxID confirmation, replay denial and payment-hold rollback;
 - reconciliation when evidence is incomplete.
 
-No screenshot or amount-only match may credit a wallet.
+No screenshot or unreserved amount-only match may credit a wallet.
 
 ### Razorpay
 

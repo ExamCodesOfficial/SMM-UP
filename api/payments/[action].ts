@@ -4,7 +4,11 @@ import { ObjectId } from "mongodb";
 import { ensureDirectUpiIndexes, getDb, getMongoClient } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
-import { settleDirectUpiPayment } from "../../server/lib/directUpiSettlement.js";
+import { normalizeDirectUpiReceiptMemo, settleDirectUpiPayment } from "../../server/lib/directUpiSettlement.js";
+import {
+  releaseDirectUpiAmountReservation,
+  reserveUniqueDirectUpiAmount,
+} from "../../server/lib/directUpiQuote.js";
 import { searchFamPayPaymentDetailed } from "../../server/lib/imap.js";
 import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../../server/lib/telegram.js";
 
@@ -85,7 +89,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
     const createRate = await checkRateLimit(`payment_create_${authUser.userId}`, 8, 300, db);
     if (!createRate.allowed) return res.status(429).json({ error: `Too many payment requests. Try again in ${createRate.remainingSec}s.` });
     const { amount } = req.body || {};
-    const numAmount = parseFloat(amount);
+    const numAmount = Number(amount);
 
     const maxDirectUpiAmount = maxDirectUpiAmountInr();
     if (!Number.isFinite(numAmount) || numAmount < MIN_DIRECT_UPI_AMOUNT_INR || numAmount > maxDirectUpiAmount || Math.abs(numAmount - Math.round(numAmount * 100) / 100) > 0.000001) {
@@ -98,16 +102,34 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
 
     try {
       const pendingTtlMinutes = Math.max(5, Math.min(Number.parseInt(String(process.env.DIRECT_UPI_PENDING_TTL_MINUTES || "30"), 10) || 30, 180));
+      const requestedAmountPaise = Math.round(numAmount * 100);
+      const minAmountPaise = Math.round(MIN_DIRECT_UPI_AMOUNT_INR * 100);
+      const maxAmountPaise = Math.round(maxDirectUpiAmount * 100);
       let memo = "";
       let transactionId = "";
+      let payableAmount = 0;
+
       for (let attempt = 0; attempt < 6; attempt += 1) {
         memo = generateDynamicMemo();
         const createdAt = new Date();
+        const pendingId = new ObjectId();
+        const reservation = await reserveUniqueDirectUpiAmount(db, {
+          pendingId,
+          requestedAmountPaise,
+          minAmountPaise,
+          maxAmountPaise,
+          reservedUntil: new Date(createdAt.getTime() + lateVerificationHours() * 60 * 60_000),
+        });
         try {
-          const inserted = await db.collection("transactions").insertOne({
+          await db.collection("transactions").insertOne({
+            _id: pendingId,
             user_id: userObjectId,
             user_email: authUser.email,
-            amount: numAmount,
+            requested_amount: numAmount,
+            amount: reservation.amount,
+            quoted_amount_paise: reservation.amountPaise,
+            unique_amount_reservation: true,
+            direct_upi_amount_reservation_expires_at: reservation.expiresAt,
             method: "FAMPAY_UPI",
             upi_id: upiVpa,
             memo,
@@ -116,19 +138,21 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
             created_at: createdAt,
             expires_at: new Date(createdAt.getTime() + pendingTtlMinutes * 60_000),
           });
-          transactionId = inserted.insertedId.toString();
+          transactionId = pendingId.toString();
+          payableAmount = reservation.amount;
           break;
         } catch (error: any) {
+          await releaseDirectUpiAmountReservation(db, pendingId).catch(() => {});
           if (error?.code === 11000) continue;
           throw error;
         }
       }
-      if (!transactionId) throw new Error("Unable to allocate a unique payment reference.");
+      if (!transactionId || !payableAmount) throw new Error("Unable to allocate a unique payment reference and amount.");
 
       const upiQuery = new URLSearchParams({
         pa: upiVpa,
         pn: merchantName,
-        am: numAmount.toFixed(2),
+        am: payableAmount.toFixed(2),
         tn: memo,
         tr: memo,
         cu: "INR",
@@ -138,10 +162,12 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({
         success: true,
         transactionId,
-        amount: numAmount,
+        requestedAmount: numAmount,
+        amount: payableAmount,
         memo,
         upiVpa,
         upiUrl,
+        message: `Pay exactly ₹${payableAmount.toFixed(2)}. The unique paise safely identifies this deposit if the UPI app removes the payment note.`,
       });
     } catch (err: any) {
       console.error("Create deposit order error:", err);
@@ -276,7 +302,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
     const rawInput = String(identifier || utr || "").trim();
     // Sanitize strictly to alphanumeric characters
     const cleanInput = rawInput.replace(/[^A-Za-z0-9]/g, "");
-    const requestedAmount = parseFloat(amount);
+    const requestedAmount = Number(amount);
 
     if (!cleanInput || cleanInput.length < 6 || cleanInput.length > 40) {
       return res.status(400).json({
@@ -327,11 +353,13 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: "The payment memo does not match this pending deposit." });
       }
 
+      // Search the full bounded recovery window rather than only the newly
+      // displayed QR. This allows an exact UTR to restore its original pending
+      // request after a browser refresh/redeployment.
       const receiptLookup = await searchFamPayPaymentDetailed({
         identifier: cleanInput,
         memo: storedMemo,
-        expectedAmount: requestedAmount,
-        minDate: new Date(pendingDeposit.created_at),
+        minDate: verificationCutoff,
       });
       const parsedPayment = receiptLookup.payment;
       if (!parsedPayment) {
@@ -378,36 +406,77 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
               };
         return res.status(failure.status).json({ error: failure.error, errorCode: failure.errorCode });
       }
-      if (Math.round(parsedPayment.amount * 100) !== Math.round(requestedAmount * 100)) {
-        return res.status(400).json({
-          error: `Amount mismatch: Receipt indicates ₹${parsedPayment.amount.toFixed(2)}, but ₹${requestedAmount.toFixed(2)} was selected. Contact support with proof.`,
-        });
-      }
-      if (!parsedPayment.purpose) {
-        await db.collection("payment_reconciliation").updateOne(
-          { memo: storedMemo, status: "open", reason: "receipt_memo_missing" },
-          {
-            $set: { pending_transaction_id: pendingId, user_id: userObjectId, identifier: cleanInput, last_seen_at: new Date() },
-            $inc: { attempts: 1 },
-            $setOnInsert: { created_at: new Date(), status: "open" },
-          },
-          { upsert: true },
-        );
+
+      const parsedAmountPaise = Math.round(parsedPayment.amount * 100);
+      const receiptDate = parsedPayment.date instanceof Date ? parsedPayment.date : null;
+      if (!receiptDate || !Number.isFinite(receiptDate.getTime()) || receiptDate < verificationCutoff) {
         return res.status(409).json({
-          errorCode: "RECEIPT_REFERENCE_MISSING",
-          error: "The trusted bank receipt was found, but it did not contain the exact payment reference. The payment has been flagged for reconciliation; do not pay again and contact support with this receipt.",
+          errorCode: "RECEIPT_OUTSIDE_VERIFICATION_WINDOW",
+          error: "The trusted receipt is outside the bounded verification window. Do not pay again; contact support for reconciliation.",
         });
       }
-      const receiptMemo = String(parsedPayment.purpose).trim().toUpperCase();
-      if (receiptMemo !== storedMemo) {
+
+      const observedReceiptReference = String(parsedPayment.purpose || "").trim().toUpperCase();
+      const receiptMemo = normalizeDirectUpiReceiptMemo(observedReceiptReference);
+      let settlementDeposit: any = null;
+      let allowMissingMemoWithUniqueAmount = false;
+
+      if (receiptMemo) {
+        // A transmitted SUP reference is authoritative and can restore the
+        // original request even if the browser currently holds a newer QR.
+        settlementDeposit = await db.collection("transactions").findOne({
+          user_id: userObjectId,
+          method: "FAMPAY_UPI",
+          memo: receiptMemo,
+          status: { $in: ["pending", "expired"] },
+          created_at: { $gt: verificationCutoff },
+        });
+        if (settlementDeposit && Math.round(Number(settlementDeposit.amount) * 100) !== parsedAmountPaise) {
+          return res.status(400).json({
+            errorCode: "RECEIPT_AMOUNT_MISMATCH",
+            error: `Amount mismatch: Receipt indicates ₹${parsedPayment.amount.toFixed(2)}, but the referenced request requires ₹${Number(settlementDeposit.amount).toFixed(2)}. Do not pay again; contact support.`,
+          });
+        }
+      } else {
+        // FamApp/CRED can remove tn/tr from its receipt. Missing SUP may settle
+        // only when the server reserved this exact paise amount globally for one
+        // pending transaction throughout the late-verification window.
+        const reservation: any = await db.collection("direct_upi_amount_reservations").findOne({
+          amount_paise: parsedAmountPaise,
+          expires_at: { $gt: new Date() },
+        });
+        if (reservation?.pending_transaction_id) {
+          settlementDeposit = await db.collection("transactions").findOne({
+            _id: reservation.pending_transaction_id,
+            user_id: userObjectId,
+            method: "FAMPAY_UPI",
+            status: { $in: ["pending", "expired"] },
+            unique_amount_reservation: true,
+            quoted_amount_paise: parsedAmountPaise,
+            created_at: { $gt: verificationCutoff },
+          });
+          allowMissingMemoWithUniqueAmount = Boolean(settlementDeposit);
+        }
+      }
+
+      const settlementCreatedAt = settlementDeposit ? new Date(settlementDeposit.created_at) : null;
+      if (
+        !settlementDeposit
+        || !settlementCreatedAt
+        || !Number.isFinite(settlementCreatedAt.getTime())
+        || receiptDate.getTime() < settlementCreatedAt.getTime() - 5 * 60_000
+      ) {
+        const reason = receiptMemo ? "receipt_memo_mismatch" : "receipt_memo_missing_without_unique_amount";
         await db.collection("payment_reconciliation").updateOne(
-          { memo: storedMemo, status: "open", reason: "receipt_memo_mismatch" },
+          { memo: storedMemo, status: "open", reason },
           {
             $set: {
               pending_transaction_id: pendingId,
               user_id: userObjectId,
               identifier: cleanInput,
-              observed_memo: receiptMemo,
+              ...(observedReceiptReference ? { observed_reference: observedReceiptReference } : {}),
+              observed_amount: parsedPayment.amount,
+              receipt_date: receiptDate,
               last_seen_at: new Date(),
             },
             $inc: { attempts: 1 },
@@ -415,7 +484,12 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
           },
           { upsert: true },
         );
-        return res.status(409).json({ error: "The trusted receipt was found, but its payment reference does not match this deposit. It has been flagged for reconciliation; do not pay again and contact support." });
+        return res.status(409).json({
+          errorCode: receiptMemo ? "RECEIPT_REFERENCE_MISMATCH" : "RECEIPT_REFERENCE_MISSING",
+          error: receiptMemo
+            ? "The trusted receipt reference does not match an eligible deposit owned by this account. It has been flagged for reconciliation; do not pay again."
+            : "The trusted receipt has no SUP reference and its amount was not a server-reserved unique-paise quote. It cannot be guessed into a wallet credit. The payment is flagged for owner reconciliation; do not pay again.",
+        });
       }
 
       const finalUtr = String(parsedPayment.utr || rawInput).replace(/[^A-Za-z0-9]/g, "");
@@ -426,11 +500,13 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         client,
         userId: userObjectId,
         userEmail: authUser.email,
-        pendingId,
-        expectedAmount: requestedAmount,
-        expectedMemo: storedMemo,
+        pendingId: settlementDeposit._id,
+        expectedAmount: Number(settlementDeposit.amount),
+        expectedMemo: String(settlementDeposit.memo || "").trim().toUpperCase(),
         receivedAmount: parsedPayment.amount,
         receiptMemo: parsedPayment.purpose,
+        receiptDate,
+        allowMissingMemoWithUniqueAmount,
         utr: finalUtr,
         transactionId: finalTxId,
         sender: parsedPayment.sender,
@@ -444,7 +520,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         method: "Manual UTR/TxID Submission",
         utr: finalUtr,
         transactionId: finalTxId,
-        memo: parsedPayment.purpose || storedMemo,
+        memo: receiptMemo || String(settlementDeposit.memo || storedMemo),
         newBalance,
       }).catch((e) => console.error("Telegram log error:", e));
 
@@ -459,6 +535,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
     } catch (err: any) {
       if (err?.code === "PAYMENT_MAILBOX_UNAVAILABLE") {
         return res.status(503).json({
+          errorCode: "PAYMENT_MAILBOX_UNAVAILABLE",
           error: "Bank verification is temporarily unavailable. Your payment is not lost—do not pay again. Retry the same UTR shortly or contact support.",
         });
       }
@@ -472,7 +549,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         return res.status(403).json({ error: "Deposits are temporarily disabled for this account." });
       }
       if (err?.code === "RECEIPT_MISMATCH") {
-        return res.status(400).json({ error: "The receipt does not match this pending deposit." });
+        return res.status(400).json({ errorCode: "RECEIPT_MISMATCH", error: "The receipt does not match this pending deposit." });
       }
       console.error("Manual verify error:", err);
       return res.status(500).json({ error: "Internal error checking bank records. Please try again in a few moments." });

@@ -24,6 +24,7 @@ export function registerGeneralCommands(bot: Telegraf<any>) {
   🚨 <code>/failed</code> — View failed orders requiring manual review
   ↩️ <code>/refund &lt;orderId&gt; | reason</code> — Confirm an atomic order refund
   ⏳ <code>/pending</code> — View recent pending QR/memo deposit requests
+  🧾 <code>/settleupi &lt;memo&gt; &lt;amount&gt; &lt;UTR&gt; &lt;TxID&gt; | reason</code> — Confirm a trusted-receipt reconciliation
   📦 <code>/orders [limit]</code> — View latest provider orders
   📑 <code>/checkmemo &lt;memo&gt;</code> — Check status of a payment memo
   📡 <code>/scan</code> — Trigger an immediate IMAP Gmail settlement scan

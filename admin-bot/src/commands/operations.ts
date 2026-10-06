@@ -53,6 +53,61 @@ export function registerOperationCommands(bot: Telegraf<any>) {
     }
   });
 
+  // /settleupi <memo> <amount> <utr> <transactionId> | <mandatory reason>
+  // Owner-only middleware is applied at bot startup. This is the safe recovery
+  // path for legacy whole-rupee receipts where FamApp removed the SUP note.
+  bot.command("settleupi", async (ctx) => {
+    try {
+      const parsed = parseReasonedCommand(ctx.message.text, "settleupi");
+      if (!parsed || parsed.left.length !== 4) {
+        return ctx.reply(
+          "⚠️ Usage: <code>/settleupi SUPABCDE 50.00 987654321012 FMPIB1234567890 | exact reconciliation reason</code>",
+          { parse_mode: "HTML" },
+        );
+      }
+      const [memoRaw, amountRaw, utrRaw, transactionIdRaw] = parsed.left;
+      const memo = memoRaw.trim().toUpperCase();
+      const utr = utrRaw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      const transactionId = transactionIdRaw.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      if (!/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(amountRaw)) throw new Error("Enter the exact positive receipt amount with at most two decimal places.");
+      const amountPaise = Math.round(Number(amountRaw) * 100);
+      if (!/^SUP[A-Z0-9]{5}$/.test(memo)) throw new Error("Enter the exact SUP reference from the pending request.");
+      if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0) throw new Error("Enter the exact positive receipt amount.");
+      if (!/^\d{12}$/.test(utr)) throw new Error("Enter the exact 12-digit UTR.");
+      if (!/^[A-Z0-9]{8,40}$/.test(transactionId)) throw new Error("Enter the exact FamApp transaction ID.");
+
+      const database = await getDatabase();
+      const pending: any = await database.collection("transactions").findOne({
+        memo,
+        method: "FAMPAY_UPI",
+        status: { $in: ["pending", "expired"] },
+      });
+      if (!pending) throw new Error("No eligible pending/expired Direct UPI request has this SUP reference.");
+      if (Math.round(Number(pending.amount) * 100) !== amountPaise) throw new Error("Receipt amount does not match the stored pending request.");
+
+      await queueAdminAction(ctx, "direct_upi_reconcile", {
+        pending_id: pending._id.toString(),
+        user_id: pending.user_id.toString(),
+        amount_paise: amountPaise,
+        memo,
+        utr,
+        transaction_id: transactionId,
+        reason: parsed.reason,
+      }, [
+        "🧾 <b>Confirm Direct UPI reconciliation</b>",
+        `User: <code>${escapeHtml(pending.user_email || "unknown")}</code>`,
+        `Amount: <b>₹${(amountPaise / 100).toFixed(2)}</b>`,
+        `Memo: <code>${escapeHtml(memo)}</code>`,
+        `UTR: <code>${escapeHtml(utr)}</code>`,
+        `TxID: <code>${escapeHtml(transactionId)}</code>`,
+        `Reason: ${escapeHtml(parsed.reason)}`,
+        "<i>Use only after visually confirming the trusted incoming FamApp receipt.</i>",
+      ].join("\n"));
+    } catch (error: any) {
+      await ctx.reply(`❌ ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+    }
+  });
+
   // /pending
   bot.command("pending", async (ctx) => {
     try {

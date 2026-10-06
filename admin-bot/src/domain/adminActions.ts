@@ -19,6 +19,117 @@ async function appendAdminAudit(database: Db, session: any, action: any, outcome
 export async function executeConfirmedAdminAction(database: Db, action: any, session: any): Promise<string> {
   const now = new Date();
   const payload = action.payload || {};
+
+  if (action.type === "direct_upi_reconcile") {
+    const pendingId = new ObjectId(String(payload.pending_id));
+    const userId = new ObjectId(String(payload.user_id));
+    const amountPaise = Number(payload.amount_paise);
+    const amount = amountPaise / 100;
+    const memo = String(payload.memo || "").trim().toUpperCase();
+    const utr = String(payload.utr || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    const transactionId = String(payload.transaction_id || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    const reason = String(payload.reason || "").trim();
+    if (reason.length < 5 || reason.length > 500) throw new Error("INVALID_REASON");
+    if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0) throw new Error("INVALID_AMOUNT");
+    if (!/^SUP[A-Z0-9]{5}$/.test(memo)) throw new Error("INVALID_MEMO");
+    if (!/^\d{12}$/.test(utr) || !/^[A-Z0-9]{8,40}$/.test(transactionId)) throw new Error("INVALID_RECEIPT_IDENTIFIERS");
+
+    const pending: any = await database.collection("transactions").findOne({
+      _id: pendingId,
+      user_id: userId,
+      method: "FAMPAY_UPI",
+      memo,
+      status: { $in: ["pending", "expired"] },
+    }, { session });
+    if (!pending) throw new Error("PENDING_DEPOSIT_STALE");
+    if (Math.round(Number(pending.amount) * 100) !== amountPaise) throw new Error("RECEIPT_AMOUNT_MISMATCH");
+
+    const user: any = await database.collection("users").findOne({ _id: userId }, { session });
+    if (!user) throw new Error("USER_NOT_FOUND");
+    if (user.payment_hold === true) throw new Error("PAYMENT_HOLD_ACTIVE");
+    const beforePaise = Math.round(Number(user.balance || 0) * 100);
+    const settlementKey = `direct_upi:${pendingId.toString()}`;
+
+    await database.collection("processed_transactions").insertOne({
+      utr,
+      transaction_id: transactionId,
+      memo,
+      amount,
+      pending_transaction_id: pendingId,
+      user_id: userId,
+      user_email: pending.user_email || user.email,
+      method: "OWNER_RECEIPT_RECONCILIATION",
+      reason: reason,
+      actor_telegram_id: action.actor_telegram_id,
+      processed_at: now,
+    }, { session });
+
+    const claimed = await database.collection("transactions").updateOne(
+      { _id: pendingId, status: pending.status },
+      { $set: {
+        status: "paid",
+        direct_upi_settlement_key: settlementKey,
+        utr,
+        transaction_id: transactionId,
+        verified_amount: amount,
+        settled_by: "owner_receipt_reconciliation",
+        reconciliation_reason: reason,
+        reconciled_by: action.actor_telegram_id,
+        paid_at: now,
+      } },
+      { session },
+    );
+    if (claimed.modifiedCount !== 1) throw new Error("PENDING_DEPOSIT_STALE");
+
+    const updated: any = await database.collection("users").findOneAndUpdate(
+      { _id: userId, payment_hold: { $ne: true } },
+      { $inc: { balance: amount }, $set: { updated_at: now } },
+      { returnDocument: "after", session },
+    );
+    if (!updated) throw new Error("PAYMENT_HOLD_ACTIVE");
+
+    await database.collection("wallet_ledger").insertOne({
+      settlement_key: settlementKey,
+      user_id: userId,
+      type: "credit",
+      amount,
+      amount_paise: amountPaise,
+      currency: "INR",
+      source: "direct_upi_owner_reconciliation",
+      transaction_id: pendingId,
+      reason: reason,
+      actor_telegram_id: action.actor_telegram_id,
+      before_balance_paise: beforePaise,
+      after_balance_paise: Math.round(Number(updated.balance || 0) * 100),
+      created_at: now,
+    }, { session });
+    await database.collection("security_events").insertOne({
+      user_id: userId,
+      type: "direct_upi_owner_reconciled",
+      pending_transaction_id: pendingId,
+      utr,
+      transaction_id: transactionId,
+      reason: reason,
+      actor_telegram_id: action.actor_telegram_id,
+      created_at: now,
+    }, { session });
+    await database.collection("payment_reconciliation").updateMany(
+      { $or: [{ pending_transaction_id: pendingId }, { memo }], status: "open" },
+      { $set: { status: "resolved", resolved_at: now, resolved_by: action.actor_telegram_id, resolution_reason: reason } },
+      { session },
+    );
+    await appendAdminAudit(database, session, action, "completed", {
+      pending_transaction_id: pendingId,
+      amount_paise: amountPaise,
+      utr,
+      transaction_id: transactionId,
+      reason: reason,
+      before_balance_paise: beforePaise,
+      after_balance_paise: Math.round(Number(updated.balance || 0) * 100),
+    });
+    return `✅ Reconciled Direct UPI <code>${escapeHtml(memo)}</code> and credited <b>₹${amount.toFixed(2)}</b> to <code>${escapeHtml(user.email)}</code>. New balance: <b>₹${Number(updated.balance || 0).toFixed(2)}</b>.`;
+  }
+
   if (["wallet_credit", "wallet_debit"].includes(action.type)) {
     const userId = new ObjectId(String(payload.user_id));
     const amountPaise = Number(payload.amount_paise);
