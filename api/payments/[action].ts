@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import crypto from "crypto";
 import { ObjectId } from "mongodb";
-import { getDb, getMongoClient } from "../../server/lib/db.js";
+import { ensureDirectUpiIndexes, getDb, getMongoClient } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
 import { settleDirectUpiPayment } from "../../server/lib/directUpiSettlement.js";
@@ -32,6 +32,9 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
   if (denySupportMutation(authUser, res, action === "history" && req.method === "GET")) return;
   const userObjectId = new ObjectId(authUser.userId);
   if (["create-order", "verify-identifier", "verify-utr"].includes(String(action))) {
+    // Do not let legacy memo migration block read-only history or authentication,
+    // but fail closed before creating or settling a Direct-UPI payment.
+    await ensureDirectUpiIndexes(db);
     const hold = await db.collection("users").findOne(
       { _id: userObjectId },
       { projection: { payment_hold: 1 } },

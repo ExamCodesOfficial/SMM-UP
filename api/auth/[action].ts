@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { ObjectId } from "mongodb";
-import { ensureApiKeyIndexes, getDb, getMongoClient } from "../../server/lib/db.js";
+import { ensureApiKeyIndexes, ensureIdentityIndexes, getDb, getMongoClient } from "../../server/lib/db.js";
 import {
   API_KEY_SCOPES,
   ApiKeyError,
@@ -62,6 +62,9 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
   // ── 1. REGISTER (API keys are created separately and charged) ──
   if (action === "register") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    // Registration uses an atomically unique canonical username field while
+    // legacy accounts keep their existing username/index unchanged.
+    await ensureIdentityIndexes(db);
     const existingAuth = await getUserFromRequest(req, db);
     if (denySupportMutation(existingAuth, res, false)) return;
     const registrationRate = await checkRateLimit(`register_${clientIp(req)}`, 5, 3600, db);
@@ -75,6 +78,7 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanUsername = sanitizeBrandText(username.trim()).slice(0, 40);
+    const normalizedUsername = cleanUsername.normalize("NFKC").toLocaleLowerCase("en-IN");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 320) {
       return res.status(400).json({ error: "Enter a valid email address." });
     }
@@ -99,6 +103,7 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
       const now = new Date();
       const newUser: any = {
         username: cleanUsername,
+        username_normalized: normalizedUsername,
         email: cleanEmail,
         password_hash: passwordHash,
         balance: 0.0,

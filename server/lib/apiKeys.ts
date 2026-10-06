@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import type { ClientSession, Db } from "mongodb";
 import { ObjectId } from "mongodb";
-import { getMongoClient } from "./db.js";
+import { ensureLegacyCredentialIndexes, getMongoClient } from "./db.js";
 
 export const API_KEY_SCOPES = [
   "services:read",
@@ -190,6 +190,9 @@ export async function migrateLegacyApiKey(db: Db, userOrId: any): Promise<any | 
   const existing = await db.collection("api_keys").findOne({ user_id: userId, legacy_migrated: true });
   if (!initialUser.api_key && !initialUser.api_key_hash) return existing;
 
+  // A duplicate legacy credential must stop that credential's migration/auth,
+  // but must not take down login for every account that has no legacy key.
+  await ensureLegacyCredentialIndexes(db);
   const client = await getMongoClient();
   const session = client.startSession();
   let migrated: any | null = existing;
