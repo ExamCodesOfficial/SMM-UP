@@ -1,6 +1,6 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { ObjectId } from "mongodb";
-import { ensureApiKeyIndexes, getDb } from "../../server/lib/db.js";
+import { ensureApiKeyIndexes, getDb, getMongoClient } from "../../server/lib/db.js";
 import {
   API_KEY_SCOPES,
   ApiKeyError,
@@ -17,13 +17,23 @@ import {
 import {
   hashPassword,
   verifyPassword,
-  signUserToken,
-  setAuthCookie,
+  createUserSession,
+  exchangeSupportAccessCode,
   clearAuthCookie,
+  clearSupportCookie,
+  denySupportMutation,
   getUserFromRequest,
+  revokeSessionFromRequest,
+  validateNewPassword,
 } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
+import {
+  completePasswordChange,
+  getRecoveryContext,
+  tryTemporaryPasswordLogin,
+} from "../../server/lib/recovery.js";
 import { sanitizeBrandText } from "../../server/lib/smm.js";
+import { editTelegramMessage } from "../../server/lib/telegram.js";
 
 function apiKeyError(res: VercelResponse, error: any) {
   if (error instanceof ApiKeyError) {
@@ -51,12 +61,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 1. REGISTER (API keys are created separately and charged) ──
   if (action === "register") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const existingAuth = await getUserFromRequest(req, db);
+    if (denySupportMutation(existingAuth, res, false)) return;
     const { username, email, password } = req.body || {};
-    if (!username || !email || !password) return res.status(400).json({ error: "All fields are required" });
+    if (typeof username !== "string" || typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ error: "All fields are required" });
+    }
 
-    const cleanEmail = String(email).trim().toLowerCase();
-    const cleanUsername = sanitizeBrandText(String(username).trim()).slice(0, 40);
-    if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = sanitizeBrandText(username.trim()).slice(0, 40);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 320) {
+      return res.status(400).json({ error: "Enter a valid email address." });
+    }
+    if (cleanUsername.length < 3 || /[\u0000-\u001F\u007F]/.test(cleanUsername)) {
+      return res.status(400).json({ error: "Username must be at least 3 valid characters." });
+    }
+    const passwordError = validateNewPassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
 
     try {
       const [existingEmail, existingUsername] = await Promise.all([
@@ -85,13 +106,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
 
       const insertResult = await users.insertOne(newUser);
-      const token = signUserToken({
+      await createUserSession(db, req, res, {
+        ...newUser,
         _id: insertResult.insertedId,
-        email: cleanEmail,
-        username: cleanUsername,
-        role: newUser.role,
       });
-      setAuthCookie(res, token);
       return res.status(201).json({
         success: true,
         user: {
@@ -120,13 +138,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 2. LOGIN ─────────────────────────────────────────────────
   if (action === "login") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const existingAuth = await getUserFromRequest(req, db);
+    if (denySupportMutation(existingAuth, res, false)) return;
     const ip = clientIp(req);
     const { allowed, remainingSec } = checkRateLimit(`login_${ip}`, 10, 300);
     if (!allowed) return res.status(429).json({ error: `Too many login attempts. Try again in ${remainingSec}s.` });
 
     const { email, identifier, username, password } = req.body || {};
     const rawIdentity = String(identifier || email || username || "").trim();
-    if (!rawIdentity || !password) return res.status(400).json({ error: "Username/email and password are required" });
+    const rawPassword = typeof password === "string" ? password : "";
+    if (!rawIdentity || !rawPassword) return res.status(400).json({ error: "Username/email and password are required" });
+    if (rawIdentity.length > 320 || rawPassword.length > 1024) {
+      return res.status(400).json({ error: "Invalid username/email or password." });
+    }
 
     try {
       const identityQuery = rawIdentity.includes("@")
@@ -135,8 +159,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const user: any = await users.findOne(identityQuery, {
         collation: { locale: "en", strength: 2 },
       });
-      if (!user?.password_hash || !(await verifyPassword(password, user.password_hash))) {
+      if (!user?.password_hash) {
         return res.status(401).json({ error: "Invalid email or password" });
+      }
+      if (user.account_locked === true) {
+        return res.status(403).json({ error: "This account is locked. Contact support." });
+      }
+      const permanentPasswordValid = await verifyPassword(rawPassword, user.password_hash);
+      if (!permanentPasswordValid) {
+        // A temporary credential never receives a normal account session.
+        clearAuthCookie(res);
+        const recovery = await tryTemporaryPasswordLogin(db, req, res, user, rawPassword);
+        if (!recovery.accepted) {
+          return res.status(401).json({ error: "Invalid email or password" });
+        }
+        return res.status(200).json({
+          success: true,
+          requiresPasswordChange: true,
+          recoveryExpiresAt: recovery.expiresAt,
+          temporaryUsesRemaining: recovery.usesRemaining,
+          user: {
+            userId: user._id.toString(),
+            username: user.username,
+            email: user.email,
+          },
+        });
       }
 
       await ensureApiKeyIndexes();
@@ -146,13 +193,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         status: { $ne: "archived" },
       });
 
-      const token = signUserToken({
-        _id: user._id,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-      });
-      setAuthCookie(res, token);
+      await createUserSession(db, req, res, user);
       return res.status(200).json({
         success: true,
         user: {
@@ -175,23 +216,161 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 3. LOGOUT ────────────────────────────────────────────────
   if (action === "logout") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    await revokeSessionFromRequest(req, db, "logout");
     clearAuthCookie(res);
+    clearSupportCookie(res);
     return res.status(200).json({ success: true, message: "Logged out" });
   }
 
-  // ── 4. ME ────────────────────────────────────────────────────
+  // ── 4. OWNER SUPPORT ACCESS EXCHANGE / EXIT ─────────────────
+  if (action === "exchange-support-access") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    const actorAuth = await getUserFromRequest(req, db);
+    if (!actorAuth || actorAuth.purpose !== "normal" || actorAuth.role !== "admin") {
+      return res.status(403).json({ error: "A normal owner session is required." });
+    }
+    const actor: any = await users.findOne({ _id: new ObjectId(actorAuth.userId), role: "admin" });
+    if (!actor) return res.status(403).json({ error: "Owner account not found." });
+    const exchangeRate = checkRateLimit(`support_exchange_${actorAuth.userId}_${clientIp(req)}`, 10, 300);
+    if (!exchangeRate.allowed) {
+      return res.status(429).json({ error: `Too many Support Access attempts. Try again in ${exchangeRate.remainingSec}s.` });
+    }
+    try {
+      const exchanged = await exchangeSupportAccessCode(db, req, res, actor, req.body?.code);
+      const supportCode: any = exchanged.supportCode;
+      if (supportCode.telegram_chat_id && supportCode.telegram_message_id) {
+        const edited = await editTelegramMessage(
+          supportCode.telegram_chat_id,
+          supportCode.telegram_message_id,
+          [
+            "✅ <b>Support Access Code Used</b>",
+            "",
+            `User: <code>@${String(exchanged.subjectUser.username || "user").replace(/[<>&]/g, "")}</code>`,
+            `Email: <code>${String(exchanged.subjectUser.email || "").replace(/[<>&]/g, "")}</code>`,
+            "Code: <i>consumed and hidden</i>",
+            `Session expires: <code>${exchanged.expiresAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</code>`,
+            "Permissions: <b>Read-only</b>",
+            `Reason: ${String(supportCode.reason || "Owner support").replace(/[<>&]/g, "")}`,
+          ].join("\n"),
+          "HTML",
+        );
+        await db.collection("support_access_codes").updateOne(
+          { _id: supportCode._id },
+          {
+            $set: {
+              telegram_status_synced: edited,
+              telegram_status_updated_at: new Date(),
+              ...(edited ? {} : { telegram_status_retry_required: true }),
+            },
+            ...(edited ? { $unset: { telegram_status_retry_required: "" } } : {}),
+          },
+        );
+      }
+      return res.status(200).json({
+        success: true,
+        subject: {
+          userId: exchanged.subjectUser._id.toString(),
+          username: exchanged.subjectUser.username,
+          email: exchanged.subjectUser.email,
+        },
+        readOnly: true,
+        expiresAt: exchanged.expiresAt,
+      });
+    } catch (error: any) {
+      console.warn("Support Access exchange rejected:", error?.message || error);
+      return res.status(400).json({ error: "Support Access code is invalid, expired or already used." });
+    }
+  }
+
+  if (action === "exit-support-access") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const supportAuth = await getUserFromRequest(req, db);
+    if (!supportAuth || supportAuth.purpose !== "admin_impersonation" || !supportAuth.sessionId) {
+      clearSupportCookie(res);
+      return res.status(200).json({ success: true, message: "No active support session." });
+    }
+    const now = new Date();
+    const sessionId = new ObjectId(supportAuth.sessionId);
+    const mongoSession = (await getMongoClient()).startSession();
+    try {
+      await mongoSession.withTransaction(async () => {
+        const supportSession: any = await db.collection("sessions").findOne(
+          { _id: sessionId, purpose: "admin_impersonation" },
+          { session: mongoSession },
+        );
+        if (!supportSession) return;
+        await db.collection("sessions").updateOne(
+          { _id: sessionId, revoked_at: null },
+          { $set: { revoked_at: now, revoked_reason: "support_exit" } },
+          { session: mongoSession },
+        );
+        await db.collection("support_access_audit").insertOne({
+          session_id: sessionId,
+          actor_admin_id: new ObjectId(String(supportAuth.actorAdminId)),
+          subject_user_id: new ObjectId(supportAuth.userId),
+          event: "exited",
+          created_at: now,
+        }, { session: mongoSession });
+        if (supportSession.support_access_code_id) {
+          await db.collection("support_access_codes").updateOne(
+            { _id: supportSession.support_access_code_id },
+            {
+              $set: {
+                support_session_status: "exited",
+                support_session_ended_at: now,
+                telegram_status_retry_required: true,
+              },
+            },
+            { session: mongoSession },
+          );
+        }
+      });
+    } finally {
+      await mongoSession.endSession();
+    }
+    clearSupportCookie(res);
+    return res.status(200).json({ success: true, message: "Support session ended." });
+  }
+
+  if (action === "support-page-view") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const supportAuth = await getUserFromRequest(req, db);
+    if (!supportAuth || supportAuth.purpose !== "admin_impersonation" || !supportAuth.sessionId) {
+      return res.status(403).json({ error: "No active Support Access session." });
+    }
+    const route = String(req.body?.path || "/").split("?")[0].slice(0, 300);
+    if (!route.startsWith("/") || route.startsWith("//")) {
+      return res.status(400).json({ error: "Invalid page path." });
+    }
+    await db.collection("support_access_audit").insertOne({
+      session_id: new ObjectId(supportAuth.sessionId),
+      actor_admin_id: new ObjectId(String(supportAuth.actorAdminId)),
+      subject_user_id: new ObjectId(supportAuth.userId),
+      event: "page_view",
+      path: route,
+      created_at: new Date(),
+    });
+    return res.status(204).end();
+  }
+
+  // ── 5. ME ────────────────────────────────────────────────────
   if (action === "me") {
-    const authUser = getUserFromRequest(req);
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    const authUser = await getUserFromRequest(req, db);
     if (!authUser) return res.status(401).json({ authenticated: false });
     try {
       const user: any = await users.findOne({ _id: new ObjectId(authUser.userId) });
       if (!user) return res.status(401).json({ authenticated: false });
       await ensureApiKeyIndexes();
-      await migrateLegacyApiKey(db, user);
-      const apiKeyCount = await db.collection("api_keys").countDocuments({
+      if (authUser.purpose !== "admin_impersonation") await migrateLegacyApiKey(db, user);
+      const dedicatedApiKeyCount = await db.collection("api_keys").countDocuments({
         user_id: user._id,
         status: { $ne: "archived" },
       });
+      const apiKeyCount = dedicatedApiKeyCount || (user.api_key || user.api_key_hash ? 1 : 0);
       return res.status(200).json({
         authenticated: true,
         user: {
@@ -206,6 +385,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           apiKeyCount,
           apiKey: null,
           apiKeyMasked: null,
+          supportSession: authUser.purpose === "admin_impersonation" ? {
+            active: true,
+            readOnly: true,
+            actorAdminId: authUser.actorAdminId,
+            subjectUserId: authUser.userId,
+            expiresAt: authUser.sessionExpiresAt,
+          } : null,
         },
       });
     } catch (error) {
@@ -214,17 +400,115 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  // ── 5. RESTRICTED TEMPORARY-PASSWORD COMPLETION ─────────────
+  if (action === "recovery-status") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    const context = await getRecoveryContext(db, req);
+    if (!context) return res.status(401).json({ active: false, error: "Recovery session is invalid or expired." });
+    return res.status(200).json({
+      active: true,
+      username: context.user.username,
+      email: context.user.email,
+      expiresAt: context.session.expires_at,
+      purpose: "password_change",
+    });
+  }
+
+  if (action === "complete-password-change") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    const existingAuth = await getUserFromRequest(req, db);
+    if (denySupportMutation(existingAuth, res, false)) return;
+    try {
+      const user: any = await completePasswordChange(db, req, res, req.body?.password);
+      return res.status(200).json({
+        success: true,
+        message: "Permanent password created. The temporary password is now invalid.",
+        user: {
+          userId: user._id.toString(),
+          username: user.username,
+          email: user.email,
+          balance: user.balance || 0,
+          total_spent: user.total_spent || 0,
+          total_orders: user.total_orders || 0,
+          role: user.role || "user",
+        },
+      });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || "Password change failed." });
+    }
+  }
+
   // ── Authenticated multi-key management ──────────────────────
-  const authUser = getUserFromRequest(req);
-  if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
-  const userId = new ObjectId(authUser.userId);
   res.setHeader("Cache-Control", "no-store, max-age=0");
+  const authUser = await getUserFromRequest(req, db);
+  if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
+  if (denySupportMutation(authUser, res, req.method === "GET")) return;
+  const userId = new ObjectId(authUser.userId);
   const rate = checkRateLimit(`keymgmt_${authUser.userId}_${clientIp(req)}`, 60, 600);
   if (!rate.allowed) return res.status(429).json({ error: `Too many requests. Try again in ${rate.remainingSec}s.` });
 
   try {
     await ensureApiKeyIndexes();
-    await migrateLegacyApiKey(db, userId);
+    if (authUser.purpose !== "admin_impersonation") await migrateLegacyApiKey(db, userId);
+
+    if (action === "list-sessions") {
+      if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+      const sessions = await db.collection("sessions")
+        .find({ user_id: userId, revoked_at: null, expires_at: { $gt: new Date() } })
+        .sort({ last_activity_at: -1 })
+        .limit(50)
+        .toArray();
+      return res.status(200).json({
+        sessions: sessions.map((session: any) => ({
+          id: session._id.toString(),
+          current: authUser.sessionId === session._id.toString(),
+          purpose: session.purpose || "normal",
+          createdAt: session.created_at,
+          lastActivityAt: session.last_activity_at,
+          expiresAt: session.expires_at,
+          device: {
+            userAgent: session.device?.user_agent || "Unknown device",
+            platform: session.device?.platform || null,
+            mobile: Boolean(session.device?.mobile_hint),
+          },
+        })),
+        legacyCurrentSession: Boolean(authUser.legacyJwt),
+      });
+    }
+
+    if (action === "revoke-session") {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+      const sessionId = String(req.body?.sessionId || "");
+      if (!ObjectId.isValid(sessionId)) return res.status(400).json({ error: "Invalid session ID." });
+      const result = await db.collection("sessions").updateOne(
+        { _id: new ObjectId(sessionId), user_id: userId, revoked_at: null },
+        { $set: { revoked_at: new Date(), revoked_reason: "user_revoked" } },
+      );
+      if (result.matchedCount !== 1) return res.status(404).json({ error: "Active session not found." });
+      const revokedCurrent = authUser.sessionId === sessionId;
+      if (revokedCurrent) clearAuthCookie(res);
+      return res.status(200).json({ success: true, revokedCurrent });
+    }
+
+    if (action === "revoke-other-sessions") {
+      if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+      const now = new Date();
+      const query: any = { user_id: userId, revoked_at: null };
+      if (authUser.sessionId && ObjectId.isValid(authUser.sessionId)) {
+        query._id = { $ne: new ObjectId(authUser.sessionId) };
+      }
+      const result = await db.collection("sessions").updateMany(
+        query,
+        { $set: { revoked_at: now, revoked_reason: "user_revoked_other_sessions" } },
+      );
+      await users.updateOne(
+        { _id: userId },
+        { $set: { legacy_sessions_revoked_before: now, updated_at: now } },
+      );
+      return res.status(200).json({ success: true, revokedCount: result.modifiedCount });
+    }
 
     if (action === "list-api-keys") {
       if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });

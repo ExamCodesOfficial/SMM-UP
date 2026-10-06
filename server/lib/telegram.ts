@@ -54,6 +54,39 @@ export async function sendTelegramMessage(text: string, parseMode: "HTML" | "Mar
   }
 }
 
+export async function editTelegramMessage(
+  chatId: string | number,
+  messageId: string | number,
+  text: string,
+  parseMode: "HTML" | "Markdown" = "HTML",
+): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || !chatId || !messageId) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+      method: "POST",
+      signal: AbortSignal.timeout(4000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        text,
+        parse_mode: parseMode,
+        disable_web_page_preview: true,
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      console.error("[Telegram Edit Error]:", data.description);
+      return false;
+    }
+    return true;
+  } catch (err: any) {
+    console.error("[Telegram Edit Network Error]:", err?.message || err);
+    return false;
+  }
+}
+
 /**
  * Sends a luxury audit log to Admin Group on payment confirmation
  */

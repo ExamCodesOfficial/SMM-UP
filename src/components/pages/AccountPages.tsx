@@ -127,6 +127,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
     maxAmount: "",
   });
   const [reports, setReports] = React.useState<Record<string, any>>({});
+  const [sessions, setSessions] = React.useState<{ items: any[]; legacyCurrent: boolean } | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
@@ -167,6 +168,20 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
           ));
         })
         .catch(() => {});
+
+      fetch("/api/auth/list-sessions", { cache: "no-store" })
+        .then(async (sessionResponse) => ({
+          ok: sessionResponse.ok,
+          data: await sessionResponse.json().catch(() => ({})),
+        }))
+        .then(({ ok, data: sessionData }) => {
+          if (!ok) return;
+          setSessions({
+            items: Array.isArray(sessionData.sessions) ? sessionData.sessions : [],
+            legacyCurrent: Boolean(sessionData.legacyCurrentSession),
+          });
+        })
+        .catch(() => {});
     } catch (loadError: any) {
       setKeys([]);
       setError(loadError?.message || "Failed to load API keys.");
@@ -186,6 +201,16 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "Request failed.");
     return data;
+  };
+
+  const reloadSessions = async () => {
+    const response = await fetch("/api/auth/list-sessions", { cache: "no-store" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Failed to load sessions.");
+    setSessions({
+      items: Array.isArray(data.sessions) ? data.sessions : [],
+      legacyCurrent: Boolean(data.legacyCurrentSession),
+    });
   };
 
   const resetMessages = () => {
@@ -364,6 +389,38 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
     await loadActivity(key.id);
   };
 
+  const revokeSession = async (session: any) => {
+    resetMessages();
+    setBusy(`session:${session.id}`);
+    try {
+      const data = await request("revoke-session", { sessionId: session.id });
+      if (data.revokedCurrent) {
+        onLogout();
+        return;
+      }
+      setSuccess("Session revoked.");
+      await reloadSessions();
+    } catch (sessionError: any) {
+      setError(sessionError?.message || "Session revocation failed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const revokeOtherSessions = async () => {
+    resetMessages();
+    setBusy("sessions:others");
+    try {
+      const data = await request("revoke-other-sessions");
+      setSuccess(`${data.revokedCount || 0} other session${data.revokedCount === 1 ? "" : "s"} revoked.`);
+      await reloadSessions();
+    } catch (sessionError: any) {
+      setError(sessionError?.message || "Session revocation failed.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const copySecret = async () => {
     if (!revealed) return;
     await navigator.clipboard.writeText(revealed.secret);
@@ -372,6 +429,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
   };
 
   const activeKeyCount = keys?.filter((key) => key.status !== "archived").length || 0;
+  const readOnlySupport = Boolean(user?.supportSession?.active);
   const fullAccess = scopes.length > 0 && scopes.every((scope) => form.scopes.includes(scope));
 
   return (
@@ -401,6 +459,13 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
           </div>
         </section>
 
+        {readOnlySupport && (
+          <section className="p-4 border border-white/20 bg-white text-black text-xs flex items-start gap-2">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span><strong>Read-only Support Session.</strong> Account, orders, deposits, key metadata and security state are visible; spending, deposits, password changes and API-key mutations are blocked server-side.</span>
+          </section>
+        )}
+
         <section className="grid sm:grid-cols-3 gap-3">
           <div className="p-4 border border-white/[0.08] bg-black/35"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Wallet balance</span><span className="text-xl font-semibold text-white">{formatINR(user?.balance || 0)}</span></div>
           <div className="p-4 border border-white/[0.08] bg-black/35"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1">Total spent</span><span className="text-xl font-semibold text-white">{formatINR(user?.total_spent || 0)}</span></div>
@@ -408,7 +473,9 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
         </section>
 
         <section className="grid sm:grid-cols-3 gap-3">
-          <a href="/add-funds" className="btn-up btn-up-solid w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds</span><span>→</span></a>
+          {readOnlySupport
+            ? <span className="btn-up btn-up-ghost w-full justify-between opacity-45 cursor-not-allowed"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds blocked</span><span>×</span></span>
+            : <a href="/add-funds" className="btn-up btn-up-solid w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Add funds</span><span>→</span></a>}
           <a href="/transactions" className="btn-up btn-up-ghost w-full justify-between"><span className="flex items-center gap-2"><IndianRupee className="w-4 h-4" /> Deposit history</span><span>→</span></a>
           <a href="/logs" className="btn-up btn-up-ghost w-full justify-between"><span className="flex items-center gap-2"><RefreshCw className="w-4 h-4" /> Order history</span><span>→</span></a>
         </section>
@@ -421,7 +488,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                   <div className="flex items-center gap-2 text-sm font-semibold text-white"><Key className="w-4 h-4" /> Named API keys</div>
                   <p className="text-xs text-zinc-500 mt-1">{activeKeyCount}/{maxKeys} non-archived identities · new identity fee {formatINR(creationFee)}</p>
                 </div>
-                <button type="button" onClick={beginCreate} disabled={activeKeyCount >= maxKeys || formMode === "create"} className="btn-up btn-up-solid btn-up-sm disabled:opacity-40">
+                <button type="button" onClick={beginCreate} disabled={readOnlySupport || activeKeyCount >= maxKeys || formMode === "create"} className="btn-up btn-up-solid btn-up-sm disabled:opacity-40">
                   <Plus className="w-3.5 h-3.5" /> Create key
                 </button>
               </div>
@@ -458,7 +525,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                     <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Monthly spend limit (INR)</span><input type="number" min="0.01" step="0.01" value={form.monthlyLimitInr} onChange={(event) => setForm({ ...form, monthlyLimitInr: event.target.value })} className="w-full bg-black/70 border border-white/10 px-3 py-2.5 text-xs text-white outline-none focus:border-white/30" placeholder="No limit" /></label>
                   </div>
                   <label className="block"><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Expiration (optional)</span><input type="datetime-local" value={form.expiresAt} onChange={(event) => setForm({ ...form, expiresAt: event.target.value })} className="w-full bg-black/70 border border-white/10 px-3 py-2.5 text-xs text-white outline-none focus:border-white/30" /><span className="text-[10px] text-zinc-600 mt-1 block">Leave empty for Never.</span></label>
-                  <button type="submit" disabled={busy !== null || form.scopes.length === 0} className="btn-up btn-up-solid w-full sm:w-auto disabled:opacity-40">{busy === (formMode === "create" ? "create" : `edit:${editingId}`) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {formMode === "create" ? `Create for ${formatINR(creationFee)}` : "Save settings"}</button>
+                  <button type="submit" disabled={readOnlySupport || busy !== null || form.scopes.length === 0} className="btn-up btn-up-solid w-full sm:w-auto disabled:opacity-40">{busy === (formMode === "create" ? "create" : `edit:${editingId}`) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {formMode === "create" ? `Create for ${formatINR(creationFee)}` : "Save settings"}</button>
                 </form>
               )}
 
@@ -490,17 +557,17 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
                       <div className="flex flex-wrap gap-2 pt-1">
                         {key.status !== "archived" && (
                           <>
-                            <button type="button" onClick={() => beginEdit(key)} className="btn-up btn-up-ghost btn-up-sm"><Settings className="w-3.5 h-3.5" /> Settings</button>
-                            <button type="button" onClick={() => pauseOrResume(key)} disabled={busy !== null} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40">{key.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />} {key.status === "active" ? "Pause" : "Resume"}</button>
-                            <button type="button" onClick={() => rotate(key)} disabled={busy !== null} className={`btn-up btn-up-ghost btn-up-sm disabled:opacity-40 ${confirmRotateId === key.id ? "border-white/30 bg-white/[0.06]" : ""}`}>{busy === `rotate:${key.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} {confirmRotateId === key.id ? "Confirm permanent rotation" : "Rotate secret"}</button>
-                            <button type="button" onClick={() => { setArchive({ id: key.id, name: key.name, value: "" }); setConfirmRotateId(null); }} className="btn-up btn-up-ghost btn-up-sm"><Trash2 className="w-3.5 h-3.5" /> Archive</button>
+                            <button type="button" onClick={() => beginEdit(key)} disabled={readOnlySupport} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40"><Settings className="w-3.5 h-3.5" /> Settings</button>
+                            <button type="button" onClick={() => pauseOrResume(key)} disabled={readOnlySupport || busy !== null} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40">{key.status === "active" ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />} {key.status === "active" ? "Pause" : "Resume"}</button>
+                            <button type="button" onClick={() => rotate(key)} disabled={readOnlySupport || busy !== null} className={`btn-up btn-up-ghost btn-up-sm disabled:opacity-40 ${confirmRotateId === key.id ? "border-white/30 bg-white/[0.06]" : ""}`}>{busy === `rotate:${key.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} {confirmRotateId === key.id ? "Confirm permanent rotation" : "Rotate secret"}</button>
+                            <button type="button" onClick={() => { setArchive({ id: key.id, name: key.name, value: "" }); setConfirmRotateId(null); }} disabled={readOnlySupport} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40"><Trash2 className="w-3.5 h-3.5" /> Archive</button>
                           </>
                         )}
                         <button type="button" onClick={() => showActivity(key)} className="btn-up btn-up-ghost btn-up-sm"><Activity className="w-3.5 h-3.5" /> Activity</button>
                       </div>
 
                       {archive?.id === key.id && (
-                        <div className="p-3 border border-white/15 bg-white/[0.04] space-y-2"><p className="text-[11px] text-zinc-300">Permanent action. Type <strong className="text-white">{key.name}</strong> exactly. There is no refund.</p><div className="flex flex-col sm:flex-row gap-2"><input value={archive.value} onChange={(event) => setArchive({ ...archive, value: event.target.value })} className="flex-1 bg-black/70 border border-white/10 px-3 py-2 text-xs text-white outline-none" /><button type="button" onClick={archiveKey} disabled={archive.value !== key.name || busy !== null} className="btn-up btn-up-solid btn-up-sm disabled:opacity-40">Archive permanently</button><button type="button" onClick={() => setArchive(null)} className="btn-up btn-up-ghost btn-up-sm">Cancel</button></div></div>
+                        <div className="p-3 border border-white/15 bg-white/[0.04] space-y-2"><p className="text-[11px] text-zinc-300">Permanent action. Type <strong className="text-white">{key.name}</strong> exactly. There is no refund.</p><div className="flex flex-col sm:flex-row gap-2"><input value={archive.value} onChange={(event) => setArchive({ ...archive, value: event.target.value })} className="flex-1 bg-black/70 border border-white/10 px-3 py-2 text-xs text-white outline-none" /><button type="button" onClick={archiveKey} disabled={readOnlySupport || archive.value !== key.name || busy !== null} className="btn-up btn-up-solid btn-up-sm disabled:opacity-40">Archive permanently</button><button type="button" onClick={() => setArchive(null)} className="btn-up btn-up-ghost btn-up-sm">Cancel</button></div></div>
                       )}
 
                       {activityKeyId === key.id && (
@@ -567,6 +634,39 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
             <button type="button" onClick={onLogout} className="btn-up btn-up-ghost w-full"><LogOut className="w-4 h-4" /> Sign out</button>
           </aside>
         </div>
+
+        <section className="p-5 sm:p-6 border border-white/12 bg-white/[0.02] space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-white/[0.08]">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-white"><ShieldCheck className="w-4 h-4" /> Devices and sessions</div>
+              <p className="text-xs text-zinc-500 mt-1">Opaque, hash-only server sessions can be revoked immediately.</p>
+            </div>
+            <button type="button" onClick={revokeOtherSessions} disabled={readOnlySupport || busy !== null} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-40">
+              {busy === "sessions:others" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />} Revoke other sessions
+            </button>
+          </div>
+          {sessions?.legacyCurrent && (
+            <div className="p-3 border border-white/10 bg-white/[0.03] text-[11px] text-zinc-400">This is a migration-era signed session. Signing in again upgrades this browser to an individually revocable MongoDB session.</div>
+          )}
+          {sessions === null ? (
+            <div className="skeleton h-16" />
+          ) : sessions.items.length === 0 ? (
+            <p className="text-xs text-zinc-600">No active MongoDB sessions are recorded yet.</p>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-2">
+              {sessions.items.map((session) => (
+                <div key={session.id} className="p-3 border border-white/[0.08] bg-black/30 flex items-start justify-between gap-3">
+                  <div className="min-w-0 text-[10px]">
+                    <div className="flex items-center gap-2"><span className="text-zinc-300 font-semibold">{session.device?.platform || (session.device?.mobile ? "Mobile device" : "Browser session")}</span>{session.current && <span className="px-1.5 py-0.5 border border-white/10 text-zinc-400">CURRENT</span>}</div>
+                    <p className="text-zinc-600 mt-1 truncate" title={session.device?.userAgent}>{session.device?.userAgent || "Unknown device"}</p>
+                    <p className="text-zinc-600 mt-1">Last active {formatDate(session.lastActivityAt)} · expires {formatDate(session.expiresAt)}</p>
+                  </div>
+                  <button type="button" onClick={() => revokeSession(session)} disabled={readOnlySupport || busy !== null} className="btn-up btn-up-ghost btn-up-sm shrink-0 disabled:opacity-40">{busy === `session:${session.id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Revoke"}</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </ContentPage>
   );

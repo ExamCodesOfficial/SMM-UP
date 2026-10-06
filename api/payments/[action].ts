@@ -1,8 +1,8 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import crypto from "crypto";
 import { ObjectId } from "mongodb";
 import { getDb } from "../../server/lib/db.js";
-import { getUserFromRequest } from "../../server/lib/auth.js";
+import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
 import { searchFamPayPayment } from "../../server/lib/imap.js";
 import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../../server/lib/telegram.js";
@@ -23,12 +23,12 @@ function generateDynamicMemo(): string {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
-  const authUser = getUserFromRequest(req);
+  const db = await getDb();
+  const authUser = await getUserFromRequest(req, db);
   if (!authUser) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-
-  const db = await getDb();
+  if (denySupportMutation(authUser, res, action === "history" && req.method === "GET")) return;
   const userObjectId = new ObjectId(authUser.userId);
 
   // ── 1. CREATE PAYMENT ORDER (DYNAMIC QR WITH SUP + 5-CHAR ALPHANUMERIC MEMO) ──
@@ -90,6 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 2. CHECK STATUS / LIVE POLLING (ZERO-CLICK AUTO-CREDIT VIA MEMO) ──
   if (action === "check-status") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     const memo = String(req.query.memo || req.body?.memo || "").trim().toUpperCase();
     const txnId = String(req.query.transactionId || req.body?.transactionId || "").trim();
 
@@ -333,6 +335,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── 4. TRANSACTION HISTORY ───────────────────────────────────
   if (action === "history") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     try {
       const transactions = await db
         .collection("transactions")

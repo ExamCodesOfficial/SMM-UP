@@ -11,6 +11,8 @@ export const TAB_PATHS: Record<string, string> = {
   api: "/api",
   playground: "/playground",
   account: "/account",
+  "password-change": "/account/password-change",
+  "support-access": "/support-access",
   transactions: "/transactions",
   "add-funds": "/add-funds",
   faq: "/faq",

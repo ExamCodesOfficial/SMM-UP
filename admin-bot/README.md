@@ -7,8 +7,9 @@ A dedicated Telegram administrative bot and 24/7 background payment settlement w
 ## 🛡️ Zero-Web-Surface Architecture
 
 - **No Web Admin:** Web admin endpoints (`/admin`, `api/admin/*`) have been permanently deleted from the website.
-- **Pure MTProto Authentication:** Only commands from your unique numeric Telegram User ID (`TELEGRAM_OWNER_ID`) are accepted. All other interactions are rejected.
-- **Atomic MongoDB Operations:** Balance adjustments, debits, and credits are executed using atomic `$inc` operations with strict filters.
+- **Owner-only Telegram Bot API authentication:** The bot uses long polling and accepts commands only from your numeric `TELEGRAM_OWNER_ID`. It is not an MTProto user client.
+- **Atomic MongoDB Operations:** Balance adjustments, debits, credits, password recovery and Support Access exchange use guarded atomic operations or replica-set transactions.
+- **Revocable support:** Raw login/support tokens are never shown. Telegram exposes inline session inspection/revocation and only the one-time Support Access code, which is hidden when used, replaced or expired.
 - **Decoupled IMAP Settlement:** Maintains a single persistent/periodic IMAP connection on Railway to match incoming FamPay payment emails against pending deposit memos. Vercel web functions **never** connect to Gmail repeatedly.
 
 ---
@@ -18,7 +19,9 @@ A dedicated Telegram administrative bot and 24/7 background payment settlement w
 | Command | Description |
 | :--- | :--- |
 | `/stats` | View live platform metrics: registered users, balances, order count, revenue |
-| `/user <email>` | Inspect any user's profile, balance, spent, and registered date |
+| `/user <email>` | Inspect a full user profile and open inline active-session, revoke-all and Support Access controls |
+| `/resetpassword <email> <auto-or-custom> \| <reason>` | Create a five-minute confirmed, hash-only temporary credential and revoke sessions |
+| `/supportaccess <email> \| <reason>` | Issue an 80-bit hash-only code: five-minute one-time exchange, then 15-minute read-only website access |
 | `/credit <email> <amount> [reason]` | Atomically credit a user's wallet balance with an audit log |
 | `/debit <email> <amount> [reason]` | Atomically debit balance (safeguarded against negative balances) |
 | `/failed` | View failed orders requiring manual administrative review |
@@ -50,11 +53,13 @@ IMAP_USER="your_email@gmail.com"
 IMAP_PASSWORD="your_gmail_app_password"
 FAMPAY_SENDER_FILTER="no-reply@famapp.in"
 ENABLE_IMAP_WORKER="true"
+TEMP_PASSWORD_TTL_MINUTES="180"
+TEMP_PASSWORD_MAX_USES="2"
 ```
 
 3. **Deploy:**
    - Railway will run `npm install` and `npm start` automatically.
-   - You'll see: `🚀 SMM UP Sovereign Admin Bot launched successfully via Telegram MTProto.`
+   - You'll see: `🚀 SMM UP Sovereign Admin Bot launched successfully via Telegram Bot API long polling.`
 
 ---
 

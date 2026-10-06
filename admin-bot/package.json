@@ -9,6 +9,7 @@
     "dev": "tsx watch bot.ts"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "dotenv": "^16.4.7",
     "imapflow": "^1.0.170",
     "mongodb": "^6.13.0",

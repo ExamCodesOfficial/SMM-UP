@@ -4,7 +4,7 @@ import { pathFor } from "../lib/routes";
 
 interface AuthPageProps {
   initialMode: "login" | "register";
-  onAuthSuccess: () => void;
+  onAuthSuccess: (destination?: string) => void;
 }
 
 /**
@@ -52,6 +52,11 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
         return;
       }
 
+      if (data.requiresPasswordChange) {
+        setSuccess("Temporary credential accepted. Opening the required password-change step…");
+        setTimeout(() => onAuthSuccess("password-change"), 350);
+        return;
+      }
       setSuccess(mode === "login" ? "Signed in. Redirecting…" : "Account created. Redirecting…");
       setTimeout(() => onAuthSuccess(), 450);
     } catch {
@@ -145,12 +150,16 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
               <input
                 type="password"
                 required
-                minLength={6}
+                minLength={mode === "register" ? 10 : undefined}
+                maxLength={mode === "register" ? 128 : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
                 className="up-input"
               />
+              {mode === "register" && (
+                <p className="text-[10px] text-zinc-600 mt-1.5">10–128 characters; use at least three of lowercase, uppercase, numbers and symbols.</p>
+              )}
             </div>
 
             {error && (
@@ -201,6 +210,12 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
                 </>
               )}
             </p>
+            {mode === "login" && (
+              <p className="text-xs text-zinc-500">
+                Forgot your password?{" "}
+                <a href="/support" className="text-white underline underline-offset-4 hover:text-zinc-300">Contact support</a>
+              </p>
+            )}
             <p className="text-[11px] text-zinc-600">
               100% Free &bull; No social media passwords ever needed.{" "}
               <a
