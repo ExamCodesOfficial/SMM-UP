@@ -53,7 +53,7 @@ export default function FaqPage({ onNavigate }: FaqPageProps) {
         <button onClick={() => onNavigate("support")} className="text-white underline underline-offset-4 hover:text-zinc-300 cursor-pointer">
           Telegram support desk
         </button>{" "}
-        answers 24/7 — send your username and order ID for the fastest fix.
+        is the direct help route — send your username and order ID for the fastest review.
       </Callout>
     </ContentPage>
   );

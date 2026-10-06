@@ -1,0 +1,61 @@
+# Security Policy
+
+## Supported code
+
+Security fixes target the current maintained `master` baseline and active deployment candidates. Historical commits and unmaintained forks are not supported releases.
+
+## Report privately
+
+Do not open a public issue for a vulnerability.
+
+Use GitHub’s private vulnerability reporting or a private Security Advisory for this repository when enabled. If unavailable, contact the repository owner through a previously verified private channel. Do not invent or trust contact information copied from an issue comment.
+
+Include only what is necessary:
+
+- affected commit/deployment and component;
+- reproducible steps using non-production data;
+- expected versus observed behavior;
+- security impact;
+- bounded, redacted logs or identifiers;
+- suggested containment when known.
+
+## Never include
+
+- GitHub, Vercel, Railway, MongoDB, Telegram, supplier, Resend, Razorpay or mailbox credentials;
+- raw session cookies or authorization headers;
+- password or API-key values/hashes;
+- email verification, recovery or Support Access tokens;
+- UPI PIN, OTP, CVV or banking password;
+- complete payment-email bodies;
+- unnecessary user email, social target or payment evidence;
+- private pricing values.
+
+If a credential was exposed, revoke or rotate it immediately. Deleting the message or commit is not sufficient remediation.
+
+## Response priorities
+
+| Severity | Examples | Initial action |
+|---|---|---|
+| Critical | authentication bypass, remote admin action, raw-secret exposure, unauthorized wallet mutation | contain immediately; stop unsafe service/path; rotate/revoke |
+| High | cross-account data access, session/Support Access escape, duplicate settlement risk | restrict affected flow; preserve evidence; patch urgently |
+| Medium | bounded information exposure, abuse-control bypass without proven account/financial impact | validate scope; schedule reviewed fix |
+| Low | hardening gap without direct exploit, documentation-only security drift | triage and address in normal maintenance |
+
+No response-time promise is made publicly. The incident commander records detection, containment, scope, eradication, recovery and preventive work privately.
+
+## Security invariants
+
+- Permanent passwords are bcrypt-only and unreadable.
+- Session, email-action, Support Access and API-key secrets are hash-only at rest, except explicitly protected five-minute owner action state.
+- Support Access preserves actor/subject and remains read-only.
+- Administrative mutations require numeric Telegram owner authorization and confirmation where designed.
+- Financial mutations use transaction and idempotency/settlement identities.
+- Direct UPI and Razorpay evidence must bind exactly before credit.
+- The Telegram bot uses long polling, not an HTTP webhook.
+- No website admin panel exists.
+
+## Validation
+
+Security-sensitive changes require relevant root/admin TypeScript, replica-set integration, dependency-audit, whitespace and credential-pattern checks. Provider/runtime claims require staging evidence; unit or integration tests alone are not production proof.
+
+See [`SECURITY_DEPLOYMENT_RUNBOOK.md`](SECURITY_DEPLOYMENT_RUNBOOK.md) for deployment, rollback and incident procedures.

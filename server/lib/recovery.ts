@@ -3,7 +3,14 @@ import { parse, serialize } from "cookie";
 import type { VercelRequest, VercelResponse } from "./http.js";
 import type { Db } from "mongodb";
 import { ObjectId } from "mongodb";
-import { createUserSession, hashPassword, hashSessionToken, validateNewPassword, verifyPassword } from "./auth.js";
+import {
+  clearAuthCookie,
+  createUserSession,
+  hashPassword,
+  hashSessionToken,
+  validateNewPassword,
+  verifyPassword,
+} from "./auth.js";
 import { ensureSessionIndexes, getMongoClient } from "./db.js";
 import { editTelegramMessage } from "./telegram.js";
 
@@ -153,54 +160,68 @@ export async function tryTemporaryPasswordLogin(
     return { accepted: false };
   }
 
-  const used: any = await db.collection("temporary_passwords").findOneAndUpdate(
-    {
-      _id: temporary._id,
-      invalidated_at: null,
-      status: "active",
-      expires_at: { $gt: now },
-      used_count: Number(temporary.used_count || 0),
-      $expr: { $lt: ["$used_count", "$max_uses"] },
-    },
-    [
-      {
-        $set: {
-          used_count: { $add: ["$used_count", 1] },
-          last_used_at: now,
-          usage_events: {
-            $concatArrays: [
-              { $ifNull: ["$usage_events", []] },
-              [{ used_at: now }],
-            ],
-          },
-        },
-      },
-      {
-        $set: {
-          status: { $cond: [{ $gte: ["$used_count", "$max_uses"] }, "exhausted", "active"] },
-          invalidated_at: { $cond: [{ $gte: ["$used_count", "$max_uses"] }, now, null] },
-          invalidation_reason: { $cond: [{ $gte: ["$used_count", "$max_uses"] }, "uses_exhausted", null] },
-        },
-      },
-    ],
-    { returnDocument: "after" },
-  );
-  if (!used) return { accepted: false };
-
   const rawSession = `smr_${crypto.randomBytes(32).toString("base64url")}`;
   const ttlSeconds = recoverySessionTtlMinutes() * 60;
   const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
-  await db.collection("restricted_sessions").insertOne({
-    token_hash: hashSessionToken(rawSession),
-    user_id: user._id,
-    username: user.username,
-    purpose: "password_change",
-    temporary_password_id: used._id,
-    created_at: now,
-    expires_at: expiresAt,
-    used_at: null,
-    invalidated_at: null,
-  });
+  const client = await getMongoClient();
+  const mongoSession = client.startSession();
+  let used: any = null;
+
+  try {
+    await mongoSession.withTransaction(async () => {
+      used = await db.collection("temporary_passwords").findOneAndUpdate(
+        {
+          _id: temporary._id,
+          invalidated_at: null,
+          status: "active",
+          expires_at: { $gt: now },
+          used_count: Number(temporary.used_count || 0),
+          $expr: { $lt: ["$used_count", "$max_uses"] },
+        },
+        [
+          {
+            $set: {
+              used_count: { $add: ["$used_count", 1] },
+              last_used_at: now,
+              usage_events: {
+                $concatArrays: [
+                  { $ifNull: ["$usage_events", []] },
+                  [{ used_at: now }],
+                ],
+              },
+            },
+          },
+          {
+            $set: {
+              status: { $cond: [{ $gte: ["$used_count", "$max_uses"] }, "exhausted", "active"] },
+              invalidated_at: { $cond: [{ $gte: ["$used_count", "$max_uses"] }, now, null] },
+              invalidation_reason: { $cond: [{ $gte: ["$used_count", "$max_uses"] }, "uses_exhausted", null] },
+            },
+          },
+        ],
+        { returnDocument: "after", session: mongoSession },
+      );
+      if (!used) return;
+
+      await db.collection("restricted_sessions").insertOne({
+        token_hash: hashSessionToken(rawSession),
+        user_id: user._id,
+        username: user.username,
+        purpose: "password_change",
+        temporary_password_id: used._id,
+        created_at: now,
+        expires_at: expiresAt,
+        used_at: null,
+        invalidated_at: null,
+      }, { session: mongoSession });
+    }, {
+      readConcern: { level: "snapshot" },
+      writeConcern: { w: "majority" },
+    });
+  } finally {
+    await mongoSession.endSession();
+  }
+  if (!used) return { accepted: false };
   setRecoveryCookie(res, rawSession, ttlSeconds);
   await syncTelegramStatus(db, used, Number(used.used_count), "used");
   return {
@@ -270,7 +291,13 @@ export async function completePasswordChange(
         { session },
       );
       await db.collection("temporary_passwords").updateMany(
-        { user_id: context.user._id, invalidation_reason: { $ne: "password_changed" } },
+        {
+          user_id: context.user._id,
+          $or: [
+            { _id: activeRecovery.temporary_password_id },
+            { invalidated_at: null },
+          ],
+        },
         {
           $set: {
             status: "completed",
@@ -324,13 +351,20 @@ export async function completePasswordChange(
     await session.endSession();
   }
 
-  await createUserSession(db, req, res, {
-    ...context.user,
-    password_hash: passwordHash,
-  });
+  let sessionCreated = true;
+  try {
+    await createUserSession(db, req, res, {
+      ...context.user,
+      password_hash: passwordHash,
+    });
+  } catch (error) {
+    sessionCreated = false;
+    clearAuthCookie(res);
+    console.error("Password changed but normal session creation failed:", error);
+  }
   clearRecoveryCookie(res);
   if (temporary) {
     await syncTelegramStatus(db, temporary, Number(temporary.used_count || 0), "completed");
   }
-  return context.user;
+  return { user: context.user, sessionCreated };
 }

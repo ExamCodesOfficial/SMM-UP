@@ -75,9 +75,10 @@ export function TermsPage({ onNavigate }: PageProps) {
 
       <H2>7. Refunds</H2>
       <P>
-        Failed orders are refunded to wallet balance automatically and in full. Partially-delivered orders are
-        refunded proportionally for the undelivered remainder. Deposits themselves (money added to the wallet)
-        are non-withdrawable but never expire and can be used on any service, any time.
+        A failed, cancelled or partially delivered order is reviewed against the supplier record before any wallet
+        correction. Confirmed refundable amounts are credited to the wallet; ambiguous supplier outcomes remain held
+        for administrative reconciliation so a blind retry or refund cannot create a duplicate loss. Wallet deposits
+        are non-withdrawable, do not expire and can be used on any available service.
       </P>
 
       <H2>8. Acceptable use</H2>
@@ -107,7 +108,7 @@ export function TermsPage({ onNavigate }: PageProps) {
       <H2>11. Changes and contact</H2>
       <P>
         We may update these Terms; material changes are announced on the changelog and, where practical, by email.
-        Continued use after an update means acceptance. Questions: the 24/7 Telegram support desk is the fastest
+        Continued use after an update means acceptance. Questions: the Telegram support desk is the direct
         channel — see{" "}
         <button onClick={() => onNavigate("support")} className="text-white underline underline-offset-4 hover:text-zinc-300 cursor-pointer">
           Support
@@ -176,7 +177,7 @@ export function PrivacyPage({ onNavigate }: PageProps) {
 
       <H2>Contact</H2>
       <P>
-        Privacy questions go to the same 24/7 Telegram support desk listed on the{" "}
+        Privacy questions go to the same Telegram support desk listed on the{" "}
         <button onClick={() => onNavigate("support")} className="text-white underline underline-offset-4 hover:text-zinc-300 cursor-pointer">
           Support page
         </button>. Also see the{" "}
@@ -199,18 +200,18 @@ export function RefundsPage({ onNavigate }: PageProps) {
       crumbs={[{ label: "Home", tab: "home" }, { label: "Legal" }, { label: "Refund & Cancellation" }]}
       onNavigate={onNavigate}
     >
-      <H2>Automatic refunds — no ticket needed</H2>
+      <H2>Refund review and eligibility</H2>
       <UL>
-        <li><strong className="text-zinc-200">Failed order</strong> — the provider rejects or cannot start the order (invalid link, private account, offline service): 100% of the charge returns to your wallet automatically.</li>
-        <li><strong className="text-zinc-200">Cancelled order</strong> — when a service supports cancellation and you cancel before completion: the undelivered remainder returns automatically.</li>
+        <li><strong className="text-zinc-200">Failed or uncertain submission</strong> — the wallet debit and local order remain recorded while the supplier outcome is reconciled. No blind retry or automatic refund is performed when duplicate fulfillment is possible.</li>
+        <li><strong className="text-zinc-200">Cancelled order</strong> — a cancellation request is not itself a refund. Once the supplier confirms the final cancelled state and undelivered quantity, the eligible amount can be credited to the wallet.</li>
         <li><strong className="text-zinc-200">Deposit reconciliation error</strong> — a verified duplicate Direct UPI credit or Razorpay processing error is corrected after payment-provider and wallet-ledger review.</li>
       </UL>
 
       <H2>Partial orders</H2>
       <P>
-        Sometimes a service can only deliver part of the requested quantity (the target hits platform-side caps).
-        These orders close with status <em>Partial</em>: you keep everything that was delivered, and the proportional
-        charge for the undelivered quantity is refunded to your wallet automatically.
+        Sometimes a service can deliver only part of the requested quantity. The delivered quantity remains charged.
+        Any proportional wallet credit for the undelivered remainder is applied only after the final supplier counts
+        are verified; contact support with the internal order ID if the adjustment is not yet recorded.
       </P>
 
       <H2>Refill windows — what "guarantee" covers</H2>
@@ -218,13 +219,13 @@ export function RefundsPage({ onNavigate }: PageProps) {
         <li>Every service card shows its refill window: 7D, 15D, 30D, 60D, 90D, or Lifetime.</li>
         <li>If delivered quantity drops below the ordered amount inside that window, request a refill from order history or the API — the lost quantity is redelivered free.</li>
         <li>Refills cover natural platform cleanups. They do not cover drops caused by you: renaming the account, deleting the post, going private, or violating platform rules.</li>
-        <li>"Lifetime" means for the operational life of the service — if a service is retired by the platform itself, remaining refill is credited proportionally as balance.</li>
+        <li>"Lifetime" means for the operational life of the service. If the supplier retires it, unresolved refill eligibility is reviewed with support; a credit is not assumed until the supplier record is reconciled.</li>
       </UL>
 
       <H2>Cancelling an order</H2>
       <UL>
         <li>Where the service allows it, a cancel button appears on the order in Logs while it is still running.</li>
-        <li>Already-delivered quantity is charged; the remainder is refunded to your wallet.</li>
+        <li>Already-delivered quantity remains charged; any eligible remainder is credited only after the supplier confirms cancellation and final counts.</li>
         <li>Completed orders can't be cancelled or reversed.</li>
       </UL>
 
@@ -238,7 +239,7 @@ export function RefundsPage({ onNavigate }: PageProps) {
 
       <H2>Disputes</H2>
       <P>
-        If something looks wrong with a refund, message the 24/7 Telegram desk with your username, order ID and
+        If something looks wrong with a refund, message the Telegram desk with your username, order ID and
         payment reference. Genuine errors are corrected after reconciliation. A Razorpay refund or dispute places
         the related payment and account under temporary review so funds cannot be credited or spent twice.
         Fraudulent chargebacks may result in suspension or account closure.

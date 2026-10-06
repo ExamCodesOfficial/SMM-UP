@@ -200,7 +200,7 @@ export default function ApiDocs({ user }: ApiDocsProps) {
           <Section id="authentication" title="Authentication">
             <p>
               Send your API key with every request — as <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">key</code> in
-              the body/query, <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">x-api-key</code> header, or{" "}
+              a POST body, <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">x-api-key</code> header, or{" "}
               <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">Authorization: Bearer</code>.
             </p>
             <div className="p-4 rounded-none border border-white/12 bg-white/[0.03] text-xs flex items-start gap-2.5 my-3">
@@ -464,17 +464,17 @@ export default function ApiDocs({ user }: ApiDocsProps) {
               rows={[
                 ["key", "yes", "Your API key"],
                 ["action", "yes", "cancel"],
-                ["order", "yes", "Order ID, or comma-separated IDs (up to 100)"],
+                ["order", "yes", "One provider or internal order ID"],
               ]}
             />
             <CodeBlock
               id="cancel"
               lang="Request → response"
-              code={`curl -X POST ${BASE} -d "key=KEY" -d "action=cancel" -d "order=22001,22002"
+              code={`curl -X POST ${BASE} -d "key=KEY" -d "action=cancel" -d "order=22001"
 
-[ { "order": 22001, "cancel": 1 }, { "order": 22002, "cancel": { "error": "Already completed" } } ]`}
+{ "success": true, "message": "Cancel requested" }`}
             />
-            <p>Only services marked cancelable can be cancelled; the undelivered remainder refunds to balance automatically.</p>
+            <p>Only services marked cancelable accept this request. A request is not a confirmed cancellation or refund; final supplier status and eligible wallet adjustments require reconciliation.</p>
           </Section>
 
           <Section id="errors" title="Errors & rate limits">

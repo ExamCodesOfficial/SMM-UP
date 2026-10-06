@@ -3,11 +3,13 @@
 </p>
 <h1 align="center">SMM UP Full-System Architecture</h1>
 <p align="center"><strong>Source-derived architecture snapshot · 2026-10-06</strong></p>
-<p align="center"><code>IMPLEMENTED LOCALLY</code> · <code>SECURITY-FIRST</code> · <code>DEPLOYMENT PENDING</code></p>
+<p align="center"><code>CODE PUSHED @ 93ae440</code> · <code>BOT MODULE REFACTOR LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
 
 
 > **Master registry:** 290 cross-system capabilities plus the complete embedded 730-entry website registry and 147-entry bot registry.
 > **Total explicitly enumerated entries in this document:** 1167.
+> **Implementation baseline:** pushed on GitHub `master` at `93ae440634fbff897d40f81506a863810d38aa8b`; provider/staging/production verification remains open.
+> **Documentation state:** this second-pass reconciliation is local until separately committed/pushed.
 > **Specialized views:** [Website architecture](website-architecture.md) · [Bot architecture](bot-architecture.md)
 
 <details open>
@@ -24,6 +26,8 @@
 - [Collections](#complete-collection-ownership)
 - [Source map](#source-map)
 - [Deployment](#deployment-topology)
+- [Operations](#cross-system-operational-contract)
+- [Failure modes](#cross-system-failure-and-rollback-matrix)
 - [Phases](#phase-ledger)
 - [Launch gate](#final-launch-gate)
 
@@ -413,8 +417,8 @@ sequenceDiagram
 - **SYS-0174** — Release step: diff whitespace check.
 - **SYS-0175** — Release step: tracked/history secret scan.
 - **SYS-0176** — Release step: Vercel preview and Railway staging.
-- **SYS-0177** — Release step: production smoke after explicit push approval.
-- **SYS-0178** — Release step: fresh push credential revoked immediately.
+- **SYS-0177** — Release step: production smoke only after staged gates and explicit deployment authorization.
+- **SYS-0178** — Release step: authorization-scoped least-privilege push credential is kept ephemeral and revoked immediately.
 - **SYS-0179** — Release step: Search Console homepage indexing requested.
 
 ### Architecture invariants
@@ -504,19 +508,19 @@ sequenceDiagram
 - **SYS-0256** — DIRECT_UPI_MAX_AMOUNT_INR (Vercel): Bounded Direct UPI amount ceiling.
 - **SYS-0257** — RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET (Vercel): Razorpay API credentials.
 - **SYS-0258** — RAZORPAY_WEBHOOK_SECRET (Vercel): Webhook HMAC secret.
-- **SYS-0259** — RAZORPAY_MODE / RAZORPAY_ALLOW_TEST_WALLET_CREDIT (Vercel): Explicit test/live safeguards.
-- **SYS-0260** — RESEND_API_KEY / EMAIL_FROM (Vercel): Transactional email provider and verified sender.
-- **SYS-0261** — PUBLIC_SITE_URL (Vercel): Canonical origin used in email links.
+- **SYS-0259** — RAZORPAY_MODE / RAZORPAY_ALLOW_TEST_WALLET_CREDIT / RAZORPAY_MAX_DEPOSIT_INR (Vercel): Explicit test/live and bounded-amount safeguards.
+- **SYS-0260** — RESEND_API_KEY / EMAIL_FROM / EMAIL_TOKEN_TTL_MINUTES (Vercel): Transactional email provider, verified sender and bounded token policy.
+- **SYS-0261** — PUBLIC_SITE_URL / SITE_URL / NODE_ENV (Vercel): Canonical origin, compatibility fallback and runtime mode for secure production behavior.
 - **SYS-0262** — CRON_SECRET (Vercel): At least 32-character internal cron bearer secret.
 - **SYS-0263** — API_KEY_CREATION_FEE_INR / API_KEY_MAX_IDENTITIES (Vercel): Key product policy with bounded defaults.
 - **SYS-0264** — API_ACTIVITY_HASH_SECRET (Vercel): Hashes sensitive activity dimensions where used.
-- **SYS-0265** — TELEGRAM_BOT_TOKEN / TELEGRAM_OWNER_ID (Railway): Bot API secret and immutable owner identity.
+- **SYS-0265** — TELEGRAM_BOT_TOKEN (Vercel + Railway) / TELEGRAM_OWNER_ID (Railway): Server-only Bot API credential and immutable numeric owner identity.
 - **SYS-0266** — ADMIN_BOT_STATE_SECRET (Railway): AES-GCM key material for short-lived protected action state.
 - **SYS-0267** — TELEGRAM_ADMIN_CHAT_ID (Vercel): Payment/security alert destination.
-- **SYS-0268** — IMAP_USER / IMAP_PASSWORD (Railway or Vercel manual verifier): Mailbox credentials; app password only.
-- **SYS-0269** — FAMPAY_EMAIL / FAMPAY_APP_PASSWORD (Vercel compatibility): Direct UPI mailbox configuration.
-- **SYS-0270** — FAMPAY_SENDER_FILTER (Railway): Expected payment-email sender.
-- **SYS-0271** — ENABLE_IMAP_WORKER (Railway): Explicit worker enable switch.
+- **SYS-0268** — IMAP_USER / IMAP_PASSWORD (Railway): Worker mailbox credentials; app password only.
+- **SYS-0269** — FAMPAY_EMAIL / FAMPAY_APP_PASSWORD (Vercel): Website-side Direct UPI mailbox configuration.
+- **SYS-0270** — FAMPAY_SENDER_FILTER (Vercel + Railway): Expected payment-email sender.
+- **SYS-0271** — ENABLE_IMAP_WORKER / ADMIN_BOT_DISABLE_AUTOSTART (Railway/tests): Explicit worker role plus test-only controlled-import switch.
 - **SYS-0272** — TEMP_PASSWORD_TTL_MINUTES / TEMP_PASSWORD_MAX_USES (Both): Bounded temporary-credential policy.
 - **SYS-0273** — TEMP_PASSWORD_SESSION_TTL_MINUTES (Vercel): Restricted change-session lifetime.
 
@@ -1740,7 +1744,7 @@ sequenceDiagram
 ### Commands
 
 - **BOT-0007** — `/start, /help` opens persistent inline main menu and authoritative syntax help.
-- **BOT-0008** — `/stats` aggregates users, balances, orders, spend and operational health.
+- **BOT-0008** — `/stats` aggregates users, balances, orders, spend and settled-deposit counts.
 - **BOT-0009** — `/reviews [limit]` lists bounded recent reviews with moderation buttons.
 - **BOT-0010** — `/user <email>` shows full operational account data and inline control navigation.
 - **BOT-0011** — `/lock <email> | reason` queues account lock and session revocation.
@@ -1771,7 +1775,7 @@ sequenceDiagram
 
 ### Inline callbacks
 
-- **BOT-0036** — `menu:*` persistent navigation among overview/users/orders/payments/security/reviews.
+- **BOT-0036** — `menu:*` routes top-level buttons to bounded command guidance for overview/users/orders/payments/security/reviews.
 - **BOT-0037** — `adm-ok:<token>` atomically claims actor-bound five-minute action and executes in transaction.
 - **BOT-0038** — `adm-no:<token>` atomically cancels eligible action.
 - **BOT-0039** — `review-toggle:<id>` toggles approved/hidden and records owner audit.
@@ -1820,7 +1824,7 @@ sequenceDiagram
 - **BOT-0076** — Deposit views may show memo, UTR/provider payment ID, amount and status.
 - **BOT-0077** — Wallet views are bounded and include settlement keys for auditability.
 - **BOT-0078** — Event and note output is length-bounded to Telegram message limits.
-- **BOT-0079** — HTML is escaped before dynamic operational data is sent.
+- **BOT-0079** — Confirmation and newer sensitive outputs use the shared Telegram HTML escaper; legacy list/error paths require a final production encoding audit.
 - **BOT-0080** — No UPI PIN, OTP, CVV or banking password is requested or displayed.
 - **BOT-0081** — No permanent password or password hash is displayed.
 - **BOT-0082** — No API secret, cookie or authorization header is displayed.
@@ -1855,7 +1859,7 @@ sequenceDiagram
 
 ### Railway worker
 
-- **BOT-0105** — Worker enablement is controlled explicitly by `ENABLE_IMAP_WORKER`.
+- **BOT-0105** — The IMAP worker is enabled unless `ENABLE_IMAP_WORKER=false`; deployment must set the intended bot-only/worker role explicitly.
 - **BOT-0106** — `workerActive` prevents overlap inside one Node process.
 - **BOT-0107** — `worker_leases` prevents overlap between Railway replicas.
 - **BOT-0108** — The lease records holder, expiry and heartbeat.
@@ -1885,7 +1889,7 @@ sequenceDiagram
 - **BOT-0132** — Worker health resets consecutive errors after success.
 - **BOT-0133** — Worker health records bounded error details after failure.
 - **BOT-0134** — Three consecutive failures and later multiples of ten alert the owner.
-- **BOT-0135** — Temporary-password and Support Access Telegram status edits have independent retry workers.
+- **BOT-0135** — One minute-based synchronization worker processes temporary-password and Support Access Telegram status updates independently by record.
 - **BOT-0136** — Graceful SIGINT/SIGTERM stops long polling and closes MongoDB.
 
 ### Persistence and indexes
@@ -1911,38 +1915,40 @@ sequenceDiagram
 
 | Collection | Primary writer(s) | Primary reader(s) | Critical invariant |
 |---|---|---|---|
-| `users` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique email; case-insensitive unique username; sparse legacy API key.; Never stores a readable permanent password. |
-| `sessions` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique token hash; user/actor history; TTL expiry.; Raw session tokens exist only in secure cookies/client handoff. |
-| `restricted_sessions` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique token hash; user history; TTL expiry.; Cannot access normal account mutations. |
-| `temporary_passwords` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | User history; bounded post-expiry retention.; No readable temporary credential persists after action state is consumed. |
-| `support_access_codes` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique code hash; one active per actor/subject purpose; TTL cleanup.; Actor admin and subject user remain separate. |
-| `support_access_audit` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Actor, subject and session indexes.; Never stores cookies or raw code. |
-| `email_verification_tokens` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique token hash; TTL expiration.; Raw link token is delivered once by transactional email. |
-| `api_keys` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | User/date; case-insensitive active-name uniqueness; public ID uniqueness.; No raw secret. |
-| `api_key_versions` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique secret hash and key/version.; Old raw versions cannot be restored. |
-| `api_key_spend_buckets` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique key/bucket type/bucket start.; Used for concurrent limit enforcement. |
-| `api_key_activity` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | User/key/action/order/service indexes; 90-day TTL.; Excludes raw secret/header/cookie/password. |
-| `api_key_audit` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | User/key time indexes.; Stores metadata and reason only. |
-| `orders` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | User/time and key/service indexes.; Retains operational target data; no authorization secrets. |
-| `transactions` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | User/time; unique memo; unique settlement and Razorpay IDs.; Exact pending deposit and provider identifiers. |
-| `processed_transactions` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Sparse unique UTR, transaction ID and memo.; Prevents cross-user or concurrent reclaims. |
-| `wallet_ledger` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique settlement key; user/key time indexes.; Idempotency source for wallet mutation. |
-| `payment_events` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique provider/event ID.; Prevents webhook replay. |
-| `payment_reconciliation` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | One open memo/status/reason issue.; No automatic credit when receipt cannot be exactly bound. |
-| `reviews` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique user and seed keys; status/time.; Moderation only through Telegram. |
-| `security_events` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | User/time and one-year TTL.; No raw credentials. |
-| `rate_limits` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | TTL expiration; atomic _id window key.; Raw limiter keys/IP+email combinations are not stored. |
-| `admin_pending_actions` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique token hash; actor/time; delayed cleanup.; Raw callback token not stored. |
-| `admin_action_tokens` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Unique token hash; immediate TTL.; Owner-selected temporary value is AES-GCM encrypted only until confirmation/cancel. |
-| `admin_audit` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | Time and subject indexes.; Mandatory reasons retained without secrets. |
-| `admin_notes` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | User/time.; Operational owner context. |
-| `worker_leases` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | String _id uniqueness.; Coordinates multiple replicas. |
-| `system_health` | Vercel APIs and/or Railway bot | Website APIs, reports and owner bot | String _id uniqueness.; Drives owner alerts and operations. |
+| `users` | Vercel auth/order/payment/key APIs; Railway bot controls/settlement | Website account/domain APIs; owner bot | Unique email and case-insensitive username; permanent password is bcrypt-only; balance mutations are transactional. |
+| `sessions` | Vercel auth APIs; Railway bot revocation | Vercel authorization/account APIs; owner bot | Unique hash-only token; actor/subject preserved for support; expiry/revocation enforced. |
+| `restricted_sessions` | Vercel recovery/auth APIs; Railway bot invalidation | Recovery-only APIs; owner bot counts/control | Hash-only and password-change-only; TTL plus explicit invalidation. |
+| `temporary_passwords` | Railway bot issuance/status; Vercel recovery/auth consumption/invalidation | Recovery APIs; Railway status worker | Only bcrypt temporary hash persists after confirmation; bounded expiry/use count. |
+| `support_access_codes` | Railway bot issuance/status; Vercel auth exchange/exit | Vercel support auth; Railway status worker | Unique hash-only five-minute code; one-time exchange; actor and subject remain separate. |
+| `support_access_audit` | Vercel support auth/page APIs | Security/owner investigations | Bounded actor/subject/session events; never raw code or cookie. |
+| `email_verification_tokens` | Vercel auth/email domain | Vercel auth actions | Unique hash-only purpose token; superseded, expiring and one-time. |
+| `api_keys` | Vercel key domain; Railway bot controls | Website/account/API-v2; owner bot | Stable public identity, active-name uniqueness, explicit lifecycle/limits; no raw secret. |
+| `api_key_versions` | Vercel key rotation/migration; Railway bot revocation | API-v2 authentication and safe metadata | Unique secret hash and key/version; revoked raw versions are unrecoverable. |
+| `api_key_spend_buckets` | API-v2/key domain | API-v2 enforcement/reporting | Unique key/type/IST bucket; concurrent atomic spend enforcement. |
+| `api_key_activity` | API-v2/key activity domain | Account/support reports | 90-day detailed TTL; excludes secret/header/cookie/password. |
+| `api_key_audit` | Vercel key domain; Railway bot controls | Account/support/owner investigations | Key/user/time attribution with bounded reasons, no secret. |
+| `orders` | Website/API-v2 order APIs; cron status sync; Railway refund | Account/order APIs; API reports; owner bot | Local source of truth with provider/key attribution; refund and charge remain idempotent. |
+| `transactions` | Vercel Direct UPI/Razorpay/wallet APIs; Railway bot/worker | Account payment APIs; owner bot | Exact owned deposit/payment binding; unique memo/provider/settlement identifiers. |
+| `processed_transactions` | Vercel Direct UPI settlement; Railway IMAP worker | Payment verification/reconciliation | Sparse unique UTR, transaction ID and memo prevent replay. |
+| `wallet_ledger` | Order/key/payment/wallet domain; Railway bot/worker | Account reports; API-key reports; owner bot | Unique settlement key is the idempotency anchor; financial evidence is retained. |
+| `payment_events` | Razorpay webhook/wallet domain | Payment reconciliation/support | Unique provider/event ID; duplicate webhook cannot remutate wallet. |
+| `payment_reconciliation` | Vercel Direct UPI API; Railway worker | Payment owner/bot | One open memo/status/reason issue; ambiguity never auto-credits. |
+| `reviews` | Vercel review submission; Railway moderation | Public approved list; owner bot | One eligible buyer review per user; seeded reviews preserved; moderation only in Telegram. |
+| `security_events` | Vercel auth/recovery/payment/key domains; Railway bot | Account/security/support/owner views | Bounded safe metadata, user/time indexes and one-year TTL; no raw credential. |
+| `rate_limits` | Vercel shared limiter | Vercel endpoint enforcement | Atomic HMAC-keyed fixed windows with TTL; raw limiter dimensions not stored. |
+| `admin_pending_actions` | Railway bot | Railway callback handlers | Unique hash-only actor-bound token; five-minute claim semantics and delayed cleanup. |
+| `admin_action_tokens` | Railway recovery workflow | Railway recovery callbacks | Unique hash-only action token; custom value encrypted only until cancel/claim. |
+| `admin_audit` | Railway bot | Owner/security investigations | Actor, subject, outcome and bounded details; no credentials. |
+| `admin_notes` | Railway bot | Owner bot | User-scoped owner context; never a secret store. |
+| `worker_leases` | Railway settlement worker | Railway replicas/operators | Stable singleton ID, one current holder and bounded lease expiry. |
+| `system_health` | Railway settlement worker | Owner bot/operators | Stable worker ID, heartbeat, last outcome and consecutive-error state. |
 
 
 ## Source map
 
-The complete source-unit and public-asset manifest is maintained in [Website architecture → Source and asset manifest](website-architecture.md#source-and-asset-manifest). Bot source ownership is documented in [Bot architecture](bot-architecture.md).
+The complete source-unit and public-asset manifest is maintained in [Website architecture → Source and asset manifest](website-architecture.md#source-and-asset-manifest). The authoritative bot module manifest is documented in [Bot architecture → Bot source map](bot-architecture.md#bot-source-map).
+
+The Railway control plane remains one deployment unit. `admin-bot/bot.ts` composes focused configuration, database, security, domain, middleware, callback, command, UI and worker modules under `admin-bot/src/`; the split introduces no network boundary or microservice. Payment scanning, payment runtime/lease/health, recovery-status synchronization and settlement transactions have separate worker modules. `src/worker/settlement.ts` and `src/domain/adminActions.ts` retain the transaction-heavy functions exercised through the stable `bot.ts` integration-test exports.
 
 ## Deployment topology
 
@@ -1971,38 +1977,101 @@ flowchart LR
 | IMAP recurring settlement |  | ✓ | lease/transaction/health |
 | TTL cleanup and uniqueness |  |  | ✓ |
 
+## Cross-system operational contract
+
+### Ownership and evidence
+
+| Domain | Accountable owner | Required release evidence |
+|---|---|---|
+| Source/release | release owner | source commit, reviewed diff, validation log, deployment IDs |
+| Identity/session/security | security owner | auth/session/support/recovery test matrix and safe event review |
+| MongoDB | database owner | transaction capability, index gate, backup/PITR and restore evidence |
+| Direct UPI/Razorpay | payment owner | exact provider/internal/ledger reconciliation and rollback decision |
+| Supplier/orders | supplier owner | catalog/order/status checks without leaked private pricing/credentials |
+| Railway/Telegram/IMAP | bot owner | bot identity, wrong-owner denial, lease/heartbeat and one-credit test |
+| Resend/domain/search | domain/email owner | sender/domain, canonical redirects, asset types, sitemap/inspection |
+| Incident | incident commander | timeline, containment, scope, recovery and preventive actions |
+
+### Observability
+
+- Vercel function errors/latency, authentication/security events and rate-limit anomalies.
+- Supplier catalog/order/status failures and cron outcomes.
+- Razorpay delivery/failure/refund/dispute events and Direct UPI reconciliation.
+- Wallet/transaction/ledger mismatches, account/order/payment holds and failed admin actions.
+- Railway restarts, bot polling failures, lease holder/expiry, heartbeat and mailbox failures.
+- Resend delivery failures and domain/canonical/static-asset regressions.
+
+No observability sink may contain passwords/hashes, temporary plaintext, API secrets/hashes, raw sessions/cookies, authorization headers, private pricing, provider/database/mailbox credentials or complete email bodies.
+
+### Retention and recovery
+
+- Detailed API-key activity is TTL-bounded to 90 days.
+- Security events use the implemented one-year TTL contract.
+- Sessions, one-time codes/tokens, limiter buckets and short-lived actions have purpose-specific expiry/cleanup.
+- Financial, order and administrative evidence has no invented deletion period; formal legal/business retention remains an operational decision.
+- Atlas backup/PITR is required before high-risk deployment.
+- Restore drills target an isolated database, then validate counts, critical indexes and sampled transaction/ledger/order relationships.
+- Code rollback never substitutes for financial/data reconciliation.
+
+### Accessibility and performance
+
+Release smoke includes keyboard/focus/dialog behavior, programmatic labels/errors, contrast, reduced motion, mobile layouts, a screen-reader path through registration/order/funding, throttled load, layout shift and CSP/browser-console review. The current non-failing Vite large-chunk advisory is acknowledged. Formal WCAG 2.2 AA audit, automated Lighthouse budgets and route-level code splitting remain post-launch work unless separately completed.
+
+## Cross-system failure and rollback matrix
+
+| Failure | Containment | Recovery invariant |
+|---|---|---|
+| Auth bypass or secret exposure | stop affected path, revoke/rotate, invalidate sessions | restore only after scope/audit and negative tests |
+| MongoDB/index/transaction failure | stop rollout/mutations | never bypass uniqueness; reconcile data or restore safely |
+| Duplicate/incorrect wallet mutation | pause relevant payment/order/admin path | preserve records; reconcile exact settlement/ledger/provider IDs |
+| Supplier ambiguity/outage | pause ordering/refresh | do not blind-retry uncertain provider submissions |
+| Razorpay outage/webhook failure | disable rail if necessary; retain independent safe rail | captured payments remain reconciliation obligations |
+| Direct UPI evidence mismatch | no credit; create reconciliation | exact pending user/ID/memo/amount/state must be proven |
+| Railway bot authorization risk | stop service; rotate token if needed | verify numeric owner and bot identity before restart |
+| Worker overlap/mailbox failure | stop/disable worker | one lease, one settlement, exact replay protection before resume |
+| Resend outage | no verification bypass | restore delivery/resend; keep one-time token semantics |
+| Frontend/config regression | restore prior Vercel deployment | reconcile APIs/data/providers independently |
+| Domain/icon/search regression | fix Vercel/DNS/static routing | verify content types/canonical before Search Console request |
+
+Incidents follow detect → assign commander → contain → preserve redacted evidence → determine scope → eradicate/rotate → recover/reconcile → monitor → review. Detailed commands and sign-off are in [`../SECURITY_DEPLOYMENT_RUNBOOK.md`](../SECURITY_DEPLOYMENT_RUNBOOK.md).
+
 ## Phase ledger
 
 | Phase | Scope | Local status | Production status |
 |---|---|---|---|
-| 0 | permanent pages, Direct UPI/Razorpay foundations | complete | prior deployment plus new checks pending |
-| 1 | multiple paid named API keys | complete and integration tested | staging recheck pending |
-| 2 | key activity and financial reporting | complete and tested | staging recheck pending |
-| 3 | owner temporary-password recovery | complete and tested | Railway staging pending |
-| 4 | revocable sessions and Support Access | complete and tested | staging pending |
-| 5 | Telegram owner control plane and worker | complete locally and tested | Railway deployment pending |
-| 6 | persistent limiting, fail-closed internals, exact UPI, indexes, email | complete locally and tested | Vercel/Railway/provider staging pending |
-| Search | favicon/logo/canonical eligibility | code complete | deploy + Search Console recrawl pending |
+| 0 | permanent pages, Direct UPI/Razorpay foundations | pushed at `93ae440`; locally validated | staging/production payment verification pending |
+| 1 | multiple paid named API keys | pushed; integration tested | staging recheck pending |
+| 2 | key activity and financial reporting | pushed; locally tested | staging recheck pending |
+| 3 | owner temporary-password recovery | pushed; locally tested | Railway/Vercel staging pending |
+| 4 | revocable sessions and Support Access | pushed; locally tested | staging pending |
+| 5 | Telegram owner control plane and worker | pushed; locally tested | Railway staging/deployment pending |
+| 6 | persistent limiting, fail-closed internals, exact UPI, indexes, email | pushed; locally tested | Vercel/Railway/provider staging pending |
+| Search | favicon/logo/canonical eligibility | pushed; static test passed | deployment + Search Console recrawl pending |
 
 ## Final launch gate
 
-- [ ] Freeze implementation and inspect final diff.
-- [ ] Clean-install root and admin dependencies.
-- [ ] Run every root/admin TypeScript, build, replica-set and search test.
-- [ ] Run root/admin production dependency audits.
-- [ ] Run current-tree and Git-history credential-pattern scans.
+- [x] Implementation scope frozen, reviewed and committed.
+- [x] Implementation pushed; local and GitHub `master` verified at `93ae440634fbff897d40f81506a863810d38aa8b`.
+- [x] Clean-install root/admin TypeScript, build, replica-set and search tests passed for the implementation baseline.
+- [x] Root/admin production dependency audits passed with zero known production vulnerabilities at validation time.
+- [x] Implementation-tree/history credential-pattern and whitespace checks passed.
+- [ ] Confirm revocation of the credential used for the completed implementation push.
+- [ ] Review/commit this separate second-pass documentation change set.
+- [ ] Obtain separate explicit authorization before any additional push.
+- [ ] Use an ephemeral least-privilege authorization-scoped push credential and revoke it immediately.
 - [ ] Deploy isolated Vercel and Railway staging.
 - [ ] Verify Resend domain/sender and all one-time email flows.
 - [ ] Verify cron fail-closed/bad-secret/good-secret behavior.
 - [ ] Verify Atlas accepts all critical index definitions on production-shaped data.
 - [ ] Run two Railway replicas and prove one lease/one settlement.
-- [ ] Verify apex and www redirect/canonical behavior.
-- [ ] Obtain separate explicit push authorization.
-- [ ] Use one fresh minimum-scope push credential without storing it.
-- [ ] Revoke that credential immediately after the authorized push.
+- [ ] Verify Razorpay and Direct UPI ordering, replay, refund/dispute and reconciliation cases.
+- [ ] Verify apex and `www` redirect/canonical/content-type behavior.
+- [ ] Complete accessibility, mobile/performance and Telegram-output encoding smoke gates.
+- [ ] Verify backup/PITR and identify the rollback/incident owners.
 - [ ] Perform controlled production smoke tests.
 - [ ] Submit sitemap/homepage and request Search Console indexing.
 
 ---
 
 **Master totals:** 290 system entries + 730 website entries + 147 bot entries = **1167 explicitly enumerated architecture entries**.
+ite entries + 147 bot entries = **1167 explicitly enumerated architecture entries**.

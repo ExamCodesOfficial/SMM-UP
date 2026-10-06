@@ -181,7 +181,7 @@ export default function ServicesCatalog({ services, onSelectService }: ServicesC
         </h1>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
         <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-2xl mx-auto">
-          Explore {services.length.toLocaleString()} verified wholesale channels with real-time provisioning &amp; zero retail markups.
+          Explore {services.length.toLocaleString()} catalog services with current displayed pricing, delivery information and service-specific refill terms.
         </p>
       </div>
 

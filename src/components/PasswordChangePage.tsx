@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../lib/apiResponse";
 import { AlertTriangle, Check, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import ContentPage from "./ContentPage";
 
@@ -14,11 +15,12 @@ export default function PasswordChangePage({ onNavigate, onCompleted }: Props) {
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [success, setSuccess] = React.useState("");
 
   React.useEffect(() => {
     let alive = true;
     fetch("/api/auth/recovery-status", { cache: "no-store" })
-      .then(async (response) => ({ ok: response.ok, data: await response.json().catch(() => ({})) }))
+      .then(async (response) => ({ ok: response.ok, data: await readApiPayload(response) }))
       .then(({ ok, data }) => {
         if (!alive) return;
         if (ok && data.active) setContext(data);
@@ -32,6 +34,7 @@ export default function PasswordChangePage({ onNavigate, onCompleted }: Props) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    setSuccess("");
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -43,8 +46,13 @@ export default function PasswordChangePage({ onNavigate, onCompleted }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiPayload(response);
       if (!response.ok) throw new Error(data.error || "Password change failed.");
+      if (data.signedIn === false) {
+        setSuccess(data.message || "Permanent password created. Sign in with the new password.");
+        setTimeout(() => { window.location.href = "/auth"; }, 1400);
+        return;
+      }
       onCompleted(data.user);
     } catch (submitError: any) {
       setError(submitError?.message || "Password change failed.");
@@ -87,6 +95,7 @@ export default function PasswordChangePage({ onNavigate, onCompleted }: Props) {
             </label>
             <p className="text-[11px] leading-relaxed text-zinc-500">Use 10–128 characters and at least three of: lowercase, uppercase, numbers and symbols.</p>
             {error && <div className="p-3 border border-white/15 bg-white/[0.04] text-xs text-zinc-200 flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {error}</div>}
+            {success && <div className="p-3 border border-white/20 bg-white/[0.06] text-xs text-white flex gap-2"><Check className="w-4 h-4 shrink-0" /> {success}</div>}
             <button type="submit" disabled={busy} className="btn-up btn-up-solid w-full disabled:opacity-50">
               {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
               {busy ? "Saving permanent password…" : "Save password and continue"}

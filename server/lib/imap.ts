@@ -125,9 +125,13 @@ export async function searchFamPayPayment(options: {
   const cleanSearch = rawSearch.replace(/[^A-Za-z0-9]/g, "");
   if (!cleanSearch || cleanSearch.length < 5) return null;
 
-  const user = process.env.FAMPAY_EMAIL;
+  const user = String(process.env.FAMPAY_EMAIL || "").trim();
   const pass = process.env.FAMPAY_APP_PASSWORD?.replace(/\s+/g, "");
+  const trustedSender = String(process.env.FAMPAY_SENDER_FILTER || "no-reply@famapp.in").trim().toLowerCase();
   if (!user || !pass) throw new Error("FAMPAY_EMAIL / FAMPAY_APP_PASSWORD environment variables are required");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trustedSender)) {
+    throw new Error("FAMPAY_SENDER_FILTER must be one exact email address.");
+  }
 
   const client = new ImapFlow({
     host: "imap.gmail.com",
@@ -135,13 +139,17 @@ export async function searchFamPayPayment(options: {
     secure: true,
     auth: { user, pass },
     logger: false,
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 7000,
     clientInfo: { name: "SMMUP-Settlement", version: "2.0.0" },
   });
 
   // Strict 7-Second Timeout Guard (Aborts cleanly before Vercel container termination)
-  const timeoutPromise = new Promise<null>((_, reject) =>
-    setTimeout(() => reject(new Error("IMAP connection timed out after 7000ms")), 7000)
-  );
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<null>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error("IMAP connection timed out after 7000ms")), 7000);
+  });
 
   const searchExecution = async (): Promise<ParsedFamPayPayment | null> => {
     try {
@@ -149,11 +157,14 @@ export async function searchFamPayPayment(options: {
       const lock = await client.getMailboxLock("INBOX");
 
       try {
-        // Strict Sender Enforcement: ONLY trusted bank/FamPay sender
-        const senderFilter = process.env.FAMPAY_SENDER_FILTER || "no-reply@famapp.in";
+        // Server-side narrowing is followed by an exact envelope-address check below.
+        const freshnessFloor = options.minDate
+          ? new Date(options.minDate.getTime() - 2 * 60_000)
+          : new Date(Date.now() - 3 * 60 * 60_000);
         const matchingSeqNumbers = await client.search({
           body: cleanSearch,
-          from: senderFilter,
+          from: trustedSender,
+          since: freshnessFloor,
         });
 
         if (!Array.isArray(matchingSeqNumbers) || matchingSeqNumbers.length === 0) {
@@ -172,9 +183,11 @@ export async function searchFamPayPayment(options: {
           if (!message || !message.source) continue;
 
           // Verify envelope sender explicitly
-          const senderAddress = message.envelope?.from?.[0]?.address?.toLowerCase() || "";
-          if (!senderAddress.includes("famapp.in")) {
-            continue; // Reject unverified sender
+          const envelopeSenders = (message.envelope?.from || [])
+            .map((entry) => String(entry.address || "").trim().toLowerCase())
+            .filter(Boolean);
+          if (envelopeSenders.length !== 1 || envelopeSenders[0] !== trustedSender) {
+            continue;
           }
 
           const rawContent = message.source.toString("utf-8");
@@ -182,21 +195,19 @@ export async function searchFamPayPayment(options: {
 
           if (!parsed) continue;
 
-          const emailDate = message.envelope?.date ? new Date(message.envelope.date) : new Date();
+          if (!message.envelope?.date) continue;
+          const emailDate = new Date(message.envelope.date);
+          const emailTime = emailDate.getTime();
+          if (!Number.isFinite(emailTime) || emailTime > Date.now() + 5 * 60_000) continue;
           parsed.date = emailDate;
 
           // Date Freshness Validation:
           if (options.minDate) {
             const bufferMin = new Date(options.minDate.getTime() - 2 * 60 * 1000);
-            if (emailDate < bufferMin) {
-              continue;
-            }
+            if (emailDate < bufferMin) continue;
           } else {
-            // Default guard: must be within last 3 hours
             const maxAgeMs = 3 * 60 * 60 * 1000;
-            if (Date.now() - emailDate.getTime() > maxAgeMs) {
-              continue;
-            }
+            if (Date.now() - emailTime > maxAgeMs) continue;
           }
 
           // Amount Validation:
@@ -236,6 +247,8 @@ export async function searchFamPayPayment(options: {
       await client.logout();
     } catch {}
     return null;
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
   }
 }
 

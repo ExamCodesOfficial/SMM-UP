@@ -118,7 +118,7 @@ function publicReview(r: any) {
   };
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handleReviewsRequest(req: VercelRequest, res: VercelResponse) {
   const rawAction = req.query.action;
   const action = Array.isArray(rawAction) ? rawAction[0] : rawAction || "";
   const db = await getDb();
@@ -176,9 +176,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { rating, text, city } = req.body || {};
       const r = Number(rating);
       const t = String(text || "").trim();
-      if (!r || r < 1 || r > 5) return res.status(400).json({ error: "Rating must be 1–5 stars." });
+      if (!Number.isInteger(r) || r < 1 || r > 5) return res.status(400).json({ error: "Rating must be a whole number from 1 to 5 stars." });
       if (t.length < 40) return res.status(400).json({ error: "Tell us a little more — at least 40 characters." });
       if (t.length > 1200) return res.status(400).json({ error: "Keep it under 1,200 characters." });
+      if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(t)) {
+        return res.status(400).json({ error: "Review text contains unsupported control characters." });
+      }
 
       const userId = new ObjectId(u.userId);
       const orderCount = await userStats(db, userId);
@@ -227,4 +230,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Review moderation intentionally has NO website endpoint. It lives directly
   // inside the owner-only Telegram admin bot and writes to MongoDB there.
   return res.status(404).json({ error: "Not found" });
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    return await handleReviewsRequest(req, res);
+  } catch (error: any) {
+    console.error("handleReviewsRequest uncaught error:", error?.message || error);
+    if (res.headersSent) return;
+    return res.status(503).json({ error: "Service temporarily unavailable. Please try again shortly." });
+  }
 }

@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../../lib/apiResponse";
 import {
   Activity,
   AlertTriangle,
@@ -144,7 +145,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
   const loadKeys = React.useCallback(async () => {
     try {
       const response = await fetch("/api/auth/list-api-keys", { cache: "no-store" });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiPayload(response);
       if (!response.ok) throw new Error(data.error || "Failed to load API keys.");
       const nextKeys = Array.isArray(data.keys) ? data.keys : [];
       setKeys(nextKeys);
@@ -162,7 +163,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
       fetch("/api/auth/api-key-report", { cache: "no-store" })
         .then(async (reportResponse) => ({
           ok: reportResponse.ok,
-          data: await reportResponse.json().catch(() => ({})),
+          data: await readApiPayload(reportResponse),
         }))
         .then(({ ok, data: reportData }) => {
           if (!ok || !Array.isArray(reportData.summaries)) return;
@@ -175,7 +176,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
       fetch("/api/auth/list-sessions", { cache: "no-store" })
         .then(async (sessionResponse) => ({
           ok: sessionResponse.ok,
-          data: await sessionResponse.json().catch(() => ({})),
+          data: await readApiPayload(sessionResponse),
         }))
         .then(({ ok, data: sessionData }) => {
           if (!ok) return;
@@ -201,14 +202,14 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body || {}),
     });
-    const data = await response.json().catch(() => ({}));
+    const data = await readApiPayload(response);
     if (!response.ok) throw new Error(data.error || "Request failed.");
     return data;
   };
 
   const reloadSessions = async () => {
     const response = await fetch("/api/auth/list-sessions", { cache: "no-store" });
-    const data = await response.json().catch(() => ({}));
+    const data = await readApiPayload(response);
     if (!response.ok) throw new Error(data.error || "Failed to load sessions.");
     setSessions({
       items: Array.isArray(data.sessions) ? data.sessions : [],
@@ -372,7 +373,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
       if (filters.minAmount) params.set("minAmount", filters.minAmount);
       if (filters.maxAmount) params.set("maxAmount", filters.maxAmount);
       const response = await fetch(`/api/auth/api-key-activity?${params.toString()}`, { cache: "no-store" });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiPayload(response);
       if (!response.ok) throw new Error(data.error || "Failed to load activity.");
       setActivity(Array.isArray(data.activity) ? data.activity : []);
     } catch (activityError: any) {
@@ -435,7 +436,7 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newEmail, password: emailChangePassword }),
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiPayload(response);
       if (!response.ok) throw new Error(data.error || "Unable to request email change.");
       setSuccess(data.message || "Confirmation email sent.");
       setNewEmail("");
@@ -721,7 +722,7 @@ export function TransactionsPage({ onNavigate, user }: PageProps & { user: any }
     (async () => {
       try {
         const res = await fetch("/api/payments/history");
-        const data = await res.json();
+        const data = await readApiPayload(res);
         if (!alive) return;
         if (res.ok && Array.isArray(data.transactions)) setTxns(data.transactions);
         else setTxns([]);

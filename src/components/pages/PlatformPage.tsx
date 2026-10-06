@@ -105,7 +105,7 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
     why: [
       { title: "Monetization-aware delivery", desc: "Watch-time services run at speeds that complete 4,000-hour goals without tripping review flags." },
       { title: "Retention metrics shown", desc: "High-retention options label their average watch percentage — no surprises after the fact." },
-      { title: "Completion honesty", desc: "If a service can't finish, you get a partial refund automatically — never silent losses." },
+      { title: "Completion honesty", desc: "If a service cannot finish, its final counts are reviewed for the eligible wallet adjustment — never a blind retry." },
     ],
     faq: [
       { q: "Is buying YouTube watch time safe for monetization?", a: "Our monetization-oriented watch-time services are designed to register in YouTube Analytics, but no panel can guarantee approval. YouTube makes the final decision after reviewing the whole channel, its content and traffic patterns. Use gradual quantities and keep publishing original content alongside any campaign." },
@@ -388,12 +388,11 @@ export default function PlatformPage({ config, services, onNavigate }: PlatformP
       </div>
 
       <Callout>
-        All {config.name} orders need only a public link — never a password. Deposits clear automatically via
-        UPI with 0% fee. Questions? The{" "}
+        All {config.name} orders need only a public link — never a password. Direct UPI deposits use exact memo and receipt matching with a 0% platform fee. Questions? The{" "}
         <a href={pathFor("support")} className="text-white underline underline-offset-4 hover:text-zinc-300 cursor-pointer">
           support desk
         </a>{" "}
-        runs 24/7.
+        is the direct review route.
       </Callout>
     </ContentPage>
   );

@@ -25,44 +25,58 @@ export interface SMMService {
   description: string;
 }
 
-const PANEL_URL = process.env.PANEL_URL;
-if (!PANEL_URL) throw new Error("PANEL_URL environment variable is required");
-const PANEL_KEY = process.env.PANEL_KEY;
-if (!PANEL_KEY) throw new Error("PANEL_KEY environment variable is required");
+function panelConfiguration() {
+  const url = String(process.env.PANEL_URL || "").trim();
+  const key = String(process.env.PANEL_KEY || "").trim();
+  if (!url || !key) {
+    throw new Error("Supplier integration is not configured.");
+  }
+  const parsed = new URL(url);
+  if (process.env.NODE_ENV === "production" && parsed.protocol !== "https:") {
+    throw new Error("Supplier integration must use HTTPS in production.");
+  }
+  return { url: parsed.toString(), key };
+}
 
 const DEFAULT_HEADERS = {
-  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+  "User-Agent": "SMM-UP/1.0",
   "Accept": "application/json, text/plain, */*",
   "Accept-Language": "en-US,en;q=0.9",
 };
 
-// Markup multipliers are private configuration, never source-controlled.
-// Retail prices are derived from these two env vars ONLY — deliberately no
-// in-source defaults, so the repo never discloses our margins. Both must be
-// set in every environment (Vercel → Project Settings → Environment Variables).
-const TIER1_RAW = process.env.TIER1_MARKUP;
-const TIER2_RAW = process.env.TIER2_MARKUP;
-if (!TIER1_RAW || !TIER2_RAW) {
-  throw new Error("TIER1_MARKUP and TIER2_MARKUP environment variables are required.");
-}
-export const TIER1_MARKUP = parseFloat(TIER1_RAW);
-export const TIER2_MARKUP = parseFloat(TIER2_RAW);
-if (isNaN(TIER1_MARKUP) || isNaN(TIER2_MARKUP)) {
-  throw new Error("TIER1_MARKUP and TIER2_MARKUP must be valid numbers.");
+function pricingMultipliers() {
+  const tier1 = Number(process.env.TIER1_MARKUP);
+  const tier2 = Number(process.env.TIER2_MARKUP);
+  if (!Number.isFinite(tier1) || tier1 <= 0 || !Number.isFinite(tier2) || tier2 <= 0) {
+    throw new Error("Private pricing configuration is missing or invalid.");
+  }
+  return { tier1, tier2 };
 }
 
-export function calculateRetailRate(wholesaleRate1k: number, t1 = TIER1_MARKUP, t2 = TIER2_MARKUP): number {
+export function calculateRetailRate(wholesaleRate1k: number, t1?: number, t2?: number): number {
   const wRate = Number(wholesaleRate1k);
   if (!Number.isFinite(wRate) || wRate <= 0) {
     throw new Error("Wholesale rate must be a positive number.");
   }
-  const retail = wRate * (wRate < 20.0 ? t1 : t2);
-  // Rates are INR per 1,000. Keep the catalog truthful below ₹1; only guard
-  // against a zero-price SKU after two-decimal currency rounding.
+  const configured = t1 === undefined || t2 === undefined ? pricingMultipliers() : null;
+  const tier1 = t1 ?? configured!.tier1;
+  const tier2 = t2 ?? configured!.tier2;
+  if (!Number.isFinite(tier1) || tier1 <= 0 || !Number.isFinite(tier2) || tier2 <= 0) {
+    throw new Error("Pricing multipliers must be positive numbers.");
+  }
+  const retail = wRate * (wRate < 20.0 ? tier1 : tier2);
   return Math.max(0.01, Math.round(retail * 100) / 100);
 }
 
-export function calculateOrderTotal(wholesaleRate1k: number, quantity: number, t1 = TIER1_MARKUP, t2 = TIER2_MARKUP): { totalCharge: number; wholesaleCost: number; profit: number } {
+export function calculateOrderTotal(
+  wholesaleRate1k: number,
+  quantity: number,
+  t1?: number,
+  t2?: number,
+): { totalCharge: number; wholesaleCost: number; profit: number } {
+  if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+    throw new Error("Order quantity must be a positive integer.");
+  }
   const retail1k = calculateRetailRate(wholesaleRate1k, t1, t2);
   let totalCharge = (retail1k * quantity) / 1000.0;
   totalCharge = Math.max(0.10, Math.round(totalCharge * 100) / 100);
@@ -73,10 +87,50 @@ export function calculateOrderTotal(wholesaleRate1k: number, quantity: number, t
   return { totalCharge, wholesaleCost, profit };
 }
 
+async function panelRequest(
+  action: string,
+  parameters: Record<string, string | number | undefined> = {},
+): Promise<any> {
+  const configuration = panelConfiguration();
+  const formData = new URLSearchParams({ key: configuration.key, action });
+  for (const [name, value] of Object.entries(parameters)) {
+    if (value !== undefined && value !== "") formData.append(name, String(value));
+  }
+
+  const response = await fetch(configuration.url, {
+    method: "POST",
+    headers: {
+      ...DEFAULT_HEADERS,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: formData.toString(),
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Supplier request failed with HTTP ${response.status}.`);
+  }
+  try {
+    return await response.json();
+  } catch {
+    throw new Error("Supplier returned an invalid response.");
+  }
+}
+
 // In-memory catalog cache (TTL: 5 minutes)
 let cachedServices: SMMService[] | null = null;
 let lastCacheTime = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
+
+export function normalizeProviderOrderStatus(raw: unknown): string {
+  const status = String(raw || "").trim().toLowerCase();
+  if (status === "completed" || status === "complete") return "Completed";
+  if (status === "partial") return "Partial";
+  if (status === "processing") return "Processing";
+  if (status === "in progress" || status === "inprogress") return "In progress";
+  if (status === "canceled" || status === "cancelled") return "Canceled";
+  if (status === "failed") return "Failed";
+  return "Pending";
+}
 
 export function detectPlatform(category: string, name: string): string {
   const combined = (category + " " + name).toLowerCase();
@@ -217,59 +271,51 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
     return cachedServices;
   }
 
-  const formData = new URLSearchParams();
-  formData.append("key", PANEL_KEY);
-  formData.append("action", "services");
-
-  const response = await fetch(PANEL_URL, {
-    method: "POST",
-    headers: {
-      ...DEFAULT_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch services from provider (HTTP ${response.status})`);
-  }
-
-  const data = await response.json();
+  const data = await panelRequest("services");
   if (!Array.isArray(data)) {
     throw new Error("Invalid provider response format");
   }
 
   const sanitized: SMMService[] = data
-    .filter((s: any) => Number.isFinite(parseFloat(s?.rate)) && parseFloat(s.rate) > 0)
-    .map((s: any) => {
-      const wRate = parseFloat(s.rate);
-      const retailRate = calculateRetailRate(wRate);
-    const category = sanitizeBrandText(decodeHtmlEntities(String(s.category || "General")).trim());
-    const name = sanitizeBrandText(decodeHtmlEntities(String(s.name || "Service")).trim());
-    const description = cleanServiceDescription(s.description || s.desc);
-    const rawRefill = Boolean(s.refill === true || s.refill === "true" || s.refill === 1);
-    const refillPolicy = extractRefillPolicy(name, description, rawRefill);
+    .filter((service: any) => {
+      const serviceId = Number(service?.service);
+      const wholesaleRate = Number(service?.rate);
+      return Number.isSafeInteger(serviceId) && serviceId > 0
+        && Number.isFinite(wholesaleRate) && wholesaleRate > 0;
+    })
+    .map((service: any) => {
+      const wholesaleRate = Number(service.rate);
+      const retailRate = calculateRetailRate(wholesaleRate);
+      const category = sanitizeBrandText(decodeHtmlEntities(String(service.category || "General")).trim()).slice(0, 300);
+      const name = sanitizeBrandText(decodeHtmlEntities(String(service.name || "Service")).trim()).slice(0, 500);
+      const description = cleanServiceDescription(service.description || service.desc).slice(0, 5000);
+      const rawRefill = Boolean(service.refill === true || service.refill === "true" || service.refill === 1);
+      const refillPolicy = extractRefillPolicy(name, description, rawRefill);
+      const parsedMin = Number.parseInt(String(service.min || ""), 10);
+      const parsedMax = Number.parseInt(String(service.max || ""), 10);
+      const minimum = Number.isSafeInteger(parsedMin) && parsedMin > 0 ? parsedMin : 10;
+      const maximum = Number.isSafeInteger(parsedMax) && parsedMax >= minimum ? parsedMax : Math.max(minimum, 100_000);
 
-    return {
-      service: Number(s.service),
-      name: name,
-      type: String(s.type || "Default"),
-      category: category,
-      platform: detectPlatform(category, name),
-      rate: retailRate,
-      wholesale_rate: wRate,
-      min: parseInt(s.min, 10) || 10,
-      max: parseInt(s.max, 10) || 100000,
-      dripfeed: Boolean(s.dripfeed === true || s.dripfeed === "true"),
-      refill: refillPolicy.hasRefill,
-      refill_days: refillPolicy.days,
-      refill_label: refillPolicy.label,
-      refill_short: refillPolicy.shortLabel,
-      cancel: Boolean(s.cancel === true || s.cancel === "true" || s.cancel === 1),
-      average_time: String(s.average_time || "Instant"),
-      description: description,
-    };
-  });
+      return {
+        service: Number(service.service),
+        name,
+        type: String(service.type || "Default").slice(0, 100),
+        category,
+        platform: detectPlatform(category, name),
+        rate: retailRate,
+        wholesale_rate: wholesaleRate,
+        min: minimum,
+        max: maximum,
+        dripfeed: Boolean(service.dripfeed === true || service.dripfeed === "true"),
+        refill: refillPolicy.hasRefill,
+        refill_days: refillPolicy.days,
+        refill_label: refillPolicy.label,
+        refill_short: refillPolicy.shortLabel,
+        cancel: Boolean(service.cancel === true || service.cancel === "true" || service.cancel === 1),
+        average_time: String(service.average_time || "Instant").slice(0, 200),
+        description,
+      };
+    });
 
   cachedServices = sanitized;
   lastCacheTime = now;
@@ -288,161 +334,55 @@ export async function addProviderOrder(params: {
   runs?: number;
   interval?: number;
 }): Promise<{ orderId?: number | string; error?: string }> {
-  const formData = new URLSearchParams();
-  formData.append("key", PANEL_KEY);
-  formData.append("action", "add");
-  formData.append("service", String(params.serviceId));
-  formData.append("link", params.link);
-
-  if (params.quantity !== undefined) formData.append("quantity", String(params.quantity));
-  if (params.comments) formData.append("comments", params.comments);
-  if (params.usernames) formData.append("usernames", params.usernames);
-  if (params.hashtags) formData.append("hashtags", params.hashtags);
-  if (params.username) formData.append("username", params.username);
-  if (params.answer_number) formData.append("answer_number", String(params.answer_number));
-  if (params.runs) formData.append("runs", String(params.runs));
-  if (params.interval) formData.append("interval", String(params.interval));
-
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-
-    const response = await fetch(PANEL_URL, {
-      method: "POST",
-      headers: {
-        ...DEFAULT_HEADERS,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: formData.toString(),
-      signal: controller.signal,
-    }).finally(() => clearTimeout(timeout));
-
-    if (!response.ok) {
-      return { error: `Wholesale provider HTTP error: ${response.status}` };
+    const response = await panelRequest("add", {
+      service: params.serviceId,
+      link: params.link,
+      quantity: params.quantity,
+      comments: params.comments,
+      usernames: params.usernames,
+      hashtags: params.hashtags,
+      username: params.username,
+      answer_number: params.answer_number,
+      runs: params.runs,
+      interval: params.interval,
+    });
+    if (response?.error) return { error: String(response.error) };
+    if (response?.order === undefined || response?.order === null || response?.order === "") {
+      return { error: "Supplier returned an invalid order response." };
     }
-
-    const resJson = await response.json();
-    if (resJson.error) {
-      return { error: String(resJson.error) };
-    }
-    return { orderId: resJson.order };
-  } catch (err: any) {
-    if (err.name === "AbortError") {
-      return { error: "Wholesale provider network timeout" };
-    }
-    return { error: err.message || "Wholesale provider connection error" };
+    return { orderId: response.order };
+  } catch (error: any) {
+    return { error: error?.message || "Supplier connection failed." };
   }
 }
 
 export async function checkOrderStatus(orderId: number | string): Promise<any> {
-  const formData = new URLSearchParams();
-  formData.append("key", PANEL_KEY);
-  formData.append("action", "status");
-  formData.append("order", String(orderId));
-
-  const response = await fetch(PANEL_URL, {
-    method: "POST",
-    headers: {
-      ...DEFAULT_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
-
-  return await response.json();
+  return panelRequest("status", { order: orderId });
 }
 
 /** Batch status check — upstream accepts comma-separated order IDs (max 100) in one call. */
 export async function checkOrderStatusMulti(orderIds: string): Promise<any> {
-  const formData = new URLSearchParams();
-  formData.append("key", PANEL_KEY);
-  formData.append("action", "status");
-  formData.append("order", orderIds);
-
-  const response = await fetch(PANEL_URL, {
-    method: "POST",
-    headers: {
-      ...DEFAULT_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
-
-  return await response.json();
+  return panelRequest("status", { order: orderIds });
 }
 
 /** Poll the status of a previously requested refill (standard v2 `refill_status` action). */
 export async function checkRefillStatus(refillId: number | string): Promise<any> {
-  const formData = new URLSearchParams();
-  formData.append("key", PANEL_KEY);
-  formData.append("action", "refill_status");
-  formData.append("refill", String(refillId));
-
-  const response = await fetch(PANEL_URL, {
-    method: "POST",
-    headers: {
-      ...DEFAULT_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
-
-  return await response.json();
+  return panelRequest("refill_status", { refill: refillId });
 }
 
 export async function requestOrderRefill(orderId: number | string): Promise<any> {
-  const formData = new URLSearchParams();
-  formData.append("key", PANEL_KEY);
-  formData.append("action", "refill");
-  formData.append("order", String(orderId));
-
-  const response = await fetch(PANEL_URL, {
-    method: "POST",
-    headers: {
-      ...DEFAULT_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
-
-  return await response.json();
+  return panelRequest("refill", { order: orderId });
 }
 
 export async function cancelProviderOrder(orderId: number | string): Promise<any> {
-  const formData = new URLSearchParams();
-  formData.append("key", PANEL_KEY);
-  formData.append("action", "cancel");
-  formData.append("order", String(orderId));
-
-  const response = await fetch(PANEL_URL, {
-    method: "POST",
-    headers: {
-      ...DEFAULT_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
-
-  return await response.json();
+  return panelRequest("cancel", { order: orderId });
 }
 
 export async function getWholesaleBalance(): Promise<{ balance: number; currency: string }> {
-  const formData = new URLSearchParams();
-  formData.append("key", PANEL_KEY);
-  formData.append("action", "balance");
-
-  const response = await fetch(PANEL_URL, {
-    method: "POST",
-    headers: {
-      ...DEFAULT_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-  });
-
-  const data = await response.json();
+  const data = await panelRequest("balance");
   return {
-    balance: parseFloat(data.balance) || 0,
-    currency: String(data.currency || "INR"),
+    balance: parseFloat(data?.balance) || 0,
+    currency: String(data?.currency || "INR"),
   };
 }

@@ -1,0 +1,12 @@
+# Private repository ownership. Update this handle before transferring the repository.
+* @ExamCodesOfficial
+
+# Security-sensitive domains
+/api/auth/ @ExamCodesOfficial
+/api/payments/ @ExamCodesOfficial
+/api/razorpay/ @ExamCodesOfficial
+/api/razorpay-webhook.ts @ExamCodesOfficial
+/api/v2.ts @ExamCodesOfficial
+/server/lib/ @ExamCodesOfficial
+/admin-bot/ @ExamCodesOfficial
+/.github/ @ExamCodesOfficial

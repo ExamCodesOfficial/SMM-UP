@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../lib/apiResponse";
 import { Play, AlertTriangle, RotateCcw } from "lucide-react";
 import ContentPage, { P, H2, Callout } from "./ContentPage";
 
@@ -73,7 +74,7 @@ export default function ApiPlayground({ onNavigate, user }: ApiPlaygroundProps) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => ({ error: "Non-JSON response", status: res.status }));
+      const data = await readApiPayload(res).catch(() => ({ error: "Non-JSON response", status: res.status }));
       setOk(res.ok && !data.error);
       const text = JSON.stringify(data, null, 2);
       setResult(text.length > 12000 ? text.slice(0, 12000) + "\n// … trimmed — large payload (services list is long)" : text);

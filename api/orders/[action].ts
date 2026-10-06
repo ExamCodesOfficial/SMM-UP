@@ -10,12 +10,14 @@ import {
   checkOrderStatus,
   requestOrderRefill,
   cancelProviderOrder,
+  normalizeProviderOrderStatus,
   sanitizeBrandText,
   sanitizeProviderError,
 } from "../../server/lib/smm.js";
 import { sendFailedOrderAlert } from "../../server/lib/telegram.js";
+import { OrderReservationError, reserveWebsiteOrder } from "../../server/lib/orderReservations.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handleOrdersRequest(req: VercelRequest, res: VercelResponse) {
   const { action } = req.query;
   const db = await getDb();
   const authUser = await getUserFromRequest(req, db);
@@ -47,8 +49,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Service and target link are required" });
     }
 
-    const sId = parseInt(serviceId, 10);
+    const sId = Number(serviceId);
     const cleanLink = String(link).trim();
+    if (!Number.isSafeInteger(sId) || sId <= 0) {
+      return res.status(400).json({ error: "Enter a valid service ID." });
+    }
+    if (cleanLink.length < 3 || cleanLink.length > 2048 || /[\u0000-\u001F\u007F]/.test(cleanLink)) {
+      return res.status(400).json({ error: "Enter a valid public target link or username." });
+    }
+    for (const [label, value, maxLength] of [
+      ["comments", comments, 100_000],
+      ["usernames", usernames, 100_000],
+      ["hashtags", hashtags, 100_000],
+      ["username", username, 500],
+    ] as const) {
+      if (value !== undefined && String(value).length > maxLength) {
+        return res.status(413).json({ error: `${label} input is too large.` });
+      }
+    }
 
     try {
       const services = await fetchAllServices();
@@ -64,11 +82,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } else if (service.type === "Package") {
         effQuantity = 1;
       } else {
-        effQuantity = parseInt(quantity, 10);
-        if (isNaN(effQuantity) || effQuantity < service.min || effQuantity > service.max) {
-          return res.status(400).json({
-            error: `Quantity must be between ${service.min.toLocaleString()} and ${service.max.toLocaleString()}`,
-          });
+        effQuantity = Number(quantity);
+      }
+      if (
+        !Number.isSafeInteger(effQuantity)
+        || (service.type !== "Package" && (effQuantity < service.min || effQuantity > service.max))
+      ) {
+        return res.status(400).json({
+          error: `Quantity must be between ${service.min.toLocaleString()} and ${service.max.toLocaleString()}`,
+        });
+      }
+      for (const [label, value, maximum] of [
+        ["answer_number", answer_number, 10_000],
+        ["runs", runs, 10_000],
+        ["interval", interval, 1_000_000],
+      ] as const) {
+        if (value !== undefined && value !== null && value !== "") {
+          const parsed = Number(value);
+          if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > maximum) {
+            return res.status(400).json({ error: `${label} is invalid.` });
+          }
         }
       }
 
@@ -77,36 +110,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         effQuantity
       );
 
-      const users = db.collection("users");
-      const debitResult: any = await users.findOneAndUpdate(
-        { _id: userObjectId, balance: { $gte: totalCharge }, payment_hold: { $ne: true }, ordering_hold: { $ne: true } },
-        {
-          $inc: {
-            balance: -totalCharge,
-            total_spent: totalCharge,
-            total_orders: 1,
-          },
+      const reservation = await reserveWebsiteOrder(db, {
+        userId: userObjectId,
+        userEmail: authUser.email,
+        amountInr: totalCharge,
+        draft: {
+          service_id: sId,
+          service_name: service.name,
+          category: service.category,
+          link: cleanLink,
+          quantity: effQuantity,
+          wholesale_cost: wholesaleCost,
+          profit,
+          refill_available: Boolean(service.refill),
+          refill_days: service.refill_days,
+          refill_label: service.refill_label,
+          cancel_available: Boolean(service.cancel),
         },
-        { returnDocument: "after" }
-      );
-
-      if (!debitResult) {
-        const currentUser = await users.findOne(
-          { _id: userObjectId },
-          { projection: { payment_hold: 1, ordering_hold: 1, ordering_hold_reason: 1 } },
-        );
-        if (currentUser?.payment_hold || currentUser?.ordering_hold) {
-          return res.status(403).json({
-            error: currentUser?.ordering_hold
-              ? "Ordering is temporarily paused on this account. Please contact support."
-              : "Ordering is temporarily paused while a payment refund or dispute is reviewed. Please contact support.",
-          });
-        }
-        return res.status(400).json({
-          error: "Insufficient funds. Please add money to your wallet.",
-          required: totalCharge,
-        });
-      }
+      });
 
       const providerRes = await addProviderOrder({
         serviceId: sId,
@@ -122,80 +143,95 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       if (providerRes.error || !providerRes.orderId) {
-        // STRICT DIRECTIVE: Zero automatic refunds!
-        // Funds remain debited. Order is recorded with status: "Failed", refund_status: "requires_admin_review".
-        const failedOrder = {
-          user_id: userObjectId,
-          user_email: authUser.email,
-          service_id: sId,
-          service_name: service.name,
-          category: service.category,
-          link: cleanLink,
-          quantity: effQuantity,
-          charge: totalCharge,
-          wholesale_cost: wholesaleCost,
-          profit: profit,
-          provider_order_id: null,
-          provider_error: providerRes.error || "Unknown provider error",
-          status: "Failed",
-          refund_status: "requires_admin_review",
-          refill_available: false,
-          cancel_available: false,
-          created_at: new Date(),
-          updated_at: new Date(),
-        };
+        const providerError = String(providerRes.error || "Unknown provider error").slice(0, 1000);
+        const markedFailed = await db.collection("orders").updateOne(
+          { _id: reservation.orderId, status: "Submitting" },
+          {
+            $set: {
+              provider_error: providerError,
+              status: "Failed",
+              refund_status: "requires_admin_review",
+              refill_available: false,
+              cancel_available: false,
+              updated_at: new Date(),
+            },
+          },
+        );
+        if (markedFailed.modifiedCount !== 1) {
+          throw new Error("Reserved order could not be marked for administrative review.");
+        }
 
-        const failedInsert = await db.collection("orders").insertOne(failedOrder);
-
-        // Dispatch alert to Admin Group / Telegram Owner for manual review
         sendFailedOrderAlert({
-          orderId: failedInsert.insertedId.toString(),
+          orderId: reservation.orderId.toString(),
           userEmail: authUser.email,
           serviceName: service.name,
           charge: totalCharge,
-          error: providerRes.error || "Unknown provider error",
-        }).catch((e) => console.error("Failed order alert error:", e));
+          error: providerError,
+        }).catch((error) => console.error("Failed order alert error:", error));
 
         return res.status(400).json({
           error:
             "Order submission encountered an issue and has been flagged for manual administrative review. Your funds are held securely. Please contact support with your Order ID.",
-          orderId: failedInsert.insertedId.toString(),
+          orderId: reservation.orderId.toString(),
         });
       }
 
-      const newOrder = {
-        user_id: userObjectId,
-        user_email: authUser.email,
-        service_id: sId,
-        service_name: service.name,
-        category: service.category,
-        link: cleanLink,
-        quantity: effQuantity,
-        charge: totalCharge,
-        wholesale_cost: wholesaleCost,
-        profit: profit,
-        provider_order_id: providerRes.orderId,
-        status: "In progress",
-        refill_available: service.refill,
-        refill_days: service.refill_days,
-        refill_label: service.refill_label,
-        cancel_available: service.cancel,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      const orderInsert = await db.collection("orders").insertOne(newOrder);
+      const finalized = await db.collection("orders").updateOne(
+        { _id: reservation.orderId, status: "Submitting" },
+        {
+          $set: {
+            provider_order_id: providerRes.orderId,
+            status: "In progress",
+            updated_at: new Date(),
+          },
+        },
+      );
+      if (finalized.modifiedCount !== 1) {
+        const current: any = await db.collection("orders").findOne({ _id: reservation.orderId });
+        if (String(current?.provider_order_id || "") !== String(providerRes.orderId)) {
+          const reconciliationError = `Supplier accepted provider order ${String(providerRes.orderId).slice(0, 100)}, but local finalization was interrupted.`;
+          await db.collection("orders").updateOne(
+            { _id: reservation.orderId },
+            {
+              $set: {
+                provider_order_id: providerRes.orderId,
+                provider_error: reconciliationError,
+                status: "Submission uncertain",
+                refund_status: "requires_admin_review",
+                updated_at: new Date(),
+              },
+            },
+          );
+          sendFailedOrderAlert({
+            orderId: reservation.orderId.toString(),
+            userEmail: authUser.email,
+            serviceName: service.name,
+            charge: totalCharge,
+            error: reconciliationError,
+          }).catch((alertError) => console.error("Order reconciliation alert error:", alertError));
+          return res.status(503).json({
+            error: "The supplier accepted this order, but local confirmation requires administrative review. Do not place it again.",
+            orderId: reservation.orderId.toString(),
+          });
+        }
+      }
 
       return res.status(201).json({
         success: true,
-        orderId: orderInsert.insertedId.toString(),
+        orderId: reservation.orderId.toString(),
         providerOrderId: providerRes.orderId,
         charge: totalCharge,
-        balance: debitResult.balance,
+        balance: reservation.newBalance,
         serviceName: service.name,
       });
-    } catch (err) {
-      return res.status(500).json({ error: "Order execution failed" });
+    } catch (error: any) {
+      if (error instanceof OrderReservationError) {
+        return res.status(error.statusCode).json({ error: error.message, code: error.code });
+      }
+      console.error("Website order execution failed:", error?.message || error);
+      return res.status(500).json({
+        error: "Order execution failed. If funds were reserved, the order remains recorded for administrative review.",
+      });
     }
   }
 
@@ -253,35 +289,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (action === "status") {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
     res.setHeader("Cache-Control", "no-store, max-age=0");
-    const { id } = req.query;
-    if (!id) return res.status(400).json({ error: "Order ID required" });
+    const id = String(req.query.id || "");
+    if (!ObjectId.isValid(id)) return res.status(400).json({ error: "A valid order ID is required" });
 
     try {
       const order = await db.collection("orders").findOne({
-        _id: new ObjectId(String(id)),
+        _id: new ObjectId(id),
         user_id: userObjectId,
       });
       if (!order || !order.provider_order_id) {
         return res.status(404).json({ error: "Order not found" });
       }
 
+      if (["Completed", "Partial", "Canceled", "Cancelled", "Failed", "Refunded"].includes(String(order.status))) {
+        return res.status(200).json({ success: true, status: order.status });
+      }
       const liveStatus = await checkOrderStatus(order.provider_order_id);
-      if (liveStatus && liveStatus.status) {
+      if (liveStatus?.error) {
+        return res.status(502).json({ error: sanitizeProviderError(liveStatus.error) });
+      }
+      if (liveStatus?.status) {
+        const normalizedStatus = normalizeProviderOrderStatus(liveStatus.status);
         await db.collection("orders").updateOne(
           { _id: order._id },
           {
             $set: {
-              status: liveStatus.status,
-              start_count: liveStatus.start_count,
-              remains: liveStatus.remains,
+              status: normalizedStatus,
+              start_count: Number(liveStatus.start_count) || 0,
+              remains: Number(liveStatus.remains) || 0,
               updated_at: new Date(),
             },
-          }
+          },
         );
-        return res.status(200).json({ success: true, status: liveStatus.status });
+        return res.status(200).json({ success: true, status: normalizedStatus });
       }
 
-      return res.status(200).json({ success: true, status: order.status });
+      return res.status(502).json({ error: "Supplier returned an invalid status response." });
     } catch {
       return res.status(500).json({ error: "Status check failed" });
     }
@@ -290,32 +333,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 4. REFILL ────────────────────────────────────────────────
   if (action === "refill") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const { id } = req.body || {};
-    if (!id) return res.status(400).json({ error: "Order ID required" });
+    const id = String(req.body?.id || "");
+    if (!ObjectId.isValid(id)) return res.status(400).json({ error: "A valid order ID is required" });
 
     try {
       const order = await db.collection("orders").findOne({
-        _id: new ObjectId(String(id)),
+        _id: new ObjectId(id),
         user_id: userObjectId,
       });
       if (!order || !order.provider_order_id) {
         return res.status(404).json({ error: "Order not found" });
       }
+      if (!order.refill_available) {
+        return res.status(400).json({ error: "Refill is not available for this service" });
+      }
 
       const refillRes = await requestOrderRefill(order.provider_order_id);
-      if (refillRes.error) return res.status(400).json({ error: sanitizeProviderError(refillRes.error) });
+      if (refillRes?.error) return res.status(400).json({ error: sanitizeProviderError(refillRes.error) });
+      const refillId = refillRes?.refill;
+      if (!(typeof refillId === "string" || typeof refillId === "number") || String(refillId).length > 100) {
+        return res.status(502).json({ error: "Supplier returned an invalid refill response." });
+      }
 
       await db.collection("orders").updateOne(
         { _id: order._id },
         {
           $set: {
-            refill_id: refillRes.refill,
+            refill_id: refillId,
             last_refill_at: new Date(),
           },
-        }
+        },
       );
 
-      return res.status(200).json({ success: true, refillId: refillRes.refill });
+      return res.status(200).json({ success: true, refillId });
     } catch {
       return res.status(500).json({ error: "Refill request failed" });
     }
@@ -324,23 +374,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 5. CANCEL ────────────────────────────────────────────────
   if (action === "cancel") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const { id } = req.body || {};
-    if (!id) return res.status(400).json({ error: "Order ID required" });
+    const id = String(req.body?.id || "");
+    if (!ObjectId.isValid(id)) return res.status(400).json({ error: "A valid order ID is required" });
     try {
       const order = await db.collection("orders").findOne({
-        _id: new ObjectId(String(id)),
+        _id: new ObjectId(id),
         user_id: userObjectId,
       });
       if (!order || !order.provider_order_id) return res.status(404).json({ error: "Order not found" });
       if (!order.cancel_available) return res.status(400).json({ error: "Cancel not available for this service" });
       const result = await cancelProviderOrder(order.provider_order_id);
-      if (result.error) return res.status(400).json({ error: sanitizeProviderError(result.error) });
-      await db.collection("orders").updateOne({ _id: order._id }, { $set: { status: "Cancelled", updated_at: new Date() } });
-      return res.status(200).json({ success: true, message: "Cancel requested", result });
+      const record = Array.isArray(result)
+        ? result.find((item: any) => String(item?.order) === String(order.provider_order_id)) || result[0]
+        : result;
+      if (record?.error) return res.status(400).json({ error: sanitizeProviderError(record.error) });
+      const accepted = record?.cancel === true || record?.cancel === 1 || record?.cancel === "1" || record?.success === true;
+      if (!accepted) return res.status(502).json({ error: "Supplier did not confirm the cancellation request." });
+      await db.collection("orders").updateOne(
+        { _id: order._id },
+        { $set: { status: "Cancel requested", cancel_requested_at: new Date(), updated_at: new Date() } },
+      );
+      return res.status(200).json({ success: true, message: "Cancel requested" });
     } catch {
       return res.status(500).json({ error: "Cancel request failed" });
     }
   }
 
   return res.status(404).json({ error: "Orders action not found" });
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    return await handleOrdersRequest(req, res);
+  } catch (error: any) {
+    console.error("handleOrdersRequest uncaught error:", error?.message || error);
+    if (res.headersSent) return;
+    return res.status(503).json({ error: "Service temporarily unavailable. Please try again shortly." });
+  }
 }

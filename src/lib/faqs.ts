@@ -7,11 +7,11 @@ export interface Faq {
 export const RESPONSIBLE_GROWTH_FAQS: Faq[] = [
   {
     q: "What practical value does SMM UP provide?",
-    a: "SMM UP gives creators, agencies and resellers one place to compare live wholesale rates, choose exact quantities, place multi-platform orders, track delivery and use refill or partial-refund protections where listed. It reduces the time and cost of sourcing and managing campaign delivery, while your content, offers and customer relationships continue to drive genuine long-term growth.",
+    a: "SMM UP gives creators, agencies and resellers one place to compare live wholesale rates, choose exact quantities, place multi-platform orders, track delivery and use listed refill terms and request review of eligible undelivered quantities. It reduces the time and cost of sourcing and managing campaign delivery, while your content, offers and customer relationships continue to drive genuine long-term growth.",
   },
   {
     q: "How does SMM UP address service-quality concerns?",
-    a: "Quality is managed through transparent service descriptions, minimum and maximum quantities, measured delivery times, service-specific refill windows, order tracking and refunds for undelivered quantities. Because service characteristics differ, customers can compare the visible terms and start with a small order before choosing what fits their campaign.",
+    a: "Quality is managed through transparent service descriptions, minimum and maximum quantities, measured delivery times, service-specific refill windows, order tracking and reconciliation of eligible undelivered quantities. Because service characteristics differ, customers can compare the visible terms and start with a small order before choosing what fits their campaign.",
   },
   {
     q: "Are SMM UP services bots or real users?",
@@ -103,7 +103,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: "How do I contact support?",
-    a: "The Telegram support desk runs 24/7 — open Support from the menu or footer. Include your username and order ID for the fastest help. Most messages get a reply within an hour, day or night.",
+    a: "Open the Telegram support desk from the menu or footer. Include your username, internal order ID and the relevant payment reference so the request can be investigated efficiently. Response time varies with queue and incident volume.",
   },
   {
     q: "Do you offer child panels or white-label reselling?",

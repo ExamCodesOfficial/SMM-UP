@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { getDb } from "../../server/lib/db.js";
-import { checkOrderStatusMulti } from "../../server/lib/smm.js";
+import { checkOrderStatusMulti, normalizeProviderOrderStatus } from "../../server/lib/smm.js";
 
 /**
  * Periodic order status sync (Vercel Cron, every 15 minutes).
@@ -15,18 +15,6 @@ import { checkOrderStatusMulti } from "../../server/lib/smm.js";
  */
 
 const TERMINAL_STATES = new Set(["Completed", "Partial", "Canceled", "Cancelled", "Failed", "Refunded"]);
-
-// Statuses coming back from an upstream provider, normalised to a canonical set
-function normaliseStatus(raw: string | undefined): string {
-  if (!raw) return "Pending";
-  const s = raw.trim().toLowerCase();
-  if (s === "completed" || s === "complete") return "Completed";
-  if (s === "partial") return "Partial";
-  if (s === "processing") return "Processing";
-  if (s === "in progress" || s === "inprogress") return "In progress";
-  if (s === "canceled" || s === "cancelled") return "Canceled";
-  return "Pending";
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
@@ -62,9 +50,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ synced: 0, message: "No live orders to sync" });
     }
 
-    const providerIds = pending
-      .map((o: any) => o.provider_order_id)
-      .filter(Boolean);
+    const tracked = pending.filter((order: any) => {
+      const providerId = String(order.provider_order_id || "").trim();
+      return providerId.length > 0 && providerId.length <= 100;
+    });
+    const providerIds = tracked.map((order: any) => order.provider_order_id);
 
     let synced = 0;
     let changed = 0;
@@ -73,15 +63,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for (let i = 0; i < providerIds.length; i += 100) {
       const chunk = providerIds.slice(i, i + 100).join(",");
       const live = await checkOrderStatusMulti(chunk);
-      if (!live || live.error) continue;
+      if (!live || typeof live !== "object" || Array.isArray(live) || live.error) continue;
 
       const bulkOps: any[] = [];
-      pending.slice(i, i + 100).forEach((o: any) => {
+      tracked.slice(i, i + 100).forEach((o: any) => {
         const pid = String(o.provider_order_id);
         const entry = live[pid] || live[Number(pid)];
         if (!entry) return;
 
-        const nextStatus = normaliseStatus(entry.status);
+        const nextStatus = normalizeProviderOrderStatus(entry.status);
         const update: any = {
           status: nextStatus,
           start_count: Number(entry.start_count) || 0,

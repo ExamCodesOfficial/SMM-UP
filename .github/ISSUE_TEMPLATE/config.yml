@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security report
+    url: https://github.com/ExamCodesOfficial/SMM-UP/security/advisories/new
+    about: Report vulnerabilities privately. Never include credentials or personal/payment data in a public issue.
+  - name: Customer support
+    url: https://smmup.co.in/support
+    about: Account, order and payment support belongs on the official support channel, not GitHub.

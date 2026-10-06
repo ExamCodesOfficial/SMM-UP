@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { MongoMemoryReplSet } from "mongodb-memory-server-core";
-import { ObjectId } from "mongodb";
+import { ObjectId, type MongoClient } from "mongodb";
 
 async function run() {
   const repl = await MongoMemoryReplSet.create({
     replSet: { count: 1, storageEngine: "wiredTiger" },
   });
+  let databaseClient: MongoClient | null = null;
 
   try {
     process.env.MONGODB_URI = repl.getUri();
@@ -22,6 +23,7 @@ async function run() {
     // The database and authentication modules read environment at import time.
     const dbLib = await import("../server/lib/db.js");
     const keys = await import("../server/lib/apiKeys.js");
+    databaseClient = await dbLib.getMongoClient();
     await dbLib.ensureApiKeyIndexes();
     const db = await dbLib.getDb();
     const now = new Date();
@@ -90,7 +92,25 @@ async function run() {
     assert.equal(authenticated.key._id.toString(), first.key._id.toString());
     assert.equal(keys.requireApiKeyScope(authenticated.key, "add"), "orders:create");
 
-    await keys.reserveApiKeyOrderSpend(db, authenticated, 7, crypto.randomUUID());
+    const apiReservation = await keys.reserveApiKeyOrderSpend(
+      db,
+      authenticated,
+      7,
+      crypto.randomUUID(),
+      {
+        service_id: 99,
+        service_name: "Reserved API order",
+        link: "https://example.com/reserved",
+        quantity: 100,
+        status: "Submitting",
+      },
+    );
+    assert.ok(apiReservation.orderId);
+    assert.equal(await db.collection("orders").countDocuments({
+      _id: apiReservation.orderId,
+      api_key_id: first.key._id,
+      status: "Submitting",
+    }), 1);
     let user = await db.collection("users").findOne({ _id: userId });
     assert.equal(user?.balance, 164);
     assert.equal(user?.total_spent, 7);
@@ -105,7 +125,7 @@ async function run() {
       1,
     );
 
-    const activityOrderId = new ObjectId();
+    const activityOrderId = apiReservation.orderId!;
     await keys.recordApiKeyActivity(db, authenticated, {
       action: "add",
       scope: "orders:create",
@@ -127,19 +147,16 @@ async function run() {
     assert.equal(activity?.gross_charge_inr, 7);
     assert.equal(activity?.net_charge_inr, 7);
     assert.equal(JSON.stringify(activity).includes(first.raw!), false);
-    await db.collection("orders").insertOne({
-      _id: activityOrderId,
-      user_id: userId,
-      api_key_id: first.key._id,
-      api_key_version: 1,
-      service_id: 123,
-      service_name: "Integration service",
-      link: "https://example.com/public-target",
-      quantity: 100,
-      charge: 7,
-      status: "Pending",
-      created_at: new Date(),
-    });
+    await db.collection("orders").updateOne(
+      { _id: activityOrderId },
+      {
+        $set: {
+          service_id: 123,
+          service_name: "Integration service",
+          link: "https://example.com/public-target",
+        },
+      },
+    );
 
     await keys.setApiKeyPaused(db, userId, first.key._id, true);
     await assert.rejects(
@@ -266,8 +283,20 @@ async function run() {
     });
     const concurrentAuth = await keys.authenticateApiKey(db, concurrentKey.raw!);
     const spendRace = await Promise.allSettled([
-      keys.reserveApiKeyOrderSpend(db, concurrentAuth, 8, crypto.randomUUID()),
-      keys.reserveApiKeyOrderSpend(db, concurrentAuth, 8, crypto.randomUUID()),
+      keys.reserveApiKeyOrderSpend(db, concurrentAuth, 8, crypto.randomUUID(), {
+        service_id: 501,
+        service_name: "Concurrent API order A",
+        link: "https://example.com/api-a",
+        quantity: 100,
+        status: "Submitting",
+      }),
+      keys.reserveApiKeyOrderSpend(db, concurrentAuth, 8, crypto.randomUUID(), {
+        service_id: 502,
+        service_name: "Concurrent API order B",
+        link: "https://example.com/api-b",
+        quantity: 100,
+        status: "Submitting",
+      }),
     ]);
     assert.equal(spendRace.filter((item) => item.status === "fulfilled").length, 1);
     assert.equal(spendRace.filter((item) => item.status === "rejected").length, 1);
@@ -277,6 +306,14 @@ async function run() {
       await db.collection("wallet_ledger").countDocuments({
         user_id: concurrentUserId,
         type: "api_order_charge",
+      }),
+      1,
+    );
+    assert.equal(
+      await db.collection("orders").countDocuments({
+        user_id: concurrentUserId,
+        api_key_id: concurrentKey.key._id,
+        status: "Submitting",
       }),
       1,
     );
@@ -315,9 +352,11 @@ async function run() {
     assert.ok(await db.collection("api_key_audit").countDocuments({ action: "secret_rotated" }) >= 1);
     assert.ok(await db.collection("api_key_audit").countDocuments({ action: "archived" }) >= 1);
 
-    await (await dbLib.getMongoClient()).close();
+    await databaseClient.close();
+    databaseClient = null;
     console.log("API-key replica-set integration tests passed.");
   } finally {
+    await databaseClient?.close().catch(() => {});
     await repl.stop();
   }
 }

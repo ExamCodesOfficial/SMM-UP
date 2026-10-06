@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": ["bot.ts"]
+  "include": ["bot.ts", "src/**/*.ts", "tests/**/*.ts"]
 }

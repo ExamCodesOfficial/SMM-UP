@@ -54,7 +54,7 @@ function clientIp(req: VercelRequest): string {
     .trim();
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action || "");
   const db = await getDb();
   const users = db.collection("users");
@@ -663,11 +663,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const existingAuth = await getUserFromRequest(req, db);
     if (denySupportMutation(existingAuth, res, false)) return;
     try {
-      const user: any = await completePasswordChange(db, req, res, req.body?.password);
+      const completed = await completePasswordChange(db, req, res, req.body?.password);
+      const user: any = completed.user;
       return res.status(200).json({
         success: true,
-        message: "Permanent password created. The temporary password is now invalid.",
-        user: {
+        signedIn: completed.sessionCreated,
+        message: completed.sessionCreated
+          ? "Permanent password created. The temporary password is now invalid."
+          : "Permanent password created, but automatic sign-in was unavailable. Sign in with the new password.",
+        user: completed.sessionCreated ? {
           userId: user._id.toString(),
           username: user.username,
           email: user.email,
@@ -675,7 +679,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           total_spent: user.total_spent || 0,
           total_orders: user.total_orders || 0,
           role: user.role || "user",
-        },
+        } : null,
       });
     } catch (error: any) {
       return res.status(400).json({ error: error?.message || "Password change failed." });
@@ -1068,4 +1072,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   return res.status(404).json({ error: "Auth action not found" });
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    return await handleAuthRequest(req, res);
+  } catch (error: any) {
+    console.error("Authentication entry point failed:", error?.message || error);
+    if (res.headersSent) return;
+    return res.status(503).json({
+      error: "Authentication service is temporarily unavailable. Please try again shortly.",
+      code: "AUTH_SERVICE_UNAVAILABLE",
+    });
+  }
 }

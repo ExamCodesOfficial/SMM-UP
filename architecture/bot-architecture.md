@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">SMM UP Telegram Bot Architecture</h1>
 <p align="center"><strong>Source-derived architecture snapshot · 2026-10-06</strong></p>
-<p align="center"><code>IMPLEMENTED LOCALLY</code> · <code>SECURITY-FIRST</code> · <code>DEPLOYMENT PENDING</code></p>
+<p align="center"><code>CODE PUSHED @ 93ae440</code> · <code>MODULE REFACTOR LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
 
 
 > **Inventory size:** 147 atomic bot, owner-control and worker capabilities.
@@ -24,6 +24,9 @@
 - [Persistence](#bot-persistence-map)
 - [Environment](#bot-environment-contract)
 - [Operations](#railway-operations)
+- [Failure modes](#failure-mode-matrix)
+- [Observability](#observability-and-retention)
+- [Release boundary](#release-and-rollback-boundary)
 
 </details>
 
@@ -55,7 +58,7 @@ flowchart LR
 | Command | Purpose |
 |---|---|
 | `/start, /help` | opens persistent inline main menu and authoritative syntax help |
-| `/stats` | aggregates users, balances, orders, spend and operational health |
+| `/stats` | aggregates users, balances, orders, spend and settled-deposit counts |
 | `/reviews [limit]` | lists bounded recent reviews with moderation buttons |
 | `/user <email>` | shows full operational account data and inline control navigation |
 | `/lock <email> \| reason` | queues account lock and session revocation |
@@ -89,7 +92,7 @@ flowchart LR
 
 | Callback pattern | Purpose |
 |---|---|
-| `menu:*` | persistent navigation among overview/users/orders/payments/security/reviews |
+| `menu:*` | top-level buttons that return bounded command guidance for overview/users/orders/payments/security/reviews |
 | `adm-ok:<token>` | atomically claims actor-bound five-minute action and executes in transaction |
 | `adm-no:<token>` | atomically cancels eligible action |
 | `review-toggle:<id>` | toggles approved/hidden and records owner audit |
@@ -169,38 +172,38 @@ flowchart TB
 ### Commands
 
 - **BOT-0007** — `/start, /help` opens persistent inline main menu and authoritative syntax help.
-- **BOT-0008** — `/stats` aggregates users, balances, orders, spend and operational health.
+- **BOT-0008** — `/stats` aggregates users, balances, orders, spend and settled-deposit counts.
 - **BOT-0009** — `/reviews [limit]` lists bounded recent reviews with moderation buttons.
 - **BOT-0010** — `/user <email>` shows full operational account data and inline control navigation.
-- **BOT-0011** — `/lock <email> \| reason` queues account lock and session revocation.
-- **BOT-0012** — `/unlock <email> \| reason` queues account unlock.
-- **BOT-0013** — `/orderhold <email> \| reason` queues website/API ordering hold.
-- **BOT-0014** — `/orderrelease <email> \| reason` queues ordering release.
-- **BOT-0015** — `/paymenthold <email> \| reason` queues deposit hold.
-- **BOT-0016** — `/paymentrelease <email> \| reason` queues deposit release.
-- **BOT-0017** — `/keypause <keyId> \| reason` queues API-key pause without secret revocation.
-- **BOT-0018** — `/keyresume <keyId> \| reason` queues resume unless secure reissue remains required.
-- **BOT-0019** — `/keyarchive <keyId> \| reason` queues permanent archive and version revocation.
-- **BOT-0020** — `/keyreissue <keyId> \| reason` queues secret revocation and website-rotation requirement.
-- **BOT-0021** — `/note <email> \| note` writes owner note and admin audit.
+- **BOT-0011** — `/lock <email> | reason` queues account lock and session revocation.
+- **BOT-0012** — `/unlock <email> | reason` queues account unlock.
+- **BOT-0013** — `/orderhold <email> | reason` queues website/API ordering hold.
+- **BOT-0014** — `/orderrelease <email> | reason` queues ordering release.
+- **BOT-0015** — `/paymenthold <email> | reason` queues deposit hold.
+- **BOT-0016** — `/paymentrelease <email> | reason` queues deposit release.
+- **BOT-0017** — `/keypause <keyId> | reason` queues API-key pause without secret revocation.
+- **BOT-0018** — `/keyresume <keyId> | reason` queues resume unless secure reissue remains required.
+- **BOT-0019** — `/keyarchive <keyId> | reason` queues permanent archive and version revocation.
+- **BOT-0020** — `/keyreissue <keyId> | reason` queues secret revocation and website-rotation requirement.
+- **BOT-0021** — `/note <email> | note` writes owner note and admin audit.
 - **BOT-0022** — `/userorders <email>` shows bounded orders including target and refund state.
 - **BOT-0023** — `/deposits <email>` shows bounded deposit identifiers and state.
 - **BOT-0024** — `/wallet <email>` shows wallet balance and bounded ledger entries.
 - **BOT-0025** — `/events <email>` shows bounded security events and notes.
-- **BOT-0026** — `/resetpassword <email> <auto|custom> \| reason` creates protected five-minute reset action with identity attestation.
-- **BOT-0027** — `/supportaccess <email> \| reason` issues one-time five-minute read-only support exchange code.
-- **BOT-0028** — `/credit <email> <amount> \| reason` queues transactional wallet credit.
-- **BOT-0029** — `/debit <email> <amount> \| reason` queues non-negative transactional debit.
+- **BOT-0026** — `/resetpassword <email> <auto|custom> | reason` creates protected five-minute reset action with identity attestation.
+- **BOT-0027** — `/supportaccess <email> | reason` issues one-time five-minute read-only support exchange code.
+- **BOT-0028** — `/credit <email> <amount> | reason` queues transactional wallet credit.
+- **BOT-0029** — `/debit <email> <amount> | reason` queues non-negative transactional debit.
 - **BOT-0030** — `/pending` lists recent pending Direct UPI deposits.
 - **BOT-0031** — `/orders [limit]` lists recent provider orders.
 - **BOT-0032** — `/failed` lists failures requiring review.
-- **BOT-0033** — `/refund <orderId> \| reason` queues idempotent transactional refund.
+- **BOT-0033** — `/refund <orderId> | reason` queues idempotent transactional refund.
 - **BOT-0034** — `/checkmemo <memo>` inspects exact payment memo record.
 - **BOT-0035** — `/scan` runs lease-protected owner-requested IMAP scan.
 
 ### Inline callbacks
 
-- **BOT-0036** — `menu:*` persistent navigation among overview/users/orders/payments/security/reviews.
+- **BOT-0036** — `menu:*` routes top-level buttons to bounded command guidance for overview/users/orders/payments/security/reviews.
 - **BOT-0037** — `adm-ok:<token>` atomically claims actor-bound five-minute action and executes in transaction.
 - **BOT-0038** — `adm-no:<token>` atomically cancels eligible action.
 - **BOT-0039** — `review-toggle:<id>` toggles approved/hidden and records owner audit.
@@ -249,7 +252,7 @@ flowchart TB
 - **BOT-0076** — Deposit views may show memo, UTR/provider payment ID, amount and status.
 - **BOT-0077** — Wallet views are bounded and include settlement keys for auditability.
 - **BOT-0078** — Event and note output is length-bounded to Telegram message limits.
-- **BOT-0079** — HTML is escaped before dynamic operational data is sent.
+- **BOT-0079** — Confirmation and newer sensitive outputs use the shared Telegram HTML escaper; legacy list/error paths require a final production encoding audit.
 - **BOT-0080** — No UPI PIN, OTP, CVV or banking password is requested or displayed.
 - **BOT-0081** — No permanent password or password hash is displayed.
 - **BOT-0082** — No API secret, cookie or authorization header is displayed.
@@ -284,7 +287,7 @@ flowchart TB
 
 ### Railway worker
 
-- **BOT-0105** — Worker enablement is controlled explicitly by `ENABLE_IMAP_WORKER`.
+- **BOT-0105** — The IMAP worker is enabled unless `ENABLE_IMAP_WORKER=false`; deployment must set the intended bot-only/worker role explicitly.
 - **BOT-0106** — `workerActive` prevents overlap inside one Node process.
 - **BOT-0107** — `worker_leases` prevents overlap between Railway replicas.
 - **BOT-0108** — The lease records holder, expiry and heartbeat.
@@ -314,7 +317,7 @@ flowchart TB
 - **BOT-0132** — Worker health resets consecutive errors after success.
 - **BOT-0133** — Worker health records bounded error details after failure.
 - **BOT-0134** — Three consecutive failures and later multiples of ten alert the owner.
-- **BOT-0135** — Temporary-password and Support Access Telegram status edits have independent retry workers.
+- **BOT-0135** — One minute-based synchronization worker processes temporary-password and Support Access Telegram status updates independently by record.
 - **BOT-0136** — Graceful SIGINT/SIGTERM stops long polling and closes MongoDB.
 
 ### Persistence and indexes
@@ -374,11 +377,32 @@ flowchart TB
 
 | Source | Responsibility |
 |---|---|
-| `admin-bot/bot.ts` | Long polling, owner authorization, commands/callbacks, confirmations, recovery, Support Access synchronization and IMAP worker |
+| `admin-bot/bot.ts` | Thin composition, long-polling launch, worker startup, shutdown and compatibility re-exports |
+| `admin-bot/src/config.ts` | Environment loading, startup validation and bounded recovery configuration |
+| `admin-bot/src/db/client.ts` | Shared lazy MongoDB client/database lifecycle |
+| `admin-bot/src/db/indexes.ts` | Startup uniqueness, audit, lookup and idempotency index gate |
+| `admin-bot/src/security/adminState.ts` | Protected action-state encryption, token hashing and temporary credential generation |
+| `admin-bot/src/security/telegramHtml.ts` | Shared Telegram HTML escaping primitive |
+| `admin-bot/src/domain/pendingActions.ts` | Reason parsing and actor-bound confirmation staging |
+| `admin-bot/src/domain/adminActions.ts` | Confirmed transaction execution and administrative audit writes |
+| `admin-bot/src/middleware/ownerAuthorization.ts` | Global numeric owner authorization |
+| `admin-bot/src/callbacks/adminActions.ts` | Generic confirmation cancellation/claim/transaction orchestration |
+| `admin-bot/src/commands/general.ts` | Help/menu, aggregate/recent inspection and review moderation |
+| `admin-bot/src/commands/users.ts` | User/account/order/session/key records and control staging |
+| `admin-bot/src/commands/recovery.ts` | Temporary-password and Support Access workflows |
+| `admin-bot/src/commands/operations.ts` | Wallet, refund and payment/order operations |
+| `admin-bot/src/ui/reviews.ts` | Review moderation text and keyboard rendering |
+| `admin-bot/src/worker/runtime.ts` | Thin composition for payment and recovery-status workers |
+| `admin-bot/src/worker/paymentScanner.ts` | IMAP parsing/scanning, exact matching and settlement invocation |
+| `admin-bot/src/worker/paymentRuntime.ts` | `/scan`, local guard, lease, reconciliation, health and 20-second scheduler |
+| `admin-bot/src/worker/recoveryStatus.ts` | Temporary-password and Support Access Telegram status synchronization |
+| `admin-bot/src/worker/settlement.ts` | Exactly-once transaction for Direct UPI worker settlement |
 | `admin-bot/tests/adminActions.integration.ts` | Replica-set transaction, replay, control, key and worker concurrency gate |
-| `admin-bot/package.json` | Runtime/test scripts and dependency boundary |
-| `admin-bot/README.md` | Railway setup and operator command reference |
+| `admin-bot/package.json` | Runtime/typecheck/test scripts and dependency boundary |
+| `admin-bot/README.md` | Railway setup, source layout and operator command reference |
 | `admin-bot/ADMIN_BOT_DEVELOPMENT_PLAN.md` | Trust-boundary and implementation design record |
+
+These are internal code boundaries in one Railway Node.js service. They do not create separate network services, queues or deployment units. Handler registration remains owner middleware, generic action callbacks, general commands, user controls, recovery, operations and finally the worker-owned `/scan` handler.
 
 ## Bot environment contract
 
@@ -417,8 +441,61 @@ flowchart TB
 - Set a high-entropy `ADMIN_BOT_STATE_SECRET`.
 - Confirm two Railway replicas produce one active lease and one wallet credit.
 - Confirm stale confirmation buttons and wrong Telegram IDs cannot mutate state.
+- Complete an HTML encoding/redaction audit of legacy list and error output.
 - Confirm bot output contains no forbidden secret classes.
 - Monitor `system_health` and Telegram repeated-failure alerts.
+
+## Failure-mode matrix
+
+| Failure | Safe behavior | Operator action |
+|---|---|---|
+| Bot token or owner mismatch | startup/updates fail rather than granting another user | stop service; verify `getMe` and numeric owner; rotate token if exposed |
+| MongoDB unavailable | commands/worker fail; no Telegram message is accounting proof | stop sensitive operations; restore DB connectivity; inspect transaction outcome before retry |
+| Index conflict | startup is blocked | reconcile conflicting production data; never remove uniqueness casually |
+| Telegram unavailable after commit | committed mutation remains authoritative | inspect ledger/audit; retry only notification, not financial action |
+| Stale/replayed callback | claim fails with no mutation | build a new confirmation from current state |
+| Railway restart during confirmation | MongoDB state survives until expiry | resume only if token still valid and actor-bound |
+| Railway restart during scan | lease expires/takeover occurs; unique keys protect settlement | inspect lease, health and exact transaction before resuming |
+| IMAP authentication/network error | no guessed credit; health error and bounded retry/alert | rotate app password or restore provider; reconcile pending deposits |
+| Receipt memo/amount mismatch | open reconciliation record; no credit | compare exact pending record and bank evidence |
+| Payment hold during settlement | transaction rolls back | investigate account; release only after review |
+| Duplicate receipt/concurrent scan | unique memo/identifier/settlement keys produce one winner | verify one ledger and one balance delta |
+
+## Observability and retention
+
+### Signals
+
+- Railway process restarts and fatal startup errors;
+- verified bot username and long-polling health;
+- `worker_leases` holder, expiry and heartbeat;
+- `system_health` last success/error and consecutive failures;
+- open `payment_reconciliation` age/attempts;
+- pending deposits approaching/after expiry;
+- failed/stale administrative confirmations;
+- temporary-password and Support Access status-sync retries;
+- wallet/order/refund/key audit records.
+
+### Data minimization
+
+Detailed financial/audit records are retained according to business/legal policy and must not be TTL-deleted by assumption. Short-lived confirmation/code/session records use expiry/cleanup indexes. Security telemetry is bounded where the shared data contract specifies TTL. Logs and Telegram must exclude passwords/hashes, API secrets, raw sessions/cookies, authorization headers, provider/database/mailbox credentials and complete email bodies.
+
+Backups are an Atlas/platform responsibility: verify backup/PITR before enabling financial mutations, test restoration into an isolated database, and validate indexes plus transaction/ledger relations after restore. A Railway rollback cannot undo database mutations.
+
+## Release and rollback boundary
+
+The bot code is pushed at `93ae440634fbff897d40f81506a863810d38aa8b`; this does not prove Railway deployment. Production requires separate staging bot/owner/database/mailbox, real Telegram authorization tests, a two-replica lease test and redacted evidence.
+
+For authorization, secret exposure or duplicate-credit risk:
+
+1. stop Railway immediately;
+2. disable the worker or set `ENABLE_IMAP_WORKER=false` before a controlled restart;
+3. revoke/rotate bot, state, mailbox or database credentials as indicated;
+4. preserve action/transaction/ledger/lease IDs and deployment metadata;
+5. reconcile committed mutations;
+6. roll back code only after schema/data compatibility review;
+7. rerun owner/non-owner, callback replay, lease and settlement gates.
+
+The canonical procedure is [`../SECURITY_DEPLOYMENT_RUNBOOK.md`](../SECURITY_DEPLOYMENT_RUNBOOK.md).
 
 ---
 

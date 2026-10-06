@@ -1,0 +1,63 @@
+name: Internal bug report
+description: Report a reproducible non-security defect without secrets or personal/payment data
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report vulnerabilities here. Do not include credentials, tokens, private pricing, receipts, user data or payment evidence. Use the private security process in SECURITY.md.
+  - type: input
+    id: commit
+    attributes:
+      label: Source commit or deployment ID
+      placeholder: Commit hash or deployment identifier; never a secret
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Website UI
+        - Authentication or sessions
+        - Orders or supplier
+        - Wallet or payments
+        - Reseller API
+        - Telegram bot
+        - IMAP worker
+        - Documentation or CI
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: Use redacted categories and bounded IDs only.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction using non-production data
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Checks already run
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Sensitive-content confirmation
+      options:
+        - label: I removed credentials, tokens, personal/payment data, receipts, targets and private pricing.
+          required: true
+        - label: This is not a security vulnerability. If it is, I will use private reporting.
+          required: true

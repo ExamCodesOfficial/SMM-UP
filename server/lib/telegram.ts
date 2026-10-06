@@ -33,6 +33,7 @@ export async function sendTelegramMessage(text: string, parseMode: "HTML" | "Mar
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
+      signal: AbortSignal.timeout(4000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
@@ -42,6 +43,10 @@ export async function sendTelegramMessage(text: string, parseMode: "HTML" | "Mar
       }),
     });
 
+    if (!res.ok) {
+      console.error("[Telegram HTTP Error]:", res.status);
+      return false;
+    }
     const data = await res.json();
     if (!data.ok) {
       console.error("[Telegram Send Error]:", data.description);
@@ -75,6 +80,10 @@ export async function editTelegramMessage(
         disable_web_page_preview: true,
       }),
     });
+    if (!res.ok) {
+      console.error("[Telegram Edit HTTP Error]:", res.status);
+      return false;
+    }
     const data = await res.json();
     if (!data.ok) {
       console.error("[Telegram Edit Error]:", data.description);

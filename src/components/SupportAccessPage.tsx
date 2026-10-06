@@ -1,4 +1,5 @@
 import React from "react";
+import { readApiPayload } from "../lib/apiResponse";
 import { AlertTriangle, Eye, Loader2, ShieldCheck } from "lucide-react";
 import ContentPage from "./ContentPage";
 
@@ -23,7 +24,7 @@ export default function SupportAccessPage({ user, onNavigate, onActivated }: Pro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: code.trim().toUpperCase() }),
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await readApiPayload(response);
       if (!response.ok) throw new Error(data.error || "Support Access exchange failed.");
       onActivated();
     } catch (submitError: any) {

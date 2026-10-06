@@ -70,19 +70,16 @@ export default function SupportModal({ isOpen, onClose, user }: SupportModalProp
           </button>
         </div>
 
-        {/* Live Operational Status Banner */}
+        {/* Support route information */}
         <div className="p-4 rounded-none border border-white/15 bg-white/[0.05] mb-6 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-            </span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 border border-zinc-500"></span>
             <span className="text-xs font-semibold text-zinc-100">
-              Live Telegram Support Online
+              Telegram Support Desk
             </span>
           </div>
           <div className="text-[11px] text-zinc-400 font-mono">
-            Avg Reply: &lt; 5 mins
+            Include your order ID
           </div>
         </div>
 
@@ -98,7 +95,7 @@ export default function SupportModal({ isOpen, onClose, user }: SupportModalProp
             Chat Directly on Telegram
           </h3>
           <p className="text-xs text-zinc-400 mb-4 max-w-sm mx-auto leading-relaxed">
-            Need urgent payment verification, custom high-volume pricing, or order refill assistance? Our executive operations team is live on Telegram.
+            Need urgent payment verification, custom high-volume pricing, or order refill assistance? Use the Telegram desk and include the relevant internal order or payment reference.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5">
@@ -193,7 +190,7 @@ export default function SupportModal({ isOpen, onClose, user }: SupportModalProp
           </div>
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-[#E4E4E7] shrink-0" />
-            <span>24/7/365 active desk</span>
+            <span>Timestamped support records</span>
           </div>
         </div>
       </div>
