@@ -18,7 +18,14 @@ export async function ensureAdminControlIndexes(database: Db) {
     database.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true, sparse: true }),
     database.collection("processed_transactions").createIndex({ transaction_id: 1 }, { unique: true, sparse: true }),
     database.collection("processed_transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
-    database.collection("transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
+    database.collection("transactions").createIndex(
+      { memo: 1 },
+      {
+        name: "transactions_memo_unique_v2",
+        unique: true,
+        partialFilterExpression: { memo: { $type: "string" } },
+      },
+    ),
     database.collection("transactions").createIndex(
       { direct_upi_settlement_key: 1 },
       { unique: true, partialFilterExpression: { direct_upi_settlement_key: { $type: "string" } } },

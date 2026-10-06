@@ -33,6 +33,9 @@ export async function getMongoClient(): Promise<MongoClient> {
 }
 
 let coreIndexesPromise: Promise<void> | null = null;
+let identityIndexesPromise: Promise<void> | null = null;
+let legacyCredentialIndexesPromise: Promise<void> | null = null;
+let directUpiIndexesPromise: Promise<void> | null = null;
 let razorpayIndexesPromise: Promise<void> | null = null;
 let apiKeyIndexesPromise: Promise<void> | null = null;
 let sessionIndexesPromise: Promise<void> | null = null;
@@ -173,23 +176,98 @@ export async function ensureSessionIndexes(): Promise<void> {
   return sessionIndexesPromise;
 }
 
+/**
+ * Registration-only identity constraints. Legacy production has a non-unique
+ * username_1 index, so new registrations use a canonical field that old rows do
+ * not contain. This gives concurrent new signups atomic uniqueness without a
+ * destructive rewrite of existing accounts.
+ */
+export async function ensureIdentityIndexes(suppliedDb?: Db): Promise<void> {
+  if (!identityIndexesPromise) {
+    identityIndexesPromise = (async () => {
+      const db = suppliedDb || (await clientConnection()).db(dbName);
+      await Promise.all([
+        db.collection("users").createIndex({ email: 1 }, { unique: true }),
+        db.collection("users").createIndex(
+          { username_normalized: 1 },
+          {
+            name: "users_username_normalized_unique_v2",
+            unique: true,
+            partialFilterExpression: { username_normalized: { $type: "string" } },
+          },
+        ),
+      ]);
+    })().catch((error) => {
+      identityIndexesPromise = null;
+      throw error;
+    });
+  }
+  return identityIndexesPromise;
+}
+
+/** Legacy API credentials fail closed without making normal website login depend on their migration. */
+export async function ensureLegacyCredentialIndexes(suppliedDb?: Db): Promise<void> {
+  if (!legacyCredentialIndexesPromise) {
+    legacyCredentialIndexesPromise = (async () => {
+      const db = suppliedDb || (await clientConnection()).db(dbName);
+      await Promise.all([
+        db.collection("users").createIndex(
+          { api_key: 1 },
+          {
+            name: "users_legacy_api_key_unique_v2",
+            unique: true,
+            partialFilterExpression: { api_key: { $type: "string" } },
+          },
+        ),
+        db.collection("users").createIndex(
+          { api_key_hash: 1 },
+          {
+            name: "users_legacy_api_key_hash_unique_v2",
+            unique: true,
+            partialFilterExpression: { api_key_hash: { $type: "string" } },
+          },
+        ),
+      ]);
+    })().catch((error) => {
+      legacyCredentialIndexesPromise = null;
+      throw error;
+    });
+  }
+  return legacyCredentialIndexesPromise;
+}
+
+/** Direct-UPI creation/settlement fails closed if legacy memo data cannot be made unique. */
+export async function ensureDirectUpiIndexes(suppliedDb?: Db): Promise<void> {
+  if (!directUpiIndexesPromise) {
+    directUpiIndexesPromise = (async () => {
+      const db = suppliedDb || (await clientConnection()).db(dbName);
+      await db.collection("transactions").createIndex(
+        { memo: 1 },
+        {
+          name: "transactions_memo_unique_v2",
+          unique: true,
+          partialFilterExpression: { memo: { $type: "string" } },
+        },
+      );
+    })().catch((error) => {
+      directUpiIndexesPromise = null;
+      throw error;
+    });
+  }
+  return directUpiIndexesPromise;
+}
+
 export async function ensureCoreIndexes(suppliedDb?: Db): Promise<void> {
   if (!coreIndexesPromise) {
     coreIndexesPromise = (async () => {
       const db = suppliedDb || (await clientConnection()).db(dbName);
       await Promise.all([
         db.collection("users").createIndex({ email: 1 }, { unique: true }),
-        db.collection("users").createIndex(
-          { username: 1 },
-          { unique: true, collation: { locale: "en", strength: 2 } },
-        ),
-        db.collection("users").createIndex({ api_key: 1 }, { unique: true, sparse: true }),
         db.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true, sparse: true }),
         db.collection("processed_transactions").createIndex({ transaction_id: 1 }, { unique: true, sparse: true }),
         db.collection("processed_transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
         db.collection("orders").createIndex({ user_id: 1, created_at: -1 }),
         db.collection("transactions").createIndex({ user_id: 1, created_at: -1 }),
-        db.collection("transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
         db.collection("payment_reconciliation").createIndex(
           { memo: 1, status: 1, reason: 1 },
           { unique: true, partialFilterExpression: { status: "open" } },
@@ -225,7 +303,9 @@ export async function ensureCoreIndexes(suppliedDb?: Db): Promise<void> {
 
 export async function getDb(): Promise<Db> {
   const client = await clientConnection();
-  const db = client.db(dbName);
-  await ensureCoreIndexes(db);
-  return db;
+  // Runtime reads and existing-account authentication must not be held hostage
+  // by an online schema migration. Security-critical write paths await their
+  // dedicated index guards above; ensureCoreIndexes remains available for
+  // controlled provisioning and validation outside the request entry point.
+  return client.db(dbName);
 }
