@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">SMM UP Telegram Bot Architecture</h1>
 <p align="center"><strong>Source-derived architecture snapshot · 2026-10-06</strong></p>
-<p align="center"><code>CODE PUSHED @ 93ae440</code> · <code>MODULE REFACTOR LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
+<p align="center"><code>FEATURE BRANCH @ 2c60e65</code> · <code>MODULE REFACTOR PUSHED</code> · <code>RAILWAY DEPLOYMENT PENDING</code></p>
 
 
 > **Inventory size:** 147 atomic bot, owner-control and worker capabilities.
@@ -483,7 +483,7 @@ Backups are an Atlas/platform responsibility: verify backup/PITR before enabling
 
 ## Release and rollback boundary
 
-The bot code is pushed at `93ae440634fbff897d40f81506a863810d38aa8b`; this does not prove Railway deployment. Production requires separate staging bot/owner/database/mailbox, real Telegram authorization tests, a two-replica lease test and redacted evidence.
+The bot code is pushed on `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`; this does not prove Railway deployment. Production requires separate staging bot/owner/database/mailbox, real Telegram authorization tests, a two-replica lease test and redacted evidence.
 
 For authorization, secret exposure or duplicate-credit risk:
 
@@ -496,6 +496,22 @@ For authorization, secret exposure or duplicate-credit risk:
 7. rerun owner/non-owner, callback replay, lease and settlement gates.
 
 The canonical procedure is [`../SECURITY_DEPLOYMENT_RUNBOOK.md`](../SECURITY_DEPLOYMENT_RUNBOOK.md).
+
+## 2026-10-06 modularization reconciliation
+
+The feature-branch checkpoint now includes the previously local behavior-preserving split. `bot.ts` is the composition root; focused modules own config, database/index setup, owner middleware, command families, callbacks, pending-action state, domain mutations, review UI and payment/recovery workers.
+
+### Cross-runtime contracts added to review
+
+- The Vercel order paths can create `Submitting`, `Failed` and `Submission uncertain` records after transactional wallet reservation. Bot inspection/refund tooling must preserve those states and never infer a safe refund solely from an HTTP error.
+- Stale supplier submissions may be flagged by recovery/status logic for owner review with supplier identity retained.
+- Railway environment ownership is exhaustively listed in `railway.env.example`; web/API-only variables belong in `vercel.env.example`.
+- Direct UPI browser QR generation is local, but Railway remains authoritative only for exact receipt parsing and transactional settlement—not for rendering/payment initiation.
+- Manual-only GitHub workflow state is repository governance, not a Railway runtime feature; Railway deployment still requires explicit provider action and evidence.
+
+### Module regression gate
+
+For structural changes, compare registered commands, callbacks, middleware order, update types, action-token claims, lease acquisition, timers and shutdown hooks before and after. TypeScript success alone does not prove behavior preservation.
 
 ---
 

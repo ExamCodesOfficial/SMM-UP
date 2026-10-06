@@ -4,7 +4,7 @@ import { getDb } from "../../server/lib/db.js";
 import { checkOrderStatusMulti, normalizeProviderOrderStatus } from "../../server/lib/smm.js";
 
 /**
- * Periodic order status sync (Vercel Cron, every 15 minutes).
+ * Periodic order status sync (Vercel Cron, configured in vercel.json; currently 04:00 UTC daily).
  *
  * Finds orders that are not in a terminal state and have a provider_order_id,
  * batches them 100 per upstream call (the provider's v2 multi-status limit),

@@ -6,7 +6,7 @@
 
 > **Private and proprietary repository.** No open-source license is granted. Do not copy, redistribute, publish, sublicense or reuse this source without the copyright owner’s written permission.
 >
-> **Release truth:** source implementation and a detailed documentation baseline exist, but GitHub state alone does not prove Vercel, Railway, MongoDB Atlas, Resend, Razorpay, domain or production readiness.
+> **Release truth (2026-10-06):** audited application/bot changes are pushed to `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201` and pass the local release suite. Production sign-in still requires a strong Vercel `JWT_SECRET` and redeployment; `CRON_SECRET` must also be at least 32 characters. GitHub state alone does not prove provider or production readiness.
 
 ## System overview
 
@@ -43,6 +43,9 @@ flowchart LR
 | `tests/` | Root replica-set and static integration gates |
 | `admin-bot/` | Owner-only Telegram bot and IMAP settlement worker |
 | `architecture/` | Exhaustive `WEB-*`, `BOT-*` and `SYS-*` registries |
+| `API_REFERENCE.md` | Complete reseller and first-party HTTP contract |
+| `vercel.env.example` | Exhaustive website/API Vercel variable inventory |
+| `railway.env.example` | Exhaustive bot/worker Railway variable inventory |
 | `SECURITY_DEPLOYMENT_RUNBOOK.md` | Staging, deployment, rollback and incidents |
 | `RAZORPAY_SETUP.md` | Razorpay activation and reconciliation |
 
@@ -93,6 +96,7 @@ npm run test:direct-upi
 npm run test:email-delivery
 npm run test:email-auth
 npm run test:core-indexes
+npm run test:order-reservations
 npm audit --omit=dev
 ```
 
@@ -108,7 +112,7 @@ npm audit --omit=dev
 
 ## Configuration and deployment
 
-Start from `.env.example` for local website/API work and `admin-bot/.env.example` for the Railway service. These templates contain names and safe defaults only.
+Use `vercel.env.example` as the exhaustive Vercel website/API inventory and `railway.env.example` as the exhaustive Railway bot/worker inventory. `.env.example` and `admin-bot/.env.example` are synchronized local-development counterparts. Templates contain names, comments and safe placeholders only—not deployable secrets.
 
 Environment-variable boundaries and provider gates are documented in:
 
@@ -122,12 +126,13 @@ Do not infer production readiness from a successful build or GitHub push. Comple
 
 ## Architecture and operating documents
 
-1. [`architecture/full-architecture.md`](architecture/full-architecture.md)
-2. [`architecture/website-architecture.md`](architecture/website-architecture.md)
-3. [`architecture/bot-architecture.md`](architecture/bot-architecture.md)
-4. [`HANDOVER.md`](HANDOVER.md)
-5. [`planner.md`](planner.md)
-6. [`LATER_ON_UPGRADATIONS.md`](LATER_ON_UPGRADATIONS.md)
+1. [`API_REFERENCE.md`](API_REFERENCE.md)
+2. [`architecture/full-architecture.md`](architecture/full-architecture.md)
+3. [`architecture/website-architecture.md`](architecture/website-architecture.md)
+4. [`architecture/bot-architecture.md`](architecture/bot-architecture.md)
+5. [`HANDOVER.md`](HANDOVER.md)
+6. [`planner.md`](planner.md)
+7. [`LATER_ON_UPGRADATIONS.md`](LATER_ON_UPGRADATIONS.md)
 
 ## Security reporting
 
@@ -140,3 +145,13 @@ This is not an open contribution project. Authorized collaborators must follow [
 ## Rights
 
 This repository intentionally has no MIT, Apache, GPL or other open-source license. Source visibility does not grant permission to use it. Keep the GitHub repository private and restrict collaborator, Actions, deployment and secret access to authorized accounts.
+
+## Current deployment cautions
+
+- Authentication deliberately fails closed when Vercel `JWT_SECRET` is absent or shorter than 32 characters. Configure a high-entropy Production value and redeploy before treating sign-in as restored.
+- Status synchronization deliberately returns `503` when `CRON_SECRET` is absent/short. Configure a separate 32+ character value and redeploy.
+- Direct UPI QR images are generated in the browser; payment URIs are not sent to a public QR-rendering service.
+- Website and reseller order creation reserve the wallet debit, ledger entry and local `Submitting` order transactionally before contacting the supplier. An uncertain provider response must be reconciled, not blindly retried or automatically refunded.
+- The emergency PAT lacked workflow-write scope. The pushed feature branch contains no Actions workflow; a `workflow_dispatch`-only workflow remains an isolated local commit.
+
+See [`HANDOVER.md`](HANDOVER.md) for the exact Git/push state and [`API_REFERENCE.md`](API_REFERENCE.md) for retry semantics.

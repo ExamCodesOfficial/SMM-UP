@@ -2,7 +2,7 @@
 
 ## Supported code
 
-Security fixes target the current maintained `master` baseline and active deployment candidates. Historical commits and unmaintained forks are not supported releases.
+Security fixes target the maintained deployment branch and reviewed candidates. The current audited candidate is `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`. Historical commits and unmaintained forks are not supported releases.
 
 ## Report privately
 
@@ -59,3 +59,29 @@ No response-time promise is made publicly. The incident commander records detect
 Security-sensitive changes require relevant root/admin TypeScript, replica-set integration, dependency-audit, whitespace and credential-pattern checks. Provider/runtime claims require staging evidence; unit or integration tests alone are not production proof.
 
 See [`SECURITY_DEPLOYMENT_RUNBOOK.md`](SECURITY_DEPLOYMENT_RUNBOOK.md) for deployment, rollback and incident procedures.
+
+## Threat model summary
+
+Primary protected assets are account control, wallet balances, order identity, payment evidence, reseller secrets, owner authority, mailbox access and private supplier/pricing configuration. Principal trust boundaries are browser→Vercel, Vercel→MongoDB/provider/Resend/Razorpay, Railway→Telegram/mailbox/MongoDB, and deployment-control-plane access.
+
+High-risk classes include:
+
+- actor/subject confusion in Support Access;
+- replay of sessions, email links, admin callbacks or payment evidence;
+- cross-account object lookup;
+- duplicate wallet mutation under concurrency;
+- supplier ambiguity followed by blind retry/refund;
+- provider/webhook signature bypass;
+- secret leakage through URLs, logs, Telegram, browser bundles or Git history;
+- per-instance limiting that fails under serverless concurrency;
+- startup/index failures silently weakening uniqueness.
+
+Controls must fail closed. Availability work may not bypass authentication, transactions, exact evidence or unique indexes.
+
+## Production secret minimums
+
+`JWT_SECRET` and `CRON_SECRET` must each be at least 32 characters and must be distinct. HMAC-specific secrets should also be independently generated rather than derived from database/provider values. Use the provider templates as inventories, not as deployable values. Any secret exposed in chat, logs, screenshots or Git must be rotated even if later deleted.
+
+## Coordinated remediation record
+
+A private remediation record should include affected deployment/commit, detection time, bounded evidence, containment, credentials rotated, data/financial scope, migration or reconciliation performed, tests, deployment IDs, monitoring period and final owner sign-off. Never put exploit details or sensitive evidence in a public issue.

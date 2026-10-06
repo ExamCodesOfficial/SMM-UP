@@ -1,7 +1,7 @@
 # SMM UP — Completed Roadmap and Post-Launch Upgrades
 
 > **Roadmap checkpoint:** 2026-10-06
-> **Pushed implementation commit:** `93ae440634fbff897d40f81506a863810d38aa8b`
+> **Pushed implementation commit:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Meaning of “complete”:** code and local automated validation are complete; deployment-dependent items stay open until provider/staging evidence exists.
 > **Detailed architecture:** [`architecture/full-architecture.md`](architecture/full-architecture.md)
 
@@ -378,3 +378,25 @@ These items are not silently approved for implementation. Each requires a separa
 8. Confirm Vercel/Railway/provider health.
 9. Submit Search Console sitemap/homepage.
 10. Open a separate post-launch backlog item only after production stabilizes.
+
+## 9. Phase 7 — emergency reliability and documentation reconciliation
+
+- [x] Diagnose the production sign-in family as a Vercel function/configuration failure rather than a frontend password-validation issue.
+- [x] Fail closed on missing/short `JWT_SECRET` and `CRON_SECRET`.
+- [x] Move database/configuration failure behind controlled handler boundaries.
+- [x] Add bounded frontend response parsing for JSON, text and oversized bodies.
+- [x] Generate Direct UPI QR locally.
+- [x] Reserve website wallet debit, ledger and local order in one transaction before supplier execution.
+- [x] Reserve API-key limits, wallet, ledger and local order in one transaction before supplier execution.
+- [x] Preserve ambiguous supplier outcomes for owner review; no blind retry or automatic refund.
+- [x] Validate order-reservation concurrency/rollback in a replica set.
+- [x] Add exhaustive Vercel and Railway environment templates.
+- [x] Push audited application/bot work to the feature branch at `2c60e65`.
+- [x] Upgrade every Markdown file and the customer `/api` reference; retain the result in a separate local commit.
+- [~] Keep Actions manual-only; workflow commit is local because the emergency PAT lacks workflow scope.
+- [ ] Configure strong Vercel Production secrets and redeploy.
+- [ ] Prove repaired authentication and cron behavior on the resulting deployment.
+
+### Updated release evidence
+
+The complete release run now also includes `npm run test:order-reservations`, environment-template completeness checks, manual-workflow trigger parsing and working-tree/history credential scans. The latest local run passed root/bot TypeScript, Vite build, search checks, every root integration suite, bot administrative integration, production dependency audits with zero reported vulnerabilities, and `git diff --check`.

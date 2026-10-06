@@ -35,7 +35,7 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
     regex: /telegram|\btg\b/i,
     headline: "Telegram SMM Panel for Channels & Groups",
     intro:
-      "SMM UP is a Telegram-focused SMM panel built for Indian channel owners, resellers and agencies. Order channel members, group members, post views and reactions at true wholesale rates — paid via UPI with 0% deposit fee, starting within minutes, backed by a written refill guarantee.",
+      "SMM UP is a Telegram-focused SMM panel built for Indian channel owners, resellers and agencies. Order channel members, group members, post views and reactions at current displayed rates — paid through Direct UPI with a 0% platform fee, with service-specific delivery estimates and refill terms shown before ordering.",
     services: [
       "Channel & group members (Indian and global mixes)",
       "Auto post views — future posts included",
@@ -45,15 +45,15 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
       "Premium-quality members with longer retention",
     ],
     why: [
-      { title: "Real wholesale rate", desc: "You pay what large reseller panels pay — no retail markup layered on top." },
-      { title: "Retention-first sources", desc: "Members come from higher-quality pools; non-drop and refill-guaranteed options cover the rest." },
-      { title: "Future-post automation", desc: "Auto-views packages watch your channel and deliver to every new post without re-ordering." },
+      { title: "Visible current rate", desc: "The current catalog rate and full order charge are shown before confirmation." },
+      { title: "Listing-specific terms", desc: "Compare the description, delivery estimate and any refill window before choosing a service." },
+      { title: "Future-post options", desc: "When a listing supports auto-views, its description defines which future posts and duration are covered." },
     ],
     faq: [
-      { q: "Is buying Telegram members safe for my channel?", a: "Delivery is gradual and never touches your admin access — we need only the public channel link. Telegram limits aggressive growth, so very large orders are drip-delivered by design." },
-      { q: "Do members drop after delivery?", a: "Small natural drops are normal everywhere. Every Telegram service shows a refill window (7 days to lifetime); drops inside it are replaced free." },
-      { q: "Can you add members to a private group?", a: "No — targets must be public channels or groups with a public link. Private groups are impossible for any genuine panel." },
-      { q: "How fast do post views start?", a: "Typically within 0–15 minutes of posting when you're on an auto-views package; manual view orders start inside the average time shown on the service card." },
+      { q: "Is buying Telegram members safe for my channel?", a: "SMM UP needs only the supported public target and never asks for channel admin credentials. Delivery pattern and platform risk vary by service; Telegram retains control over moderation and authenticity enforcement." },
+      { q: "Do members drop after delivery?", a: "Drops can occur. A service that includes refill coverage shows its window in the listing; use Order History to submit a request and follow the supplier-confirmed status." },
+      { q: "Can you add members to a private group?", a: "SMM UP accepts only the public target formats supported by the selected listing. Do not submit private or inaccessible targets." },
+      { q: "How fast do post views start?", a: "Timing varies by auto-view package and supplier load. Review the current estimate on the service card and track the resulting order status." },
     ],
   },
   {
@@ -64,25 +64,25 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
     regex: /instagram|\big\b|reels/i,
     headline: "Instagram SMM Panel — Followers, Likes & Reels Views",
     intro:
-      "Grow Instagram profiles with wholesale-rate followers, likes, reels views, story views and saves. SMM UP is an Indian Instagram SMM panel with UPI deposits at 0% fee, measured delivery times on every service, and refills up to lifetime.",
+      "Grow Instagram profiles with wholesale-rate followers, likes, reels views, story views and saves. SMM UP is an Indian Instagram SMM panel with UPI deposits at 0% fee, current service-specific delivery estimates and any applicable refill terms.",
     services: [
       "Followers (standard, high-quality and non-drop tiers)",
-      "Post likes — instant and gradual",
+      "Post likes — service-specific delivery patterns",
       "Reels & video views with reach",
       "Story views (all active stories)",
       "Saves, shares, comments and impressions",
       "Profile visits and reach boosters",
     ],
     why: [
-      { title: "Tiered quality", desc: "From budget growth to premium non-drop profiles with posts and photos — the card tells you exactly what you get." },
-      { title: "Refill up to lifetime", desc: "Drops inside the refill window are replaced free — request it straight from your order history." },
-      { title: "Sensible delivery curves", desc: "Quantities roll in at natural speeds; nothing screams 'bot spike' to the algorithm." },
+      { title: "Comparable listings", desc: "Use the visible description, limits, estimate and refill terms to compare service tiers." },
+      { title: "Visible refill terms", desc: "Eligible listings show their refill window; submit and track the request from Order History." },
+      { title: "Service-specific timing", desc: "Start and completion patterns depend on the selected listing and current supplier capacity." },
     ],
     faq: [
-      { q: "Will Instagram ban my account?", a: "We never ask for your password and deliver at natural speeds, which removes the two main risk factors. Keep your content organic-sounding and quantities proportionate to your existing base." },
-      { q: "What's the difference between follower tiers?", a: "Higher tiers use accounts with profile photos, posts and activity — they cost more per 1,000 but look real, engage better and drop far less." },
+      { q: "Will Instagram ban my account?", a: "We never ask for your Instagram password, which protects account credentials. No third-party service can guarantee zero moderation risk; follow Instagram rules and review each listing before ordering." },
+      { q: "What's the difference between follower tiers?", a: "Tier labels and characteristics vary by listing. Compare the exact description, rate, delivery estimate and refill window rather than assuming a label guarantees engagement or retention." },
       { q: "Do reels views count as monetisable reach?", a: "Views register on the reel like organic reach, but Instagram's monetization eligibility follows its own rules. No panel can promise payouts." },
-      { q: "How do refills work on Instagram?", a: "If your follower count dips within the service's refill window, request a refill from Logs — lost numbers are redelivered free." },
+      { q: "How do refills work on Instagram?", a: "If the listing includes refill coverage, submit a request from Order History. Supplier eligibility and completion are reflected in the resulting status." },
     ],
   },
   {
@@ -93,7 +93,7 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
     regex: /youtube|\byt\b/i,
     headline: "YouTube SMM Panel — Views, Watch Time & Subscribers",
     intro:
-      "SMM UP is a YouTube SMM panel for creators chasing 1,000 subscribers and 4,000 watch hours — and for channels scaling beyond it. Wholesale-rate views, watch time, subscribers, likes and live-stream viewers with UPI 0% fee deposits.",
+      "SMM UP lists YouTube views, watch-time, subscriber, like and live-viewer services with current rates and Direct UPI funding at a 0% platform fee. YouTube alone decides monetization, analytics validity and moderation outcomes.",
     services: [
       "Watch-time hours (long-form, monetization-oriented)",
       "Video views — standard and high-retention",
@@ -103,14 +103,14 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
       "Shorts views",
     ],
     why: [
-      { title: "Monetization-aware delivery", desc: "Watch-time services run at speeds that complete 4,000-hour goals without tripping review flags." },
-      { title: "Retention metrics shown", desc: "High-retention options label their average watch percentage — no surprises after the fact." },
+      { title: "Listing-specific delivery", desc: "Each watch-time listing states its quantity model and current supplier delivery estimate." },
+      { title: "Terms shown before purchase", desc: "Review the service description, limits, delivery estimate and refill terms before confirming." },
       { title: "Completion honesty", desc: "If a service cannot finish, its final counts are reviewed for the eligible wallet adjustment — never a blind retry." },
     ],
     faq: [
-      { q: "Is buying YouTube watch time safe for monetization?", a: "Our monetization-oriented watch-time services are designed to register in YouTube Analytics, but no panel can guarantee approval. YouTube makes the final decision after reviewing the whole channel, its content and traffic patterns. Use gradual quantities and keep publishing original content alongside any campaign." },
-      { q: "How long does 4,000 hours take?", a: "Depending on service tier, between a few days and a few weeks — the average time is printed on each watch-time service card." },
-      { q: "Do subscribers drop?", a: "All platforms audit subscribers periodically. Choose refill-guaranteed tiers; drops inside the window are replaced free." },
+      { q: "Is buying YouTube watch time safe for monetization?", a: "No panel can guarantee analytics acceptance or monetization approval. YouTube makes those decisions after reviewing the channel, content and traffic. Review the exact listing and use only campaigns that comply with YouTube rules." },
+      { q: "How long does 4,000 hours take?", a: "Timing varies by service and supplier capacity. Use the current estimate on the selected service card and track the accepted order." },
+      { q: "Do subscribers drop?", a: "Subscriber counts can change during platform audits. If the selected listing includes refill coverage, submit a request within its stated window and track the supplier response." },
       { q: "Can I boost a live stream?", a: "Yes — concurrent-viewer services run for the duration you order. Order shortly before going live." },
     ],
   },
@@ -132,14 +132,14 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
       "Poll votes",
     ],
     why: [
-      { title: "Built for X's volatility", desc: "X purges aggressively — refill-guaranteed tiers exist precisely for that, and the window is printed on the card." },
-      { title: "Impression economy", desc: "Impression services help creator-ads eligibility targets with real volume." },
-      { title: "Indian payment rails", desc: "UPI deposits with 0% fee — no card gateways, no FX markup." },
+      { title: "Visible service terms", desc: "Compare each listing's description, estimate and any refill window before ordering." },
+      { title: "Metric-specific listings", desc: "Choose among followers, likes, reposts, impressions and other supported public metrics." },
+      { title: "Indian payment rails", desc: "Direct UPI has a 0% platform fee; Razorpay is a separate option when configured." },
     ],
     faq: [
       { q: "Are X followers risky right now?", a: "X runs frequent authenticity sweeps, which is why drop-refill tiers exist. Choose refill-guaranteed services for important accounts." },
       { q: "Do impressions count toward payouts?", a: "Impressions register publicly, but X's monetization rules are its own — eligibility is decided by X, not by any panel." },
-      { q: "How fast do likes start?", a: "Usually minutes. Each service shows a measured average start on the card." },
+      { q: "How fast do likes start?", a: "Timing varies by service and supplier load. Review the current estimate on the service card." },
     ],
   },
   {
@@ -150,21 +150,21 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
     regex: /tiktok/i,
     headline: "TikTok SMM Panel — Views, Followers & Likes",
     intro:
-      "SMM UP is a TikTok SMM panel with wholesale-rate video views, followers, likes and shares for Indian creators. UPI deposits with 0% fee, fast starts, and transparent delivery metrics on every service.",
+      "SMM UP is a TikTok SMM panel with wholesale-rate video views, followers, likes and shares for Indian creators. Direct UPI deposits with a 0% platform fee and listing-specific delivery information.",
     services: [
-      "Video views (high volume, fast start)",
+      "Video views (listing-specific limits and timing)",
       "Followers",
       "Post likes",
       "Shares and saves",
       "Live stream viewers",
     ],
     why: [
-      { title: "Volume economics", desc: "TikTok views are among the cheapest metrics we sell — ideal for quick social-proof testing." },
-      { title: "Viral-window speed", desc: "View services start fast enough to matter inside a video's first-hour algorithm window." },
-      { title: "Clear metrics", desc: "Average start and completion times are displayed per service, from live data." },
+      { title: "Visible pricing", desc: "Current rate, minimum and maximum quantities are displayed before purchase." },
+      { title: "Current delivery estimate", desc: "The selected listing shows its supplier-provided timing; actual timing varies with capacity." },
+      { title: "Trackable orders", desc: "Accepted orders can be checked from Order History; TikTok retains control of recommendation outcomes." },
     ],
     faq: [
-      { q: "Do TikTok views help a video go viral?", a: "Views add social proof that improves click-through on the For You page, but virality still comes from watch time and content. Use boosts to support good content, not replace it." },
+      { q: "Do TikTok views help a video go viral?", a: "No service can guarantee recommendation or virality. TikTok controls the For You system; content quality, audience behavior and platform rules remain decisive." },
       { q: "Is TikTok available in India?", a: "TikTok is geo-restricted in India; these services serve creators in TikTok-active regions and NRIs targeting those audiences." },
       { q: "Do TikTok followers drop?", a: "Like all platforms, TikTok purges bots periodically — refill-guaranteed options cover drops within the window." },
     ],
@@ -177,23 +177,23 @@ export const PLATFORM_PAGES: PlatformConfig[] = [
     regex: /spotify/i,
     headline: "Spotify SMM Panel — Streams, Followers & Listeners",
     intro:
-      "SMM UP is a Spotify SMM panel for independent artists and labels: wholesale streams, artist followers, playlist plays and monthly listeners — delivered at natural speeds with UPI 0% fee deposits.",
+      "SMM UP lists Spotify streams, artist followers, playlist plays and monthly-listener services with current rates and Direct UPI funding at a 0% platform fee. Spotify controls anti-fraud, analytics, royalties and recommendation decisions.",
     services: [
-      "Track streams (royalties-safe speeds)",
+      "Track streams (listing-specific delivery terms)",
       "Artist followers",
       "Monthly listeners",
       "Playlist plays & playlist followers",
       "Saves",
     ],
     why: [
-      { title: "Natural play patterns", desc: "Streams deliver at speeds that mirror organic listening — the metric that protects artist accounts." },
-      { title: "Algorithm seeds", desc: "Consistent play volume helps trigger Discover Weekly and Release Radar inclusion organically." },
+      { title: "Listing-specific timing", desc: "Review the selected service's delivery estimate and limits before ordering." },
+      { title: "No placement promise", desc: "Service delivery does not guarantee Discover Weekly, Release Radar or editorial placement." },
       { title: "Honest limits", desc: "We print exactly what each service does; no 'guaranteed editorial playlist' fantasies." },
     ],
     faq: [
-      { q: "Are Spotify streams safe?", a: "Delivered at playlist-natural speeds from varied sources, streams register in Spotify for Artists. Extreme spikes are avoided on purpose — that's what keeps artist accounts safe." },
-      { q: "Do streams pay royalties?", a: "Streams register like regular plays; Spotify's royalty decisions and anti-fraud systems are its own. We deliver the metric, not a payout promise." },
-      { q: "Can you get me on editorial playlists?", a: "No — anyone promising editorial placement is scamming you. What volume legitimately does is improve algorithmic playlist eligibility." },
+      { q: "Are Spotify streams safe?", a: "No third party can guarantee account safety, analytics acceptance or royalty eligibility. Review the listing and use only campaigns consistent with Spotify rules." },
+      { q: "Do streams pay royalties?", a: "Spotify controls analytics, anti-fraud and royalty eligibility. A delivered service is not a payout promise." },
+      { q: "Can you get me on editorial playlists?", a: "No — anyone promising editorial placement is scamming you. No volume guarantees algorithmic or editorial placement." },
     ],
   },
 ];

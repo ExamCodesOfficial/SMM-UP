@@ -101,3 +101,25 @@ Do not pad capability registries with duplicates or speculative behavior.
 ## Pushes and deployments
 
 A push or deployment requires separate explicit authorization. Use an ephemeral least-privilege credential, never persist it in Git configuration/URLs/files/history, verify the target commit, and revoke it immediately afterward.
+
+## API and order-safety review
+
+For any `/api` or supplier-order change, reviewers must answer:
+
+1. Which authentication model and ownership boundary applies?
+2. Can a timeout occur after a durable mutation?
+3. Is caller retry safe, unsafe or conditionally idempotent?
+4. Which local/provider identifiers must be retained for reconciliation?
+5. Are response and provider-error bodies bounded and sanitized?
+6. Does the browser parse non-JSON and oversized responses safely?
+7. Did `API_REFERENCE.md`, customer-facing `/api`, architecture and tests change together?
+
+Never convert an ambiguous supplier outcome into an automatic refund or blind resubmission. The provider call is outside MongoDB; preserve the local order and escalate reconciliation.
+
+## GitHub Actions policy
+
+Workflows must use explicit `workflow_dispatch` only. Do not add `push`, `pull_request`, schedules or other automatic triggers without a new owner decision. If a credential lacks workflow scope, do not weaken, delete or bypass the intended manual-only workflow to force a push. Keep the workflow change isolated and report the scope limitation.
+
+## Complete release command set
+
+Run the relevant commands sequentially in constrained environments, including `npm run test:order-reservations`. A green build does not replace provider staging, and an audit result is time-bound to the resolved lockfile.

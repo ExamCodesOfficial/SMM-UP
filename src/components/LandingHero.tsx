@@ -118,19 +118,19 @@ const STEPS = [
   {
     num: "01",
     title: "Create your account",
-    desc: "Sign up in under 10 seconds with a username and password. No KYC, no phone verification, no personal documents.",
+    desc: "Create an account with a username, email and permanent password, then verify the mailbox before normal sign-in. No social-media credentials are requested.",
     icon: User,
   },
   {
     num: "02",
     title: "Add funds with 0% fee",
-    desc: "Pay the QR with any UPI app and submit your 12-digit UTR number. Your balance credits automatically — every rupee you pay lands in your wallet.",
+    desc: "Pay the exact QR or UPI intent and keep its memo. Wallet credit occurs only after the pending deposit, amount, memo and bank reference match; unmatched evidence goes to reconciliation.",
     icon: ExecutiveWalletIcon,
   },
   {
     num: "03",
     title: "Place orders",
-    desc: "Paste a public link or username and confirm. Orders start fast and every service shows its real average delivery time upfront.",
+    desc: "Paste a public link or username and confirm. Each service shows its current supplier-provided delivery estimate, and accepted orders can be tracked from Order History.",
     icon: ExecutiveOrderIcon,
   },
 ];

@@ -82,6 +82,8 @@ const NAV = [
   { id: "key-lifecycle", label: "Key lifecycle" },
   { id: "scopes-limits", label: "Scopes & limits" },
   { id: "security-telemetry", label: "Security & activity" },
+  { id: "request-contract", label: "Request contract" },
+  { id: "retry-safety", label: "Order safety & retries" },
   { id: "add-order", label: "Add order" },
   { id: "order-status", label: "Order status" },
   { id: "multi-status", label: "Multiple statuses" },
@@ -171,12 +173,11 @@ export default function ApiDocs({ user }: ApiDocsProps) {
         <div className="min-w-0">
           <Section id="getting-started" title="Getting started">
             <p>
-              Every request is a single HTTPS call to one endpoint, <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">POST {BASE}</code> (GET also works).
-              Responses are always JSON.
+              Every request is an HTTPS call to one endpoint, <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">POST {BASE}</code>. POST is recommended; compatibility GET requests must authenticate with a header because secrets in URL query strings are rejected. Responses are JSON.
             </p>
             <div className="grid sm:grid-cols-3 gap-3 my-4">
               {[
-                { icon: BookOpen, t: "1. Create account", d: "Free, 10 seconds, no KYC." },
+                { icon: BookOpen, t: "1. Create account", d: "Verify your email, then sign in to Account." },
                 { icon: Key, t: "2. Create named key", d: "Choose only the scopes and limits this integration needs." },
                 { icon: Terminal, t: "3. Copy and call", d: "The secret is shown once, then stored only as a hash." },
               ].map((s, i) => (
@@ -207,7 +208,7 @@ export default function ApiDocs({ user }: ApiDocsProps) {
               <AlertTriangle className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
               <span>
                 A key with <code className="text-white">orders:create</code> can spend your wallet balance. Keep every secret server-side.
-                If one leaks, rotate it from Account; the old secret stops working permanently.
+                If one leaks, rotate it from Account; the old secret stops working permanently. Never send a key as a URL query parameter.
               </span>
             </div>
             <p className="text-xs text-zinc-500 my-3">
@@ -276,7 +277,7 @@ export default function ApiDocs({ user }: ApiDocsProps) {
             <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400">
               <li><strong className="text-zinc-200">Full Access</strong> synchronizes all scopes that exist today; it is not a wildcard for future permissions.</li>
               <li><strong className="text-zinc-200">Daily and monthly limits</strong> are optional INR spending ceilings enforced atomically in IST buckets.</li>
-              <li>Concurrent order attempts cannot jointly exceed the same key limit; a rejected/rolled-back order does not consume settled spend.</li>
+              <li>Concurrent order attempts cannot jointly exceed the same key limit. Validation failures and aborted reservation transactions consume no spend; after a reservation commits, its charge remains attached to the durable order until final reconciliation.</li>
               <li><strong className="text-zinc-200">Expiry</strong> is optional. “Never” leaves the key active until it is paused, rotated, archived or owner-disabled.</li>
               <li>Account-level ordering holds and payment/security controls override individual key status.</li>
             </ul>
@@ -307,6 +308,42 @@ export default function ApiDocs({ user }: ApiDocsProps) {
             />
           </Section>
 
+          <Section id="request-contract" title="Request contract & parsing">
+            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400">
+              <li>Use HTTPS and prefer POST with JSON or form data. Authenticate with <code className="text-zinc-300">Authorization: Bearer</code> or <code className="text-zinc-300">X-API-Key</code>.</li>
+              <li>A <code className="text-zinc-300">key</code> field is accepted only in a POST body. <code className="text-zinc-300">?key=...</code> is rejected so secrets do not enter URL logs or history.</li>
+              <li>Check HTTP status before decoding success fields. Errors use a bounded <code className="text-zinc-300">error</code> string and may include a stable <code className="text-zinc-300">code</code>.</li>
+              <li>Set a finite client timeout, but do not interpret a timeout as proof that no mutation occurred.</li>
+              <li>Service rate, limits, refill and cancellation capability are dynamic. Re-fetch the catalog before creating an order.</li>
+            </ul>
+            <CodeBlock
+              id="request-header"
+              lang="Recommended JSON request"
+              code={`curl -X POST ${BASE} \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  --data '{"action":"balance"}'`}
+            />
+          </Section>
+
+          <Section id="retry-safety" title="Order reservation, identifiers & retry safety">
+            <p>
+              For <code className="text-white">add</code>, SMM UP first commits the key spending buckets, wallet debit, wallet ledger entry and local
+              <code className="text-white">Submitting</code> order together. It then calls the supplier, because an external supplier request cannot share the MongoDB transaction.
+            </p>
+            <div className="p-4 border border-white/15 bg-white/[0.03] text-xs space-y-2">
+              <p><strong className="text-white">Never blindly retry add after a timeout, 500 or 503.</strong> The supplier may already have accepted the first request.</p>
+              <p>Inspect Account activity and Order History, or contact support with the returned order reference. The protocol does not currently accept a caller idempotency key.</p>
+            </div>
+            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400">
+              <li>Normal success returns the supplier order ID for SMM v2 compatibility.</li>
+              <li>A failed or uncertain submission can return the internal local order ID with an error; retain it for review.</li>
+              <li>Funds are not blindly refunded when duplicate supplier fulfillment is possible. The debit stays attached to the durable local order until owner reconciliation.</li>
+              <li>Status, cancel and refill accept an owned supplier ID or eligible internal ID; ownership is enforced server-side.</li>
+              <li>“Cancel requested” is not final cancellation or refund proof.</li>
+            </ul>
+          </Section>
+
           <Section id="add-order" title="Add order">
             <ParamTable
               rows={[
@@ -335,7 +372,7 @@ export default function ApiDocs({ user }: ApiDocsProps) {
             />
             <p>
               The response <code className="text-white font-mono text-xs bg-white/[0.06] px-1.5 py-0.5">order</code> ID is what you use for
-              status, refill and cancel calls. Charge = (service rate × quantity) ÷ 1000, debited from balance instantly.
+              status, refill and cancel calls. Charge = (service rate × effective quantity) ÷ 1000. The wallet debit, spend reservation, ledger entry and local order commit atomically before supplier submission.
             </p>
           </Section>
 
@@ -494,8 +531,8 @@ export default function ApiDocs({ user }: ApiDocsProps) {
                     ["404", "Order/service not found, or the resource is not owned by this account/key context"],
                     ["409", "A concurrent, idempotency or lifecycle conflict prevented the operation"],
                     ["429", "Shared rate limit hit — 120 requests per 60 seconds per key. Back off and retry"],
-                    ["500", "The request failed safely on our side — retry with backoff; contact support if it persists"],
-                    ["503", "A required internal dependency is unavailable or securely misconfigured; retry later"],
+                    ["500", "Internal failure. Reads may retry with backoff; never blindly retry add until account/order state is inspected"],
+                    ["503", "Dependency/configuration failure or uncertain add finalization. Follow action-specific retry guidance"],
                   ].map(([c, d]) => (
                     <tr key={c} className="hover:bg-white/[0.02]">
                       <td className="px-3.5 py-2.5 font-mono text-white">{c}</td>

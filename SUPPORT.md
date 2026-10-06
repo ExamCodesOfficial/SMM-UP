@@ -36,3 +36,25 @@ When reporting a non-security operational defect, prefer:
 - whether any financial mutation committed.
 
 A browser success screen or Telegram message is not authoritative financial evidence. Use transaction, ledger, provider and audit state during reconciliation.
+
+## Customer triage
+
+| Issue | Ask for | Never ask for |
+|---|---|---|
+| Sign-in | username/email, timestamp, displayed error | password, session cookie, email token |
+| Order | internal order ID, service ID, approximate time | social password or private account access |
+| Direct UPI | pending transaction ID, memo, UTR/reference, amount/time | UPI PIN, OTP, bank password, full statement |
+| Razorpay | internal transaction ID and provider order/payment ID | CVV, OTP, card number |
+| API | named key ID/hint, action, HTTP status, request timestamp | raw API secret or Authorization header |
+| Support Access | code status and owner reason | customer password or reusable session token |
+
+Support must distinguish “request accepted,” “provider accepted,” “wallet settled,” and “reconciled final state.” Do not promise a refund, credit or cancellation before authoritative ledger/provider evidence is reviewed.
+
+## Escalation
+
+- Authentication-wide `500`/`503`: verify deployment environment and `JWT_SECRET` length, then deployment logs.
+- Unknown supplier submission after wallet debit: do not reorder; escalate the internal order for owner reconciliation.
+- Duplicate/uncertain payment evidence: place or preserve holds and compare exact pending/provider/ledger identities.
+- Suspected security issue or credential exposure: stop normal support handling and follow `SECURITY.md` plus the incident runbook.
+
+No public response-time, 24/7 availability or instant-resolution guarantee is made.
