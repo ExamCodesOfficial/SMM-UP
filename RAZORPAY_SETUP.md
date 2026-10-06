@@ -1,6 +1,6 @@
 # Razorpay Activation, Verification and Recovery Runbook
 
-> **Implementation checkpoint:** `93ae440634fbff897d40f81506a863810d38aa8b`
+> **Implementation checkpoint:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Production verification:** pending
 > **Canonical webhook URL:** `https://smmup.co.in/api/razorpay-webhook`
 
@@ -330,3 +330,16 @@ Code rollback alone does not refund a payment, reverse a wallet, rotate a secret
 - internal transaction and ledger IDs;
 - test result and timestamp;
 - reviewer and rollback decision.
+
+## 12. API, mode and reconciliation contract
+
+- `GET /api/razorpay/config` exposes only enabled state, mode and safe bounds; it never returns a secret.
+- `POST /api/razorpay/create-order` requires a normal account session, same-origin request when `Origin` is present, no payment hold and exact two-decimal INR bounds.
+- `POST /api/razorpay/verify` validates the browser signature, then fetches authoritative provider state. An authorized-but-not-captured payment returns `202` and no wallet credit.
+- `GET /api/razorpay/status` may discover a captured payment and converge through the same settlement function.
+- `POST /api/razorpay-webhook` uses the raw body and webhook HMAC; never route it through body reserialization.
+- Direct UPI and Razorpay have separate internal identities. Never settle one rail using evidence from the other.
+
+### Deployment-variable source
+
+Use `vercel.env.example` for the complete Vercel inventory. Razorpay values are server-only. `RAZORPAY_MODE` must agree with the key prefix, and `RAZORPAY_ALLOW_TEST_WALLET_CREDIT` stays false outside an isolated disposable test environment. A changed secret or mode requires a new deployment and a recorded smoke test.

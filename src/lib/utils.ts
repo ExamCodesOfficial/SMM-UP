@@ -102,7 +102,7 @@ export function sanitizeBrandText(raw: string | undefined | null): string {
  * 4. Trims leading/trailing whitespace and symbols.
  */
 export function cleanServiceDescription(raw: string | undefined | null): string {
-  if (!raw) return "Instant automated delivery node. Ensure target account is completely PUBLIC.";
+  if (!raw) return "Automated delivery requires a public target. Timing depends on the selected service and supplier capacity.";
   let str = decodeHtmlEntities(raw);
   str = sanitizeBrandText(str);
 
@@ -112,7 +112,7 @@ export function cleanServiceDescription(raw: string | undefined | null): string 
   // Clean up leading newlines and symbols left behind
   str = str.replace(/^[\s\n\r\-\:\_]+/, "");
 
-  return str.trim() || "Instant automated delivery node. Ensure target account is completely PUBLIC.";
+  return str.trim() || "Automated delivery requires a public target. Timing depends on the selected service and supplier capacity.";
 }
 
 export interface ServiceRefillPolicy {

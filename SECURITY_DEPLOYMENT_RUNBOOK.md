@@ -1,6 +1,6 @@
 # SMM UP Security, Deployment, Rollback and Incident Runbook
 
-> **Code checkpoint:** `93ae440634fbff897d40f81506a863810d38aa8b`
+> **Code checkpoint:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Last documentation review:** 2026-10-06
 > **Production state:** not verified by this document
 > **Rule:** environment names and procedures belong here; credential values never do.
@@ -684,3 +684,54 @@ Timestamp:
 ```
 
 Do not add credential values, raw tokens, private pricing or unnecessary personal information to this record.
+
+## 18. Emergency authentication/configuration recovery
+
+Use this path when multiple database-backed account APIs fail at function invocation while a provider-independent endpoint still responds:
+
+1. record deployment ID, source commit, environment and bounded request IDs;
+2. inspect Vercel function initialization logs without copying secret values;
+3. compare Production variable names against `vercel.env.example`;
+4. set a new unique 32+ character `JWT_SECRET` and independent 32+ character `CRON_SECRET`;
+5. confirm MongoDB URI/database and HMAC-specific secrets are present in the correct Vercel environment;
+6. redeploy explicitly;
+7. verify controlled JSON from `login`, `me`, reviews and Razorpay config;
+8. test login success/failure, cookie creation/revocation and session listing;
+9. test cron missing/bad/good bearer behavior;
+10. monitor errors and security events before declaring recovery.
+
+Do not derive a secret from MongoDB URI, provider key, email or repository data. Do not weaken the minimum length to restore availability.
+
+## 19. Supplier-order ambiguity gate
+
+Release evidence must prove for website and reseller orders:
+
+- service and charge are recalculated server-side;
+- holds and balance are checked in the reservation transaction;
+- debit, ledger and local `Submitting` order commit together;
+- provider execution starts only after reservation;
+- malformed/rejected provider output produces a durable review-required order;
+- accepted provider ID is persisted or a `Submission uncertain` record is escalated;
+- no blind retry or automatic refund occurs where duplicate fulfillment is possible;
+- activity/audit failure does not turn a completed provider operation into a retryable response;
+- concurrent insufficient-balance and key-limit attempts have one consistent winner.
+
+## 20. Repository automation governance
+
+GitHub Actions may run only through explicit `workflow_dispatch`. The emergency credential used for the feature-branch push lacked workflow-write scope, so the manual-only workflow remains an isolated local commit. The remote feature branch contains no workflow and therefore introduces no push/PR automation.
+
+Before any future workflow push:
+
+1. obtain a separately authorized credential with workflow-write permission;
+2. parse the YAML and verify `on` contains only `workflow_dispatch`;
+3. verify no reusable caller, schedule, push or pull-request trigger was added;
+4. retain the workflow change as a reviewable commit;
+5. revoke the credential immediately after the authorized push.
+
+## 21. Provider template ownership
+
+- `vercel.env.example` is the exhaustive website/API inventory.
+- `railway.env.example` is the exhaustive Telegram bot/IMAP worker inventory.
+- `.env.example` and `admin-bot/.env.example` are synchronized convenience copies.
+- A release must compare source `process.env` references to the correct template and fail review on missing names.
+- Templates document names and safe placeholders only; production values remain in provider secret stores.

@@ -1,8 +1,8 @@
 # SMM UP Admin Bot — Implemented-State Specification and Evolution Plan
 
 > **Reconciled against:** `admin-bot/bot.ts`, `admin-bot/src/**/*.ts` and `admin-bot/tests/adminActions.integration.ts`
-> **Pushed implementation:** `93ae440634fbff897d40f81506a863810d38aa8b`
-> **Local source organization:** behavior-preserving modular refactor on a feature branch; not pushed or deployed
+> **Pushed implementation:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
+> **Source organization:** the behavior-preserving modular TypeScript refactor is pushed on `improvement/private-repo-and-bot-modules`; Railway deployment is not yet proven
 > **Updated:** 2026-10-06
 > **Runtime decision:** Railway long-polling bot plus IMAP worker
 > **Administration decision:** no website admin panel
@@ -747,3 +747,32 @@ Any bot behavior change must update:
 6. deployment/runbook steps if configuration or failure modes change.
 
 Review especially for financial idempotency, actor/subject confusion, stale confirmation, Telegram HTML injection, secret logging, worker overlap and website enforcement drift.
+
+## 23. Modularization acceptance contract
+
+The pushed TypeScript module split is accepted only while these properties remain unchanged:
+
+- one numeric owner gate precedes every command and callback;
+- callback data stays bounded and carries no raw secret;
+- confirmation state remains hash-only, actor-bound, one-time and five-minute;
+- custom temporary passwords are AES-GCM protected only during pending confirmation and become bcrypt-only afterward;
+- wallet/refund/control/key actions retain transaction, idempotency and audit behavior;
+- worker scanning retains one distributed lease holder and exact settlement evidence;
+- shutdown releases polling/worker resources without creating a second active loop;
+- module imports do not start side effects during tests when autostart is disabled.
+
+Any later refactor must map old handler → new module, run the same integration suite, compare Telegram command/callback behavior, and separate structural commits from behavior changes.
+
+## 24. Cross-runtime drift checks
+
+Website and Railway implement related but separate controls. A change to shared MongoDB fields must review both runtimes for:
+
+- account/payment/ordering hold enforcement;
+- session and Support Access status;
+- temporary-password use/status synchronization;
+- API-key pause/archive/reissue state;
+- Direct UPI amount, memo, expiry, replay and ledger invariants;
+- order review/refund state and owner-facing output;
+- index names, TTL and uniqueness assumptions.
+
+Do not copy website code into the bot blindly. Preserve equivalent invariants while keeping the Railway long-running worker lifecycle explicit.

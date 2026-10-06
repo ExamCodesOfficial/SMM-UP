@@ -16,7 +16,7 @@ export default function GuaranteesBento() {
           BUILT FOR UNCOMPROMISING SCALE
         </h2>
         <p className="text-xs sm:text-sm text-zinc-400 max-w-xl mx-auto mt-2.5 font-light">
-          Built as a direct wholesale pipeline: no gateway fees, orders start within minutes, and every rupee is protected.
+          Built as a direct wholesale workflow: Direct UPI has no platform fee, service timing is listed before purchase, and every wallet mutation has a durable record.
         </p>
       </div>
 
@@ -67,7 +67,7 @@ export default function GuaranteesBento() {
             Wholesale Delivery Speed
           </h3>
           <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed font-light mb-6">
-            Orders pass straight from your desk to automated global delivery queues without manual review queues or throttling delays.
+            Accepted orders are routed to supplier delivery queues after the wallet debit, ledger entry and local order reserve together. Timing remains service- and supplier-dependent.
           </p>
 
           <div className="p-3 rounded-none border border-white/[0.06] bg-black/40 flex items-center justify-between text-xs">
@@ -89,7 +89,7 @@ export default function GuaranteesBento() {
             Dynamic Refill Guarantees (7D to Lifetime)
           </h3>
           <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed font-light mb-6">
-            Eligible service channels feature guaranteed retention protection tailored to the package tier — from 7-day rapid replenishment to 30-day, 365-day, and Lifetime non-drop coverage with 1-click re-delivery.
+            Eligible service listings show their supplier-provided refill window. A refill button submits the request, while eligibility and completion remain subject to the stored service terms and supplier response.
           </p>
 
           <a
@@ -126,11 +126,11 @@ export default function GuaranteesBento() {
             </div>
             <div className="p-3 rounded-none border border-white/[0.06] bg-black/40">
               <span className="block text-[10px] text-zinc-500 uppercase mb-0.5">Privacy</span>
-              <span className="font-semibold text-white">100% Anonymized</span>
+              <span className="font-semibold text-white">Public Targets Only</span>
             </div>
             <div className="p-3 rounded-none border border-white/[0.06] bg-black/40">
               <span className="block text-[10px] text-zinc-500 uppercase mb-0.5">Security</span>
-              <span className="font-semibold text-white">Client-Safe</span>
+              <span className="font-semibold text-white">No Social Login</span>
             </div>
           </div>
         </div>

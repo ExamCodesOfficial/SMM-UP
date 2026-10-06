@@ -2,8 +2,8 @@
 
 > **Runtime:** Railway or another always-on Node.js host
 > **Transport:** Telegram Bot API long polling
-> **Pushed implementation:** `93ae440634fbff897d40f81506a863810d38aa8b`
-> **Local source organization:** behavior-preserving modular refactor on a feature branch; not pushed or deployed
+> **Pushed implementation:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
+> **Source organization:** the behavior-preserving modular TypeScript refactor is pushed on `improvement/private-repo-and-bot-modules`; Railway deployment is not yet proven
 > **Production validation:** pending
 
 This private owner service provides SMM UP’s administrative control plane and Direct UPI email-settlement worker. There is no website admin panel.
@@ -297,3 +297,15 @@ Never send, store in audit details, or log:
 - private markup values.
 
 Owner-authorized views may show full user email and complete operational account, order and deposit details when required for support.
+
+## Modular runtime contract
+
+`bot.ts` is the composition root. It loads validated configuration, creates shared database/Telegram dependencies, registers middleware and command/callback modules, starts long polling, and coordinates worker shutdown. Domain mutations remain in `src/domain`, authorization in `src/middleware`, secret/action-state handling in `src/security`, persistence/index setup in `src/db`, and payment scanning/settlement in `src/worker`.
+
+The first modularization is intentionally behavior-preserving. Moving code across modules must not change command names, callback payload semantics, owner authorization, confirmation expiry, financial settlement keys, lease behavior or Telegram output boundaries without a separately reviewed behavior change.
+
+## Railway template and startup preflight
+
+Use `../railway.env.example`; `admin-bot/.env.example` is synchronized with it. Before startup, verify variable presence by name only, confirm the bot identity with Telegram `getMe`, establish MongoDB/index readiness, then start polling and the optional lease-controlled worker. `ADMIN_BOT_DISABLE_AUTOSTART` is test-only and must not accidentally disable the production process.
+
+A healthy process is not enough to prove settlement safety. Test wrong-user denial, stale/replayed callbacks, two-replica lease behavior, exact receipt matching and one-ledger/one-balance convergence in staging.

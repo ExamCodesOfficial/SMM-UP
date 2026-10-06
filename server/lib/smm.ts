@@ -202,12 +202,12 @@ export function sanitizeBrandText(raw: string | undefined | null): string {
 }
 
 export function cleanServiceDescription(raw: string | undefined | null): string {
-  if (!raw) return "Instant automated delivery node. Ensure target account is completely PUBLIC.";
+  if (!raw) return "Automated delivery requires a public target. Timing depends on the selected service and supplier capacity.";
   let str = decodeHtmlEntities(raw);
   str = sanitizeBrandText(str);
   str = str.replace(/^[\s\S]*?(?:please read the description|please read before ordering[\.\:\!]?|important note[\.\:\!]?)/i, "");
   str = str.replace(/^[\s\n\r\-\:\_]+/, "");
-  return str.trim() || "Instant automated delivery node. Ensure target account is completely PUBLIC.";
+  return str.trim() || "Automated delivery requires a public target. Timing depends on the selected service and supplier capacity.";
 }
 
 export function extractRefillPolicy(name: string, description: string, providerRefill: boolean): RefillPolicy {
@@ -312,7 +312,7 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
         refill_label: refillPolicy.label,
         refill_short: refillPolicy.shortLabel,
         cancel: Boolean(service.cancel === true || service.cancel === "true" || service.cancel === 1),
-        average_time: String(service.average_time || "Instant").slice(0, 200),
+        average_time: String(service.average_time || "Timing varies by service and supplier capacity").slice(0, 200),
         description,
       };
     });

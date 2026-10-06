@@ -51,23 +51,23 @@ export const FAQS: Faq[] = [
   },
   {
     q: "How fast do orders start?",
-    a: "Most orders start within 0–60 minutes, many within minutes. Each service card shows an average completion time based on recent deliveries, so you always know what to expect before you pay.",
+    a: "Start and completion times vary by service and supplier load. Review the current estimate shown on the service card, then use Order History to request the latest supplier status after acceptance.",
   },
   {
     q: "What does the refill guarantee mean?",
-    a: "If followers, members or views drop after delivery within the service's refill window (between 7 days and lifetime depending on the service), we redeliver the lost quantity free. You can request a refill from your order history or the API.",
+    a: "If a service includes refill coverage, its listing shows the applicable window. You can request a refill from Order History or the API; supplier eligibility and final refill status are confirmed after the request.",
   },
   {
     q: "Why did my follower count drop after ordering?",
-    a: "Platforms routinely remove inactive accounts, so small drops are normal across the industry. Quality services drop less, and any drop inside the refill window is replaced free. Choose non-drop or refill-guaranteed services for important accounts.",
+    a: "Platforms can remove accounts or interactions, so delivered counts may change. Compare the listing and choose a service with a stated refill window when that protection matters; refill requests remain subject to the stored terms and supplier status.",
   },
   {
     q: "Can I cancel an order?",
-    a: "If the service supports cancellation and delivery hasn't progressed too far, you can cancel from order history or the API — the remaining charge returns to your wallet. Completed orders can't be cancelled or reversed.",
+    a: "If the service supports cancellation, you can submit a request from Order History or the API. Supplier acceptance is not final cancellation or refund proof; any eligible wallet adjustment follows reconciliation of the final supplier state.",
   },
   {
     q: "What happens if I paste a wrong or private link?",
-    a: "Orders need public targets. If a link is invalid, private or deleted, the order fails and the full charge returns to your wallet automatically. Double-check that accounts and channels are public before ordering.",
+    a: "Orders need public targets. An invalid, private or deleted target can produce a failed or uncertain supplier submission. The local order and wallet debit remain recorded while the outcome is reconciled; no automatic refund or blind retry occurs when duplicate fulfillment is possible.",
   },
   {
     q: "Is there a minimum order?",
@@ -79,7 +79,7 @@ export const FAQS: Faq[] = [
   },
   {
     q: "Do you have an API for resellers?",
-    a: "Yes, a standard SMM v2 API at /api/v2. It supports services, add, status, refill and cancel actions, so most reseller panels and scripts can connect in minutes. Your API key is in your account page, and full docs are on the API page.",
+    a: "Yes, a standard SMM v2 API is available at /api/v2. It supports services, balance, add, status, refill and cancel actions. Create a named, scoped key from Account and follow the API page, especially its no-blind-retry rule for uncertain order submissions.",
   },
   {
     q: "Is it safe? Will my account get banned?",

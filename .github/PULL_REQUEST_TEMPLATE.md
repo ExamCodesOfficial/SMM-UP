@@ -47,3 +47,19 @@ commands/evidence here
 ## Sensitive-content confirmation
 
 - [ ] This pull request contains no credentials, raw tokens, private pricing, complete receipts or unnecessary user/payment data
+
+## API and retry contract
+
+- [ ] Every changed endpoint has method, auth, ownership, input, output and error behavior documented
+- [ ] Timeout/retry behavior is explicit; ambiguous supplier mutations are not blindly retried/refunded
+- [ ] Browser/API response parsing is bounded and non-JSON-safe
+- [ ] Customer `/api` docs and `API_REFERENCE.md` agree with source
+- [ ] Public copy avoids unsupported timing, availability, support and refund promises
+
+## Provider and environment evidence
+
+- Vercel/Railway variable names added or removed:
+- Provider dashboard/configuration change:
+- Database migration/index precondition:
+- Manual-only workflow policy preserved: [ ]
+- Production evidence still pending:

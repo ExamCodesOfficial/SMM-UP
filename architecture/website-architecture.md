@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">SMM UP Website Architecture</h1>
 <p align="center"><strong>Source-derived architecture snapshot · 2026-10-06</strong></p>
-<p align="center"><code>CODE PUSHED @ 93ae440</code> · <code>DOC SECOND PASS LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
+<p align="center"><code>FEATURE BRANCH @ 2c60e65</code> · <code>DOC/API RECONCILIATION LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
 
 
 > **Inventory size:** 730 source-derived atomic capabilities and controls.
@@ -39,7 +39,7 @@ SYSTEM STREAM
 ## Purpose and truth rules
 
 1. This is a codebase architecture document, not marketing copy.
-2. The implementation baseline is pushed at `93ae440634fbff897d40f81506a863810d38aa8b`; this second documentation pass is local until separately committed/pushed.
+2. The audited implementation baseline is pushed on `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`; this documentation/API reconciliation is committed locally and remains unpushed until explicitly authorized.
 3. A pushed implementation is not proof of Vercel, Railway, provider, domain or production validation.
 4. Provider/dashboard operations are explicitly marked as deployment gates.
 5. Secrets and private pricing values are named by variable only and never copied here.
@@ -1627,9 +1627,9 @@ erDiagram
 
 ### Current release truth
 
-- Phases 0–6 implementation is pushed on GitHub `master` at `93ae440634fbff897d40f81506a863810d38aa8b`.
+- Phases 0–6 plus the emergency hardening delta are pushed on `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`.
 - Root build, static checks, audits and replica-set integration suites passed for that implementation workstream.
-- This second documentation pass is a separate local change set and has not been pushed.
+- This exhaustive Markdown and customer-facing `/api` reconciliation is a separate local change set until explicitly pushed.
 - Vercel/Railway staging, production provider checks, Search Console and production smoke tests remain mandatory.
 - Any additional push requires explicit authorization, ephemeral least-privilege credential handling and immediate revocation.
 
@@ -1699,6 +1699,37 @@ The build currently has a non-failing large main-chunk advisory. Route/component
 | Deployment regression | prior Vercel deployment may be restored | reconcile in-flight data/providers separately; run smoke tests |
 
 Detailed staging, rollback and incident steps live in [`../SECURITY_DEPLOYMENT_RUNBOOK.md`](../SECURITY_DEPLOYMENT_RUNBOOK.md).
+
+## 2026-10-06 production-hardening reconciliation
+
+### Frontend transport boundary
+
+All executable browser API clients use the bounded, content-type-aware parser in `src/lib/apiResponse.ts`. The client does not call `response.json()` blindly when a Vercel/provider failure returns text or HTML, and it rejects oversized response bodies with a controlled message. Endpoint-specific code still validates required fields before mutating UI state.
+
+Direct UPI QR rendering occurs locally through `qrcode`. The UPI URI contains VPA, amount and payment memo and is not sent to a public QR-image endpoint. CSP no longer needs the removed QR provider.
+
+### Order reservation boundary
+
+Website `POST /api/orders/create` and reseller `action=add` now share the same safety ordering:
+
+1. validate current service and compute charge server-side;
+2. transactionally check holds/balance, reserve key limits when applicable, debit wallet, write ledger and insert local `Submitting` order;
+3. call supplier outside MongoDB;
+4. persist provider ID and active state, or preserve failed/uncertain state for owner review.
+
+This ordering prevents a supplier-accepted order from preceding the local wallet reservation. It cannot make the supplier call atomic. A timeout or malformed response after reservation is therefore ambiguous and must not trigger blind retry or automatic refund.
+
+### API documentation boundary
+
+[`../API_REFERENCE.md`](../API_REFERENCE.md) is the detailed engineering/integrator contract. The customer `/api` route now explains header/body authentication, URL-secret rejection, dynamic catalog validation, local versus supplier IDs, transactional reservation and action-specific retry safety. Source remains authoritative for the exact deployment.
+
+### Environment and deployment boundary
+
+`vercel.env.example` exhaustively owns website/API variables; `railway.env.example` owns bot/worker variables. Production authentication requires a 32+ character `JWT_SECRET`; the status cron independently requires a 32+ character `CRON_SECRET`. Changing either requires a new Vercel deployment and smoke evidence.
+
+### Added release evidence
+
+The root release suite includes `test:order-reservations` in addition to API-key, recovery, Support Access, limiting, Direct UPI, email and index tests. Provider-template completeness, workflow-trigger parsing, credential scans and bounded public-copy review are explicit gates.
 
 ---
 

@@ -363,7 +363,7 @@ export default function NewOrder({
         </h1>
         <div className="w-20 h-0.5 bg-white/20 mx-auto mb-4" />
         <p className="text-sm sm:text-base text-zinc-300 font-light tracking-wide max-w-xl mx-auto">
-          Pick a service, paste your link, and confirm — orders start within minutes.
+          Pick a service, paste a public target, and confirm. Start and completion timing follows the selected service and current supplier capacity.
         </p>
       </div>
 

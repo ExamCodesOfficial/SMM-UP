@@ -1,9 +1,9 @@
 # SMM UP — Implementation Planner and Source-of-Truth Index
 
 > **Updated:** 2026-10-06
-> **Pushed code checkpoint:** `93ae440634fbff897d40f81506a863810d38aa8b`
+> **Pushed feature-branch checkpoint:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Canonical domain:** `https://smmup.co.in`
-> **Current stage:** implementation pushed and locally validated; staging and production verification pending.
+> **Current stage:** audited application/bot hardening is pushed and locally validated; exhaustive docs/API reference are committed locally but unpushed; Vercel/Railway staging and production repair remain.
 
 This planner replaces historical assumptions about service counts, balances, old API layouts, manual-only settlement and JWT-only authentication. Live supplier counts, rates, provider balances and credentials are dynamic operational data and must not be hardcoded as architecture truth.
 
@@ -343,7 +343,7 @@ Do not implement these by implication; each needs an explicit requirement and se
 ## 12. Immediate operational sequence
 
 1. Revoke any exposed push credential.
-2. Verify GitHub remote `master` commit.
+2. Verify the remote `improvement/private-repo-and-bot-modules` commit and compare it with the deployment source.
 3. Review post-push local documentation changes.
 4. Run documentation structure and secret scans.
 5. Commit documentation separately when authorized.
@@ -352,3 +352,34 @@ Do not implement these by implication; each needs an explicit requirement and se
 8. Deploy production only after evidence review.
 9. Run production smoke checks.
 10. Request Search Console homepage indexing.
+
+## 13. Emergency hardening workstream
+
+### Completed source work
+
+- bounded frontend parsing for JSON/text/oversized API responses;
+- lazy controlled API initialization failures;
+- strong authentication and cron secret minimums;
+- local Direct UPI QR generation;
+- transactional website and reseller order reservations;
+- durable supplier ambiguity and owner-review states;
+- supplier response/status normalization;
+- order-reservation integration coverage;
+- exhaustive Vercel/Railway environment templates;
+- pushed behavior-preserving bot module split;
+- public-copy and customer `/api` retry-contract correction.
+
+### Still operational
+
+1. retain the exhaustive Markdown/API pass as a separate local commit until push authorization exists;
+2. confirm emergency PAT revocation;
+3. set strong Vercel Production `JWT_SECRET` and `CRON_SECRET`;
+4. populate every applicable provider variable from the correct template;
+5. redeploy and verify authentication/cron controlled behavior;
+6. stage Railway bot/worker with exact identity, lease and settlement evidence;
+7. obtain separate workflow-write authorization before pushing the local `workflow_dispatch`-only commit;
+8. never introduce automatic Actions triggers as a workaround.
+
+### Definition of done
+
+“Fixed” requires source commit, provider deployment ID, successful negative/positive smoke tests, index readiness, provider evidence, monitoring window and rollback owner. A successful GitHub push or local test suite satisfies only the source gate.

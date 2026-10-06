@@ -3,13 +3,13 @@
 </p>
 <h1 align="center">SMM UP Full-System Architecture</h1>
 <p align="center"><strong>Source-derived architecture snapshot · 2026-10-06</strong></p>
-<p align="center"><code>CODE PUSHED @ 93ae440</code> · <code>BOT MODULE REFACTOR LOCAL</code> · <code>DEPLOYMENT PENDING</code></p>
+<p align="center"><code>FEATURE BRANCH @ 2c60e65</code> · <code>BOT REFACTOR PUSHED</code> · <code>DEPLOYMENT PENDING</code></p>
 
 
 > **Master registry:** 290 cross-system capabilities plus the complete embedded 730-entry website registry and 147-entry bot registry.
 > **Total explicitly enumerated entries in this document:** 1167.
-> **Implementation baseline:** pushed on GitHub `master` at `93ae440634fbff897d40f81506a863810d38aa8b`; provider/staging/production verification remains open.
-> **Documentation state:** this second-pass reconciliation is local until separately committed/pushed.
+> **Implementation baseline:** pushed on `improvement/private-repo-and-bot-modules` at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`; provider/staging/production verification remains open.
+> **Documentation state:** this exhaustive API/Markdown reconciliation is committed locally and remains unpushed until explicitly authorized.
 > **Specialized views:** [Website architecture](website-architecture.md) · [Bot architecture](bot-architecture.md)
 
 <details open>
@@ -1954,7 +1954,7 @@ The Railway control plane remains one deployment unit. `admin-bot/bot.ts` compos
 
 ```mermaid
 flowchart LR
-  GH[GitHub master] -->|authorized push| VP[Vercel preview]
+  GH[GitHub deployment branch] -->|authorized push| VP[Vercel preview]
   GH --> RS[Railway staging]
   VP --> SDB[(Staging DB)]
   RS --> SDB
@@ -2039,24 +2039,25 @@ Incidents follow detect → assign commander → contain → preserve redacted e
 
 | Phase | Scope | Local status | Production status |
 |---|---|---|---|
-| 0 | permanent pages, Direct UPI/Razorpay foundations | pushed at `93ae440`; locally validated | staging/production payment verification pending |
+| 0 | permanent pages, Direct UPI/Razorpay foundations | included in `2c60e65`; locally validated | staging/production payment verification pending |
 | 1 | multiple paid named API keys | pushed; integration tested | staging recheck pending |
 | 2 | key activity and financial reporting | pushed; locally tested | staging recheck pending |
 | 3 | owner temporary-password recovery | pushed; locally tested | Railway/Vercel staging pending |
 | 4 | revocable sessions and Support Access | pushed; locally tested | staging pending |
 | 5 | Telegram owner control plane and worker | pushed; locally tested | Railway staging/deployment pending |
 | 6 | persistent limiting, fail-closed internals, exact UPI, indexes, email | pushed; locally tested | Vercel/Railway/provider staging pending |
+| 7 | invocation containment, transactional order reservation, local QR, templates and docs | source pushed at `2c60e65`; final docs local | production secrets/redeploy and provider staging pending |
 | Search | favicon/logo/canonical eligibility | pushed; static test passed | deployment + Search Console recrawl pending |
 
 ## Final launch gate
 
 - [x] Implementation scope frozen, reviewed and committed.
-- [x] Implementation pushed; local and GitHub `master` verified at `93ae440634fbff897d40f81506a863810d38aa8b`.
+- [x] Audited implementation pushed; remote `improvement/private-repo-and-bot-modules` verified at `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`.
 - [x] Clean-install root/admin TypeScript, build, replica-set and search tests passed for the implementation baseline.
 - [x] Root/admin production dependency audits passed with zero known production vulnerabilities at validation time.
 - [x] Implementation-tree/history credential-pattern and whitespace checks passed.
-- [ ] Confirm revocation of the credential used for the completed implementation push.
-- [ ] Review/commit this separate second-pass documentation change set.
+- [ ] Confirm revocation of the emergency credential used through transient HTTP authorization.
+- [x] Exhaustive API/Markdown reconciliation reviewed and committed as a separate local change set.
 - [ ] Obtain separate explicit authorization before any additional push.
 - [ ] Use an ephemeral least-privilege authorization-scoped push credential and revoke it immediately.
 - [ ] Deploy isolated Vercel and Railway staging.
@@ -2071,7 +2072,27 @@ Incidents follow detect → assign commander → contain → preserve redacted e
 - [ ] Perform controlled production smoke tests.
 - [ ] Submit sitemap/homepage and request Search Console indexing.
 
+## Emergency hardening cross-system delta
+
+The `2c60e65` feature-branch checkpoint closes four cross-system gaps:
+
+1. **Invocation containment:** database/configuration initialization errors are caught at API boundaries and returned as controlled responses; secure minimums still fail closed.
+2. **Order atomicity:** website/API wallet reservation, ledger and local order commit before non-atomic supplier submission; ambiguous outcomes remain reviewable.
+3. **Payment privacy:** Direct UPI QR rendering is local while exact bank evidence remains server/worker verified.
+4. **Operational completeness:** Vercel/Railway environment inventories, order concurrency tests, supplier normalization, bounded frontend parsing and modular bot ownership are explicit.
+
+### Cross-system retry law
+
+A retry is permitted only when the operation contract proves it is read-only, one-time-claim safe, settlement-idempotent with the same identifiers, or known to have failed before durable mutation. Supplier order creation does not currently accept a caller idempotency key. A lost response after reservation/provider execution is “unknown,” not “failed”; inspect the durable order and supplier identity.
+
+### Deployment truth
+
+The remote feature branch is source evidence, not deployment evidence. Production still needs strong Vercel `JWT_SECRET` and `CRON_SECRET`, redeployment and smoke tests. Railway needs a separately verified deployment of the modular bot. The manual-only Actions workflow cannot be pushed with the emergency PAT because that token lacks workflow scope; the pushed branch contains no automatic workflow.
+
+### Documentation truth
+
+`API_REFERENCE.md` now owns the detailed HTTP contract. The website registry owns routes/components/data/security, the bot registry owns Telegram/Railway behavior, and this document owns cross-system invariants and rollout truth. Every behavior change must update the smallest specialized document and this cross-system view when a trust/data boundary changes.
+
 ---
 
 **Master totals:** 290 system entries + 730 website entries + 147 bot entries = **1167 explicitly enumerated architecture entries**.
-ite entries + 147 bot entries = **1167 explicitly enumerated architecture entries**.

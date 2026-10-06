@@ -16,7 +16,7 @@ const BASE_DESC = "SMM UP (SMMUP) is India's wholesale SMM panel, founded and ow
 
 export const PAGE_META: Record<string, PageMeta> = {
   home: {
-    title: "SMM UP — India's #1 Wholesale SMM Panel | 0% UPI Fee",
+    title: "SMM UP — Wholesale SMM Panel India | 0% Direct UPI Fee",
     description: BASE_DESC,
   },
   order: {
@@ -37,7 +37,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   auth: {
     title: "Sign In or Create Free Account | SMM UP",
-    description: "Sign in to SMM UP or create a free account in 10 seconds. No KYC, no social media passwords, wallet top-up via UPI with 0% fee.",
+    description: "Sign in to SMM UP or create an account with verified email. No social-media password is required; Direct UPI wallet funding has a 0% platform fee.",
   },
   api: {
     title: "API Documentation for Resellers | SMM UP",
@@ -133,15 +133,15 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   "p-telegram": {
     title: "Telegram SMM Panel India — Members, Views, Reactions | SMM UP",
-    description: "Buy Telegram channel members, post views and reactions at true wholesale rates from SMM UP — India's trusted Telegram SMM panel. 0% UPI fee, listed start times and service-specific refill terms.",
+    description: "Browse Telegram channel-member, post-view and reaction services at current rates from SMM UP. Direct UPI has a 0% platform fee; listings show delivery estimates and refill terms.",
   },
   "p-instagram": {
     title: "Instagram SMM Panel India — Followers, Likes, Reels Views | SMM UP",
-    description: "Buy Instagram followers, likes, reels views and reach at wholesale prices from SMM UP — India's trusted Instagram SMM panel. 0% UPI fee, listed start times and service-specific refill terms.",
+    description: "Browse Instagram follower, like, Reels-view and reach services at current rates from SMM UP, with a 0% Direct UPI platform fee and listing-specific terms.",
   },
   "p-youtube": {
     title: "YouTube SMM Panel India — Views, Watch Time, Subscribers | SMM UP",
-    description: "Buy YouTube views, 4000-hour watch time, subscribers and likes at wholesale rates from SMM UP — India's trusted YouTube SMM panel. Clear service terms and refill options; YouTube retains final monetization authority.",
+    description: "Browse YouTube view, watch-time, subscriber and like services at current rates from SMM UP. Listings show service terms; YouTube retains final analytics and monetization authority.",
   },
   "p-twitter": {
     title: "Twitter / X SMM Panel India — Followers, Likes, Retweets | SMM UP",
@@ -149,11 +149,11 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   "p-tiktok": {
     title: "TikTok SMM Panel India — Views, Followers, Likes | SMM UP",
-    description: "Buy TikTok video views, followers, likes and shares at wholesale prices from SMM UP — India's trusted TikTok SMM panel. 0% UPI fee and listed service delivery estimates.",
+    description: "Browse TikTok video-view, follower, like and share services at current rates from SMM UP, with a 0% Direct UPI platform fee and listing-specific delivery estimates.",
   },
   "p-spotify": {
     title: "Spotify SMM Panel India — Streams, Followers, Monthly Listeners | SMM UP",
-    description: "Buy Spotify streams, artist followers, playlist plays and monthly listeners at wholesale rates from SMM UP. Royalties-safe delivery, 0% UPI fee.",
+    description: "Browse Spotify streams, artist followers, playlist plays and monthly-listener services at wholesale rates from SMM UP, with listing-specific delivery terms and 0% Direct UPI platform fee.",
   },
   notfound: {
     title: "Page Not Found | SMM UP",

@@ -2,10 +2,10 @@
 
 > **Canonical production origin:** `https://smmup.co.in`
 > **Repository:** `ExamCodesOfficial/SMM-UP`
-> **Branch:** `master`
-> **Remote checkpoint pushed on 2026-10-06:** `93ae440634fbff897d40f81506a863810d38aa8b`
+> **Active branch:** `improvement/private-repo-and-bot-modules`
+> **Remote feature-branch checkpoint pushed on 2026-10-06:** `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Architecture index:** [`architecture/full-architecture.md`](architecture/full-architecture.md)
-> **Status:** Phases 0–6 are pushed at the checkpoint above and locally validated; provider staging and production smoke gates remain.
+> **Status:** the audited application/bot hardening is pushed to the feature branch and locally validated; the manual-only workflow is local-only because the authorized PAT lacked workflow scope; provider staging and production repair remain.
 
 ---
 
@@ -33,7 +33,7 @@ Use the following documents together:
 
 ### Pushed baseline
 
-The remote `master` branch includes:
+The remote `improvement/private-repo-and-bot-modules` branch at `2c60e65` includes:
 
 1. Phases 0–4 foundations.
 2. Google-compatible ICO/PNG favicon and square logo assets.
@@ -46,11 +46,11 @@ The remote `master` branch includes:
 9. Three exhaustive architecture documents.
 10. Replica-set integration tests and deployment runbook.
 
-### Post-push documentation pass
+### Documentation and workflow state after the emergency push
 
-Any edits made after the checkpoint above are local until a later, separately authorized push. Always inspect `git status`, `git log -1`, and the remote branch before claiming a documentation update is deployed.
+The exhaustive Markdown/API-documentation pass is retained as a separate local commit and remains unpushed until explicitly authorized. A manual-only GitHub Actions workflow is retained as a separate local commit because the emergency PAT cannot update `.github/workflows/ci.yml`. The pushed feature branch introduces no workflow file and therefore no push/PR-triggered Actions execution.
 
-The emergency-authorized credential used for the completed implementation push was not persisted by the workspace process, but revocation has not been confirmed in this handover. Confirm revocation immediately through the provider without recording the credential value.
+The emergency credential was supplied only through transient HTTP authorization and was not persisted in repository files, Git configuration, remotes or shell history. Revocation must be confirmed in the provider UI without recording the value.
 
 ### Never infer deployment from a GitHub push
 
@@ -263,6 +263,7 @@ npm run test:direct-upi
 npm run test:email-delivery
 npm run test:email-auth
 npm run test:core-indexes
+npm run test:order-reservations
 npm audit --omit=dev
 
 git diff --check
@@ -331,3 +332,41 @@ A continuation is safe only when it:
 6. runs the complete relevant validation suite;
 7. leaves credentials out of source, logs and documentation;
 8. distinguishes local implementation, GitHub push, staging deployment and production verification.
+
+## 12. Emergency hardening delta at `2c60e65`
+
+The pushed feature-branch commit adds or changes:
+
+- lazy, bounded API initialization/error boundaries so configuration/database failures return controlled JSON;
+- mandatory 32+ character `JWT_SECRET` for authentication and 32+ character `CRON_SECRET` for internal cron authorization;
+- bounded content-type-aware browser API parsing in `src/lib/apiResponse.ts`;
+- local Direct UPI QR generation with `qrcode`, removing third-party QR URI disclosure;
+- transactional website and reseller order reservation before supplier execution;
+- durable `Submitting`, `Failed` and `Submission uncertain` states with owner review instead of blind retry/refund;
+- strict supplier response normalization and stale-submission review signals;
+- corrected reseller activity attribution and order-reservation concurrency tests;
+- exhaustive `vercel.env.example` and `railway.env.example`, synchronized with conventional `.env.example` files;
+- public-copy corrections that remove unsupported timing/refund/operational promises;
+- behavior-preserving Telegram bot modularization and full local validation.
+
+### Current production repair
+
+The observed production authentication family returned Vercel `FUNCTION_INVOCATION_FAILED`. The source now fails through controlled boundaries, but source alone cannot repair a deployed environment. Before production redeployment:
+
+1. set a unique high-entropy Vercel Production `JWT_SECRET` of at least 32 characters;
+2. set a separate `CRON_SECRET` of at least 32 characters;
+3. compare every applicable Vercel value with `vercel.env.example`;
+4. redeploy rather than assuming an environment update affects an old deployment;
+5. smoke `register`, `login`, `me`, logout and cron bad/good-secret behavior;
+6. retain deployment ID and bounded evidence without secret values.
+
+### Git topology
+
+- Remote feature branch: `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`.
+- The emergency PAT cannot create/update `.github/workflows/ci.yml` because it lacks workflow scope.
+- The manual-only `workflow_dispatch` file is retained in a separate local commit and must not be replaced with automatic triggers.
+- This Markdown/API reconciliation is retained in a separate local commit and remains unpushed until explicitly authorized.
+
+### Remaining design note
+
+Concurrent email-token issuance can still require a stronger deterministic active-record or transaction/uniqueness design. Do not add a naïve unique partial index or lock without migration and concurrency analysis. Existing token use remains one-time and transactional.
