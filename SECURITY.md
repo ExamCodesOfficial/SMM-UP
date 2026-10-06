@@ -24,7 +24,7 @@ Include only what is necessary:
 - GitHub, Vercel, Railway, MongoDB, Telegram, supplier, Resend, Razorpay or mailbox credentials;
 - raw session cookies or authorization headers;
 - password or API-key values/hashes;
-- email verification, recovery or Support Access tokens;
+- email-change, recovery or Support Access tokens;
 - UPI PIN, OTP, CVV or banking password;
 - complete payment-email bodies;
 - unnecessary user email, social target or payment evidence;
@@ -88,7 +88,7 @@ A private remediation record should include affected deployment/commit, detectio
 
 ## Full-audit security controls (2026-10-06)
 
-- Reset and verification query credentials are copied to component memory and immediately removed with `history.replaceState` before verification/reset network traffic.
+- Reset and email-change query credentials are copied to component memory and immediately removed with `history.replaceState` before reset/email-change network traffic.
 - Guarded navigation waits for explicit session resolution. Continuation targets are mapped from an allowlist; arbitrary/external `next` values are ignored.
 - Cookie-authenticated mutations in auth, orders, payments, reviews and presets perform same-origin host checking whenever the browser supplies `Origin`.
 - Profile changes require the current password. Account erasure additionally requires exact-name confirmation, zero wallet balance, no active order and no pending deposit.

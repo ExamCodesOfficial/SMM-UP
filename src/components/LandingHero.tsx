@@ -118,7 +118,7 @@ const STEPS = [
   {
     num: "01",
     title: "Create your account",
-    desc: "Create an account with a username, email and permanent password, then verify the mailbox before normal sign-in. No social-media credentials are requested.",
+    desc: "Create an account with a username, email and permanent password. Your account opens immediately—no social-media credentials or signup email verification are requested.",
     icon: User,
   },
   {
@@ -189,10 +189,6 @@ export default function LandingHero({
         return;
       }
 
-      if (data.verificationRequired) {
-        setAuthSuccess(data.message || "Check your email and verify the account before signing in.");
-        return;
-      }
       if (data.requiresPasswordChange) {
         setAuthSuccess("Temporary credential accepted. Opening password change…");
         setTimeout(() => { window.location.href = "/account/password-change"; }, 450);

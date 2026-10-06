@@ -22,25 +22,35 @@ async function run() {
 
     const db = client.db("email_delivery_integration");
     const userId = new ObjectId();
-    await issueEmailToken(db, { userId, email: "member@example.com", purpose: "registration" });
-    const token: any = await db.collection("email_verification_tokens").findOne({ user_id: userId });
+    await issueEmailToken(db, { userId, email: "member@example.com", purpose: "password_reset" });
+    const token: any = await db.collection("email_verification_tokens").findOne({ user_id: userId, purpose: "password_reset" });
     assert.ok(token?.token_hash?.length === 64);
     assert.equal(token.email, "member@example.com");
     assert.ok(token.sent_at instanceof Date);
     const deliveryText = JSON.stringify(requestBody);
-    assert.match(deliveryText, /https:\/\/smmup\.co\.in\/auth\?verify_token=sme_/);
+    assert.match(deliveryText, /https:\/\/smmup\.co\.in\/auth\?reset_token=sme_/);
     assert.equal(deliveryText.includes(token.token_hash), false, "the hash must not be emailed");
-    const deliveredRawToken = deliveryText.match(/verify_token=(sme_[A-Za-z0-9_-]+)/)?.[1];
+    const deliveredRawToken = deliveryText.match(/reset_token=(sme_[A-Za-z0-9_-]+)/)?.[1];
     assert.ok(deliveredRawToken);
-    assert.equal(JSON.stringify(token).includes(deliveredRawToken!), false, "raw verification tokens must never be stored");
+    assert.equal(JSON.stringify(token).includes(deliveredRawToken!), false, "raw reset tokens must never be stored");
 
-    await issueEmailToken(db, { userId, email: "member@example.com", purpose: "registration" });
-    const records: any[] = await db.collection("email_verification_tokens").find({ user_id: userId }).sort({ created_at: 1 }).toArray();
+    await issueEmailToken(db, { userId, email: "member@example.com", purpose: "password_reset" });
+    const records: any[] = await db.collection("email_verification_tokens").find({ user_id: userId, purpose: "password_reset" }).sort({ created_at: 1 }).toArray();
     assert.equal(records.length, 2);
     assert.equal(records[0].invalidation_reason, "superseded");
     assert.ok(records[0].invalidated_at instanceof Date);
     assert.equal(records[1].invalidated_at, null);
-    console.log("Transactional email delivery integration checks passed.");
+
+    await issueEmailToken(db, { userId, email: "new@example.com", purpose: "email_change" });
+    const emailChangeDelivery = JSON.stringify(requestBody);
+    assert.match(emailChangeDelivery, /https:\/\/smmup\.co\.in\/auth\?verify_token=sme_/);
+    assert.match(emailChangeDelivery, /Confirm your new SMM UP email address/);
+    assert.equal(
+      await db.collection("email_verification_tokens").countDocuments({ user_id: userId, purpose: "registration" }),
+      0,
+      "the transactional email helper must never create registration tokens",
+    );
+    console.log("Password-reset and email-change delivery integration checks passed.");
   } finally {
     globalThis.fetch = originalFetch;
     await client.close();

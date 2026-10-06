@@ -178,7 +178,7 @@ export default function ApiDocs({ user }: ApiDocsProps) {
             </p>
             <div className="grid sm:grid-cols-3 gap-3 my-4">
               {[
-                { icon: BookOpen, t: "1. Create account", d: "Verify your email, then sign in to Account." },
+                { icon: BookOpen, t: "1. Create account", d: "Register with username, email and password; you are signed in immediately." },
                 { icon: Key, t: "2. Create named key", d: "Choose only the scopes and limits this integration needs." },
                 { icon: Terminal, t: "3. Copy and call", d: "The secret is shown once, then stored only as a hash." },
               ].map((s, i) => (

@@ -38,8 +38,8 @@ async function run() {
     process.env.MONGODB_URI = repl.getUri();
     process.env.DATABASE_NAME = "email_auth_flows";
     process.env.JWT_SECRET = crypto.randomBytes(48).toString("hex");
-    process.env.RESEND_API_KEY = "re_test_only";
-    process.env.EMAIL_FROM = "SMM UP <security@smmup.co.in>";
+    delete process.env.RESEND_API_KEY;
+    delete process.env.EMAIL_FROM;
     process.env.PUBLIC_SITE_URL = "https://smmup.co.in";
     process.env.PANEL_URL = "https://panel.invalid/api/v2";
     process.env.PANEL_API_KEY = "integration-test-key";
@@ -67,29 +67,73 @@ async function run() {
 
     const originalPassword = "Original!Pass123";
     const registration = await invoke("register", {
-      username: "verified-member",
+      username: "instant-member",
       email: "member@example.com",
       password: originalPassword,
     });
     assert.equal(registration.statusCode, 201);
-    assert.equal(registration.body.verificationRequired, true);
-    assert.equal(cookieFrom(registration), "", "registration must not create a session before verification");
+    assert.equal("verificationRequired" in registration.body, false, "signup must not expose verification state");
+    assert.ok(cookieFrom(registration), "registration must create an authenticated session immediately");
+    assert.equal(deliveries.length, 0, "registration must not call the email provider");
+
     const db = await dbLib.getDb();
-    const unverified: any = await db.collection("users").findOne({ email: "member@example.com" });
-    assert.equal(unverified.email_verification_required, true);
-    assert.equal(unverified.email_verified_at, null);
+    const createdUser: any = await db.collection("users").findOne({ email: "member@example.com" });
+    assert.equal(createdUser.email_verification_required, false);
+    assert.equal(createdUser.email_verified_at, null, "immediate signup must not falsely mark the mailbox as verified");
+    assert.equal(
+      await db.collection("sessions").countDocuments({ user_id: createdUser._id, purpose: "normal", revoked_at: null }),
+      1,
+      "registration must persist one revocable normal session",
+    );
+    assert.equal(
+      await db.collection("email_verification_tokens").countDocuments({ user_id: createdUser._id, purpose: "registration" }),
+      0,
+      "registration must not create a verification token",
+    );
 
-    const blockedLogin = await invoke("login", { identifier: "member@example.com", password: originalPassword });
-    assert.equal(blockedLogin.statusCode, 403);
-    assert.equal(blockedLogin.body.verificationRequired, true);
+    const directLogin = await invoke("login", { identifier: "member@example.com", password: originalPassword });
+    assert.equal(directLogin.statusCode, 200);
+    assert.ok(cookieFrom(directLogin));
 
-    const registrationToken = tokenFromEmail(deliveries, "verify_token");
-    const verification = await invoke("verify-email", { token: registrationToken });
-    assert.equal(verification.statusCode, 200);
-    assert.equal(verification.body.signedIn, true);
-    assert.ok(cookieFrom(verification));
-    assert.equal((await invoke("verify-email", { token: registrationToken })).statusCode, 400, "verification token must be one-time");
+    // Accounts left behind by the retired verification gate must recover through
+    // ordinary correct-password login, without sending or requiring email.
+    await db.collection("users").updateOne(
+      { _id: createdUser._id },
+      { $set: { email_verification_required: true, email_verified_at: null } },
+    );
+    await db.collection("email_verification_tokens").insertOne({
+      user_id: createdUser._id,
+      email: createdUser.email,
+      purpose: "registration",
+      token_hash: "legacy-registration-token",
+      used_at: null,
+      invalidated_at: null,
+      created_at: new Date(),
+      expires_at: new Date(Date.now() + 3_600_000),
+    });
+    const legacyLogin = await invoke("login", { identifier: "member@example.com", password: originalPassword });
+    assert.equal(legacyLogin.statusCode, 200);
+    assert.equal(deliveries.length, 0, "legacy pending-account login must not call the email provider");
+    const repaired: any = await db.collection("users").findOne({ _id: createdUser._id });
+    assert.equal(repaired.email_verification_required, false);
+    assert.ok(repaired.signup_verification_bypassed_at instanceof Date);
+    assert.equal(
+      await db.collection("email_verification_tokens").countDocuments({
+        user_id: createdUser._id,
+        purpose: "registration",
+        invalidation_reason: "signup_verification_retired",
+      }),
+      1,
+      "obsolete registration tokens must be invalidated after authenticated access",
+    );
 
+    const retiredResend = await invoke("resend-verification", { email: "member@example.com" });
+    assert.equal(retiredResend.statusCode, 404, "resend-verification must not remain an exposed auth action");
+    assert.equal(deliveries.length, 0, "retired resend action must not send email");
+
+    // Only the separate, user-requested email workflows need provider config.
+    process.env.RESEND_API_KEY = "re_test_only";
+    process.env.EMAIL_FROM = "SMM UP <security@smmup.co.in>";
     const forgot = await invoke("forgot-password", { email: "member@example.com" });
     assert.equal(forgot.statusCode, 200);
     const resetToken = tokenFromEmail(deliveries, "reset_token");
@@ -109,12 +153,12 @@ async function run() {
       password: newPassword,
     }, authenticatedCookie);
     assert.equal(emailChange.statusCode, 200);
-    assert.equal((await db.collection("users").findOne({ _id: unverified._id }))?.email, "member@example.com", "email must not change before confirmation");
+    assert.equal((await db.collection("users").findOne({ _id: createdUser._id }))?.email, "member@example.com", "email must not change before confirmation");
     const emailChangeToken = tokenFromEmail(deliveries, "verify_token");
     const emailConfirmation = await invoke("verify-email", { token: emailChangeToken }, authenticatedCookie);
     assert.equal(emailConfirmation.statusCode, 200);
     assert.equal(emailConfirmation.body.signedIn, false);
-    assert.equal((await db.collection("users").findOne({ _id: unverified._id }))?.email, "changed@example.com");
+    assert.equal((await db.collection("users").findOne({ _id: createdUser._id }))?.email, "changed@example.com");
     assert.equal((await invoke("verify-email", { token: emailChangeToken })).statusCode, 400);
     const finalLogin = await invoke("login", { identifier: "changed@example.com", password: newPassword });
     assert.equal(finalLogin.statusCode, 200);
@@ -128,32 +172,32 @@ async function run() {
     }, finalCookie);
     assert.equal(profileUpdate.statusCode, 200);
     assert.equal(profileUpdate.body.profile.username, "updated-member");
-    const updatedUser: any = await db.collection("users").findOne({ _id: unverified._id });
+    const updatedUser: any = await db.collection("users").findOne({ _id: createdUser._id });
     assert.equal(updatedUser.display_name, "Updated Member");
     assert.equal(updatedUser.avatar_color, "blue");
 
     await Promise.all([
-      db.collection("orders").insertOne({ user_id: unverified._id, user_email: "changed@example.com", status: "Completed", link: "https://example.com/private-target", comments: "private", created_at: new Date() }),
-      db.collection("service_favorites").insertOne({ user_id: unverified._id, service_id: "101", created_at: new Date() }),
-      db.collection("order_templates").insertOne({ user_id: unverified._id, service_id: "101", name: "Template", created_at: new Date() }),
+      db.collection("orders").insertOne({ user_id: createdUser._id, user_email: "changed@example.com", status: "Completed", link: "https://example.com/private-target", comments: "private", created_at: new Date() }),
+      db.collection("service_favorites").insertOne({ user_id: createdUser._id, service_id: "101", created_at: new Date() }),
+      db.collection("order_templates").insertOne({ user_id: createdUser._id, service_id: "101", name: "Template", created_at: new Date() }),
     ]);
     const deletion = await invoke("delete-account", {
       password: newPassword,
       confirmation: "DELETE updated-member",
     }, finalCookie);
     assert.equal(deletion.statusCode, 200);
-    const deletedUser: any = await db.collection("users").findOne({ _id: unverified._id });
+    const deletedUser: any = await db.collection("users").findOne({ _id: createdUser._id });
     assert.ok(deletedUser.account_deleted_at instanceof Date);
     assert.equal(deletedUser.account_locked, true);
     assert.match(deletedUser.email, /^deleted\+.+@deleted\.invalid$/);
-    const retainedOrder: any = await db.collection("orders").findOne({ user_id: unverified._id });
+    const retainedOrder: any = await db.collection("orders").findOne({ user_id: createdUser._id });
     assert.equal(retainedOrder.link, undefined, "account deletion must erase sensitive order targets");
     assert.equal(retainedOrder.comments, undefined, "account deletion must erase private comments");
-    assert.equal(await db.collection("service_favorites").countDocuments({ user_id: unverified._id }), 0);
-    assert.equal(await db.collection("order_templates").countDocuments({ user_id: unverified._id }), 0);
-    assert.equal(await db.collection("sessions").countDocuments({ user_id: unverified._id, revoked_at: null }), 0, "deleted account sessions must be revoked");
+    assert.equal(await db.collection("service_favorites").countDocuments({ user_id: createdUser._id }), 0);
+    assert.equal(await db.collection("order_templates").countDocuments({ user_id: createdUser._id }), 0);
+    assert.equal(await db.collection("sessions").countDocuments({ user_id: createdUser._id, revoked_at: null }), 0, "deleted account sessions must be revoked");
 
-    console.log("Verified registration, recovery, email-change, profile-update, and account-erasure integration checks passed.");
+    console.log("Immediate registration, legacy-account recovery, email-change, password-reset, profile-update, and account-erasure integration checks passed.");
   } finally {
     globalThis.fetch = originalFetch;
     if (dbLib) await (await dbLib.getMongoClient()).close().catch(() => {});

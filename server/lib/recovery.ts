@@ -132,9 +132,6 @@ export async function tryTemporaryPasswordLogin(
   suppliedPassword: string,
 ): Promise<{ accepted: boolean; expiresAt?: Date; usesRemaining?: number }> {
   await ensureSessionIndexes();
-  if (user.email_verification_required === true && !user.email_verified_at) {
-    return { accepted: false };
-  }
   const now = new Date();
   const temporary: any = await db.collection("temporary_passwords").findOne({
     user_id: user._id,
@@ -284,10 +281,17 @@ export async function completePasswordChange(
           $set: {
             password_hash: passwordHash,
             password_changed_at: now,
+            email_verification_required: false,
+            signup_verification_bypassed_at: now,
             sessions_revoked_before: now,
             updated_at: now,
           },
         },
+        { session },
+      );
+      await db.collection("email_verification_tokens").updateMany(
+        { user_id: context.user._id, purpose: "registration", used_at: null, invalidated_at: null },
+        { $set: { invalidated_at: now, invalidation_reason: "signup_verification_retired" } },
         { session },
       );
       await db.collection("temporary_passwords").updateMany(

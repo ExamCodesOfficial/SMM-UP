@@ -168,24 +168,24 @@ Other service platforms may appear in the live catalog without receiving dedicat
 - Awaited critical MongoDB indexes.
 - Canonical apex/`www` redirect configuration.
 - Resend transactional email.
-- Verified registration, recovery and email changes.
+- Immediate registration with an authenticated session, plus email recovery and confirmed email changes.
 - Expanded `/api` key-lifecycle documentation.
 
 ---
 
 ## 5. Current system flows
 
-### Verified registration
+### Immediate registration
 
 ```mermaid
 flowchart LR
   Form[Username + email + password] --> Validate[Validate + rate limit]
-  Validate --> User[(Unverified user + bcrypt hash)]
-  User --> Token[Hash-only expiring token]
-  Token --> Email[Resend verification link]
-  Email --> Verify[One-time transaction]
-  Verify --> Active[Verified account + normal session]
+  Validate --> User[(Active user + bcrypt hash)]
+  User --> Session[Revocable hash-only normal session]
+  Session --> Active[Signed-in account]
 ```
+
+Registration creates no email token and makes no Resend call. Password recovery and email-change confirmation remain separate, user-initiated email workflows.
 
 ### Direct UPI
 
@@ -256,14 +256,14 @@ flowchart LR
 
 - New account passwords must satisfy the creation policy.
 - Login accepts existing valid long passwords without applying creation complexity.
-- New accounts require verified email before normal login.
-- Existing accounts without `email_verification_required=true` remain compatible.
+- New accounts become active and receive a normal session immediately after valid username/email/password registration.
+- Correct-password login clears the retired `email_verification_required` flag on legacy pending accounts and invalidates obsolete registration tokens.
 - Email links use random `sme_` values with SHA-256 hashes at rest.
-- Registration, reset and email-change tokens have distinct purposes.
+- Password-reset and email-change tokens have distinct purposes; registration no longer creates a token.
 - Issuing a replacement invalidates the prior active token for that purpose.
 - Password reset and email change revoke normal, support and restricted sessions.
 - Account lock blocks login.
-- Temporary-password login is unavailable to an unverified new account.
+- Temporary-password recovery is not gated by the retired signup-verification flag.
 
 ---
 
@@ -305,7 +305,7 @@ flowchart LR
 - Persistent rate-limit concurrency.
 - Direct UPI exact settlement and rollback.
 - Email token storage/delivery/replay.
-- Verified registration/reset/email-change lifecycle.
+- Immediate registration/session plus password-reset and email-change lifecycles.
 - Critical indexes.
 - Telegram wallet/refund/control/key operations.
 - IMAP worker concurrent settlement and payment-hold rollback.

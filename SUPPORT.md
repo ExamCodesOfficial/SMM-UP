@@ -16,7 +16,7 @@ Do not post:
 
 - passwords, API keys, session cookies or authorization headers;
 - provider, database, bot, email or deployment credentials;
-- email verification/recovery/Support Access codes;
+- email-change/recovery/Support Access codes;
 - UPI PIN, OTP, CVV or banking password;
 - complete receipts or mailbox messages;
 - full user account/payment details or social-media targets;

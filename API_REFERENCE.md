@@ -360,9 +360,8 @@ Telemetry excludes raw secrets, passwords, authorization headers, cookies, OTPs 
 
 | Method | Endpoint | Access | Purpose |
 |---|---|---|---|
-| POST | `/api/auth/register` | public, limited | create unverified account and send verification email |
-| POST | `/api/auth/resend-verification` | public, limited | enumeration-resistant verification resend |
-| POST | `/api/auth/verify-email` | one-time email token | verify registration or commit email change |
+| POST | `/api/auth/register` | public, limited | create active account and normal session immediately; sends no email |
+| POST | `/api/auth/verify-email` | one-time email token | consume a legacy registration link or commit a requested email change |
 | POST | `/api/auth/forgot-password` | public, limited | enumeration-resistant reset request |
 | POST | `/api/auth/reset-password-email` | one-time email token | replace password and revoke sessions |
 | POST | `/api/auth/request-email-change` | normal session + current password | send confirmation to new mailbox |

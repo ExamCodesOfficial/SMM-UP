@@ -150,9 +150,8 @@ flowchart TB
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Unverified: register + verification email
-  Unverified --> Active: verify registration token
-  Unverified --> Active: verified-email password reset
+  [*] --> Active: username + email + password / immediate normal session
+  LegacyPending --> Active: correct-password login retires old verification gate
   Active --> Locked: owner lock
   Locked --> Active: owner unlock
   Active --> EmailChangePending: request + current password
@@ -271,9 +270,9 @@ stateDiagram-v2
 - **WEB-0061** — Route `/auth` maps to tab `auth` and renderer `AuthPage`.
 - **WEB-0062** — Route `/auth` access model is: Public.
 - **WEB-0063** — Route `/auth` provides sign-in and registration modes.
-- **WEB-0064** — Route `/auth` provides verified-email registration handoff.
-- **WEB-0065** — Route `/auth` provides email-verification link consumption.
-- **WEB-0066** — Route `/auth` provides verification resend.
+- **WEB-0064** — Route `/auth` creates and signs in a valid new account immediately.
+- **WEB-0065** — Route `/auth` consumes password-reset and requested email-change links after scrubbing secrets from the URL.
+- **WEB-0066** — Route `/auth` exposes no signup-verification or resend state.
 - **WEB-0067** — Route `/auth` provides forgot-password request.
 - **WEB-0068** — Route `/auth` provides email-reset link consumption.
 - **WEB-0069** — Route `/auth` provides temporary-password routing to mandatory permanent-password change.
@@ -616,7 +615,7 @@ stateDiagram-v2
 - **WEB-0301** — `LandingHero` implements service/platform discovery.
 - **WEB-0302** — `LandingHero` implements primary conversion actions.
 - **WEB-0303** — `LandingHero` implements responsive layout.
-- **WEB-0304** — `LandingHero` implements verified-registration messaging.
+- **WEB-0304** — `LandingHero` implements immediate-registration and sign-in messaging.
 
 ### Component/module: NewOrder
 
@@ -661,8 +660,8 @@ stateDiagram-v2
 ### Component/module: AuthPage
 
 - **WEB-0330** — `AuthPage` implements login/register/recovery/reset modes.
-- **WEB-0331** — `AuthPage` implements verification-token auto-consumption.
-- **WEB-0332** — `AuthPage` implements resend flow.
+- **WEB-0331** — `AuthPage` implements reset/email-change-token auto-consumption after immediate URL scrubbing.
+- **WEB-0332** — `AuthPage` implements immediate account-created and signed-in handoff without verification/resend UI.
 - **WEB-0333** — `AuthPage` implements password policy and confirmation.
 - **WEB-0334** — `AuthPage` implements temporary-login redirect.
 
@@ -787,21 +786,21 @@ stateDiagram-v2
 ### Endpoint: POST /api/auth/register
 
 - **WEB-0387** — `POST /api/auth/register` access boundary: Public.
-- **WEB-0388** — `POST /api/auth/register` behavior: Creates a bcrypt-protected, unverified account; enforces registration rate limit and password policy; sends a one-time verification email; creates no normal session.
+- **WEB-0388** — `POST /api/auth/register` behavior: Enforces registration rate limit, uniqueness and password policy; creates a bcrypt-protected active account plus revocable normal session immediately; creates no registration token and sends no email.
 - **WEB-0389** — `POST /api/auth/register` is covered by the central no-store/noindex API response policy.
 - **WEB-0390** — `POST /api/auth/register` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
-### Endpoint: POST /api/auth/resend-verification
+### Retired signup-verification surface
 
-- **WEB-0391** — `POST /api/auth/resend-verification` access boundary: Public.
-- **WEB-0392** — `POST /api/auth/resend-verification` behavior: Returns a generic response; rate limits by IP/email key; supersedes prior registration token; avoids account enumeration.
-- **WEB-0393** — `POST /api/auth/resend-verification` is covered by the central no-store/noindex API response policy.
-- **WEB-0394** — `POST /api/auth/resend-verification` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
+- **WEB-0391** — Signup has no verification-required response or blocked-account state.
+- **WEB-0392** — The former resend action is a `404` tombstone for stale clients and performs no account lookup.
+- **WEB-0393** — Registration and the retired tombstone create no email token and invoke no email provider.
+- **WEB-0394** — Website authentication interfaces expose no signup-verification or resend control.
 
 ### Endpoint: POST /api/auth/verify-email
 
 - **WEB-0395** — `POST /api/auth/verify-email` access boundary: Public token.
-- **WEB-0396** — `POST /api/auth/verify-email` behavior: Atomically claims registration/email-change token; verifies or changes email; records security event; registration may issue a normal session; email change revokes sessions.
+- **WEB-0396** — `POST /api/auth/verify-email` behavior: Atomically consumes requested email-change tokens and, for backward compatibility, legacy registration tokens issued before signup verification was retired; records security events and revokes sessions for email changes.
 - **WEB-0397** — `POST /api/auth/verify-email` is covered by the central no-store/noindex API response policy.
 - **WEB-0398** — `POST /api/auth/verify-email` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -829,7 +828,7 @@ stateDiagram-v2
 ### Endpoint: POST /api/auth/login
 
 - **WEB-0411** — `POST /api/auth/login` access boundary: Public.
-- **WEB-0412** — `POST /api/auth/login` behavior: Rate limited by client IP; accepts username/email plus unrestricted-length login password; supports permanent and restricted temporary credential paths; blocks locked/unverified accounts.
+- **WEB-0412** — `POST /api/auth/login` behavior: Rate limited by client IP; accepts username/email plus bounded legacy-compatible login password; supports permanent and restricted temporary credential paths; blocks locked accounts and retires a legacy signup-verification flag after correct-password authentication.
 - **WEB-0413** — `POST /api/auth/login` is covered by the central no-store/noindex API response policy.
 - **WEB-0414** — `POST /api/auth/login` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1122,7 +1121,7 @@ stateDiagram-v2
 
 ### Data collection: users
 
-- **WEB-0579** — `users` purpose: Account identity, bcrypt password hash, wallet/order totals, role, holds, email verification, revocation cutoff and legacy migration fields.
+- **WEB-0579** — `users` purpose: Account identity, bcrypt password hash, wallet/order totals, role, holds, truthful mailbox-evidence timestamp, revocation cutoff and legacy signup-verification migration fields.
 - **WEB-0580** — `users` index/retention contract: Unique email; case-insensitive unique username; sparse legacy API key.
 - **WEB-0581** — `users` security boundary: Never stores a readable permanent password.
 
@@ -1158,7 +1157,7 @@ stateDiagram-v2
 
 ### Data collection: email_verification_tokens
 
-- **WEB-0597** — `email_verification_tokens` purpose: Hash-only registration, password-reset and email-change token state.
+- **WEB-0597** — `email_verification_tokens` purpose: Hash-only password-reset and email-change token state plus cleanup/consumption of legacy registration tokens; new registrations create none.
 - **WEB-0598** — `email_verification_tokens` index/retention contract: Unique token hash; TTL expiration.
 - **WEB-0599** — `email_verification_tokens` security boundary: Raw link token is delivered once by transactional email.
 
@@ -1353,7 +1352,7 @@ stateDiagram-v2
 - **WEB-0720** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
 - **WEB-0721** — npm run test:direct-upi: exact, held, expired and concurrent settlement.
 - **WEB-0722** — npm run test:email-delivery: hash-only token and provider payload.
-- **WEB-0723** — npm run test:email-auth: verified registration/reset/email-change/replay.
+- **WEB-0723** — npm run test:email-auth: immediate registration/session with zero email delivery, legacy pending-account recovery, reset/email-change and replay protection.
 - **WEB-0724** — npm run test:core-indexes: critical index availability/options.
 - **WEB-0725** — admin: npx tsc --noEmit: bot TypeScript.
 - **WEB-0726** — admin: npm run test:admin-actions: wallet/refund/control/API/worker transactional checks.
@@ -1366,13 +1365,12 @@ stateDiagram-v2
 
 | Endpoint | Access | Contract summary |
 |---|---|---|
-| `POST /api/auth/register` | Public | Creates a bcrypt-protected, unverified account; enforces registration rate limit and password policy; sends a one-time verification email; creates no normal session. |
-| `POST /api/auth/resend-verification` | Public | Returns a generic response; rate limits by IP/email key; supersedes prior registration token; avoids account enumeration. |
-| `POST /api/auth/verify-email` | Public token | Atomically claims registration/email-change token; verifies or changes email; records security event; registration may issue a normal session; email change revokes sessions. |
+| `POST /api/auth/register` | Public | Creates an active bcrypt-protected account and revocable normal session immediately; creates no registration token and sends no email. |
+| `POST /api/auth/verify-email` | Public token | Confirms a requested email change or consumes a legacy pre-retirement registration token; records security events and revokes sessions for email changes. |
 | `POST /api/auth/forgot-password` | Public | Generic anti-enumeration response; rate limited; sends reset only for eligible unlocked account; records request event. |
 | `POST /api/auth/reset-password-email` | Public token | Validates strong new password; one-time transaction; replaces bcrypt hash; verifies mailbox; revokes sessions, restricted sessions and temporary credentials. |
 | `POST /api/auth/request-email-change` | Normal session | Requires current password and a different unused email; rate limited; sends confirmation to new address; does not mutate current email early. |
-| `POST /api/auth/login` | Public | Rate limited by client IP; accepts username/email plus unrestricted-length login password; supports permanent and restricted temporary credential paths; blocks locked/unverified accounts. |
+| `POST /api/auth/login` | Public | Rate limited by client IP; accepts username/email plus a bounded legacy-compatible password; supports permanent and restricted temporary credentials, blocks locked accounts and repairs legacy pending-signup state after password authentication. |
 | `POST /api/auth/logout` | Session aware | Revokes current server session and clears normal/support cookies. |
 | `POST /api/auth/exchange-support-access` | Normal admin session | Consumes one-time five-minute support code atomically and issues separate 15-minute read-only actor/subject session. |
 | `POST /api/auth/exit-support-access` | Support session | Transactionally ends support session while preserving owner normal session. |
@@ -1441,13 +1439,13 @@ erDiagram
 
 | Collection | Purpose | Index/retention | Secret boundary |
 |---|---|---|---|
-| `users` | Account identity, bcrypt password hash, wallet/order totals, role, holds, email verification, revocation cutoff and legacy migration fields. | Unique email; case-insensitive unique username; sparse legacy API key. | Never stores a readable permanent password. |
+| `users` | Account identity, bcrypt password hash, wallet/order totals, role, holds, truthful mailbox-evidence timestamp, revocation cutoff and legacy signup-verification migration fields. | Unique email; case-insensitive unique username; sparse legacy API key. | Never stores a readable permanent password. |
 | `sessions` | Hash-only normal and Support Access website sessions with user, actor, purpose, device metadata, activity, expiry and revocation. | Unique token hash; user/actor history; TTL expiry. | Raw session tokens exist only in secure cookies/client handoff. |
 | `restricted_sessions` | Hash-only temporary-password password-change sessions. | Unique token hash; user history; TTL expiry. | Cannot access normal account mutations. |
 | `temporary_passwords` | bcrypt temporary credential, use count, max uses, status, expiry, Telegram message references and reason. | User history; bounded post-expiry retention. | No readable temporary credential persists after action state is consumed. |
 | `support_access_codes` | Hash-only five-minute one-time code and resulting support-session state. | Unique code hash; one active per actor/subject purpose; TTL cleanup. | Actor admin and subject user remain separate. |
 | `support_access_audit` | Support code exchange/page/exit audit events. | Actor, subject and session indexes. | Never stores cookies or raw code. |
-| `email_verification_tokens` | Hash-only registration, password-reset and email-change token state. | Unique token hash; TTL expiration. | Raw link token is delivered once by transactional email. |
+| `email_verification_tokens` | Hash-only password-reset/email-change state and legacy registration-token cleanup. New signup creates none. | Unique token hash; TTL expiration. | Raw reset/change link token is delivered once by transactional email. |
 | `api_keys` | Stable named key identity, status, scopes, limits, expiry, counters and safe hint. | User/date; case-insensitive active-name uniqueness; public ID uniqueness. | No raw secret. |
 | `api_key_versions` | Hash-only versioned secrets and revocation history. | Unique secret hash and key/version. | Old raw versions cannot be restored. |
 | `api_key_spend_buckets` | Atomic IST daily/monthly per-key spend counters. | Unique key/bucket type/bucket start. | Used for concurrent limit enforcement. |
@@ -1582,7 +1580,7 @@ erDiagram
 | `RAZORPAY_MODE / RAZORPAY_ALLOW_TEST_WALLET_CREDIT` | Vercel | Explicit test/live safeguards. |
 | `RAZORPAY_MAX_DEPOSIT_INR` | Vercel | Optional bounded Razorpay deposit ceiling. |
 | `RESEND_API_KEY / EMAIL_FROM` | Vercel | Transactional email provider and verified sender. |
-| `EMAIL_TOKEN_TTL_MINUTES` | Vercel | Optional bounded verification/recovery/email-change token lifetime. |
+| `EMAIL_TOKEN_TTL_MINUTES` | Vercel | Optional bounded password-reset/email-change token lifetime; also bounds any pre-retirement legacy token. |
 | `PUBLIC_SITE_URL` | Vercel | Canonical origin used in email links. |
 | `SITE_URL` | Vercel | Legacy compatibility fallback; new deployments should set `PUBLIC_SITE_URL`. |
 | `NODE_ENV` | Vercel/Node runtime | Runtime mode used by production security/cookie behavior. |
@@ -1615,7 +1613,7 @@ erDiagram
 | `npm run test:rate-limit` | shared limiter concurrency and raw-key exclusion |
 | `npm run test:direct-upi` | exact, held, expired and concurrent settlement |
 | `npm run test:email-delivery` | hash-only token and provider payload |
-| `npm run test:email-auth` | verified registration/reset/email-change/replay |
+| `npm run test:email-auth` | immediate signup/session, zero signup delivery, legacy pending login, reset/email-change/replay |
 | `npm run test:core-indexes` | critical index availability/options |
 | `admin: npx tsc --noEmit` | bot TypeScript |
 | `admin: npm run test:admin-actions` | wallet/refund/control/API/worker transactional checks |
@@ -1688,7 +1686,7 @@ The build currently has a non-failing large main-chunk advisory. Route/component
 | Failure | Safe behavior | Recovery owner action |
 |---|---|---|
 | MongoDB/index failure | startup/API fails rather than bypassing uniqueness | stop rollout; reconcile data; restore connectivity/index contract |
-| Resend unavailable | token may exist but no verification bypass occurs | retry/resend after provider recovery; inspect delivery evidence |
+| Resend unavailable | signup and login remain available; recovery/email-change confirmation may be delayed | communicate affected requested email flows and inspect delivery evidence |
 | Supplier timeout | local state/error remains; no secret returned | avoid blind duplicate provider order; reconcile exact local/provider IDs |
 | Cron secret missing/bad | 503/401 fail-closed | correct server secret and redeploy; do not expose cron publicly |
 | Direct UPI evidence mismatch | reconciliation and no guessed credit | inspect exact pending ID/user/memo/amount/identifier |
@@ -1757,7 +1755,7 @@ Optional user fields now include `display_name`, `avatar_color`, `profile_update
 ### Browser behavior
 
 - initial guarded routes render neutral checking state and metadata until auth resolves;
-- reset/verification credentials are removed from URL history before requests;
+- reset/email-change credentials are removed from URL history before requests;
 - mobile navigation is a modal dialog with initial focus, trap, Escape, inert background, scroll lock and focus restoration;
 - Order History has skeleton, first-order empty, filter-miss, failure, desktop table and mobile-card states;
 - cancellation copy distinguishes a request from a guarantee;

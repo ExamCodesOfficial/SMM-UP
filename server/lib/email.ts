@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type { Db } from "mongodb";
 import { ObjectId } from "mongodb";
 
-export type EmailTokenPurpose = "registration" | "password_reset" | "email_change";
+export type EmailTokenPurpose = "password_reset" | "email_change";
 
 function publicOrigin() {
   const configured = String(process.env.PUBLIC_SITE_URL || process.env.SITE_URL || "https://smmup.co.in").trim();
@@ -14,7 +14,7 @@ function publicOrigin() {
 }
 
 function tokenTtlMinutes(purpose: EmailTokenPurpose) {
-  const fallback = purpose === "password_reset" ? 20 : purpose === "email_change" ? 30 : 60;
+  const fallback = purpose === "password_reset" ? 20 : 30;
   const raw = Number.parseInt(String(process.env.EMAIL_TOKEN_TTL_MINUTES || fallback), 10);
   return Number.isFinite(raw) ? Math.max(10, Math.min(raw, 24 * 60)) : fallback;
 }
@@ -38,20 +38,11 @@ function emailCopy(purpose: EmailTokenPurpose, actionUrl: string) {
       actionUrl,
     };
   }
-  if (purpose === "email_change") {
-    return {
-      subject: "Confirm your new SMM UP email address",
-      heading: "Confirm your new email",
-      body: "Confirm this address to complete your account email change. This link is single-use.",
-      action: "Confirm email change",
-      actionUrl,
-    };
-  }
   return {
-    subject: "Verify your SMM UP email address",
-    heading: "Verify your email",
-    body: "Verify this email address to activate your SMM UP account.",
-    action: "Verify email",
+    subject: "Confirm your new SMM UP email address",
+    heading: "Confirm your new email",
+    body: "Confirm this address to complete your account email change. This link is single-use.",
+    action: "Confirm email change",
     actionUrl,
   };
 }

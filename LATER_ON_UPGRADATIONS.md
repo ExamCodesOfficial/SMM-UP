@@ -183,10 +183,10 @@ Never translate a GitHub push into a production-complete claim. GitHub, Vercel, 
 - [x] UTR/transaction/memo replay prevention.
 - [x] Transactional wallet settlement.
 - [x] Reconciliation when evidence is incomplete.
-- [x] Resend integration.
-- [x] Hash-only registration/reset/email-change tokens.
-- [x] Verified registration.
-- [x] Verification resend.
+- [x] Resend integration for requested password recovery and email changes only.
+- [x] Hash-only reset/email-change tokens; new signup creates no email token.
+- [x] Immediate username/email/password registration with normal session.
+- [x] Signup-verification/resend UI and auth action retired.
 - [x] Verified email recovery.
 - [x] Current-password plus new-mailbox email change.
 - [x] Session revocation after reset/email change.
@@ -245,7 +245,7 @@ The Vite build currently emits a non-failing large-chunk advisory.
 - [ ] Separate staging database.
 - [ ] Preview environment variables.
 - [ ] Critical indexes on production-shaped data.
-- [ ] Verified registration/resend/reset/email change.
+- [ ] Immediate signup/session with zero signup delivery, legacy pending login, reset and email change.
 - [ ] Normal/recovery/support cookie behavior.
 - [ ] Cron missing/bad/good-secret behavior.
 - [ ] Public catalog and owner refresh.
@@ -405,7 +405,7 @@ The complete release run now also includes `npm run test:order-reservations`, en
 
 ### Completed and pushed
 
-- [x] Immediate reset/verification-token URL scrubbing.
+- [x] Immediate reset/email-change-token URL scrubbing.
 - [x] Explicit session-check state, neutral guarded loading and allowlisted `next` redirects.
 - [x] Explicit deployment rewrites plus a real static 404 fallback.
 - [x] Keyboard-operable mobile modal navigation with focus restoration.

@@ -66,7 +66,7 @@ commands/evidence here
 
 ## Full-audit regression gate
 
-- [ ] Auth/reset/verification secrets are copied to memory and removed from the URL before any request
+- [ ] Auth reset/email-change secrets are copied to memory and removed from the URL before any request
 - [ ] Guarded routes wait for session resolution and accept only allowlisted `next` destinations
 - [ ] Every known SPA path is explicit in `vercel.json`; an unknown path returns the static HTTP 404
 - [ ] Mobile modal navigation traps/restores focus, closes on Escape and inerts the background

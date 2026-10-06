@@ -275,11 +275,11 @@ Deploy the candidate commit against an isolated database.
 
 ### Authentication and email
 
-1. Register with valid data.
-2. Confirm no normal session before required verification.
-3. Receive the verification message from the intended sender/origin.
-4. Use its token once; replay must fail.
-5. Resend verification; the superseded token must fail.
+1. Register with valid unique username, email and password data.
+2. Confirm the response creates a normal session immediately.
+3. Confirm registration creates no email token and sends no message through Resend.
+4. Log out and confirm correct-password login succeeds without mailbox verification.
+5. In isolated staging data, confirm a legacy pending-verification account can log in and its obsolete registration token is invalidated.
 6. Request recovery without relying on account enumeration.
 7. Reset once; old token and old sessions must fail.
 8. Change email using current password and new-mailbox proof.
@@ -485,7 +485,7 @@ A formal WCAG 2.2 AA audit and automated performance budgets remain post-launch 
 ### Controlled production smoke
 
 - homepage, approved platform pages and legal pages;
-- registration + email verification using a controlled address;
+- immediate registration/sign-in with a controlled address, confirming no signup email is sent;
 - normal login/logout and account page;
 - recovery flow without retaining plaintext credentials;
 - service listing and one low-risk order only if authorized;
@@ -512,7 +512,7 @@ Do not test destructive/high-value operations casually in production.
 | Supplier outage/wrong rates | pause ordering/refresh; preserve account reads | feature/ordering hold |
 | Bot wrong authorization behavior | stop Railway bot; revoke/rotate token if needed | immediately |
 | IMAP duplicate settlement risk | stop worker/disable flag; reconcile | immediately |
-| Email outage | pause affected new-account/change flow or communicate; avoid bypassing verification | situational |
+| Email outage | signup/login remain independent; pause or communicate only affected recovery/email-change confirmation flows | situational |
 | Canonical/icon/search error | restore corrected static/config deployment | low-risk but prompt |
 
 ### Rollback procedure
@@ -622,7 +622,7 @@ Never log:
 - API secrets or token values;
 - session cookies/raw session tokens;
 - authorization headers;
-- email verification/recovery/change tokens;
+- legacy registration, recovery or email-change token values;
 - UPI PIN, OTP, CVV or banking password;
 - mailbox/merchant/provider secrets;
 - private markup values.
@@ -642,7 +642,7 @@ Store evidence in an access-controlled operational system, not in public reposit
 - Watch Vercel/Railway exceptions and restart loops.
 - Confirm bot heartbeat/lease.
 - Review new reconciliation and payment events.
-- Confirm registration email and login remain healthy.
+- Confirm immediate registration/session and login remain healthy without signup email delivery.
 - Confirm supplier list/status calls.
 - Check canonical redirect and critical assets.
 
@@ -749,7 +749,7 @@ Before any future workflow push:
 ### Authentication and account lifecycle
 
 - open a guarded URL signed out and verify neutral checking UI before the allowlisted auth continuation;
-- verify reset/verification secrets disappear from the address/history entry before the request;
+- verify reset/email-change secrets disappear from the address/history entry before the request;
 - reject external, protocol-relative and unknown `next` values;
 - update username/display name only after correct-password reauthentication;
 - test deletion rejection for wallet funds, active orders and pending deposits;

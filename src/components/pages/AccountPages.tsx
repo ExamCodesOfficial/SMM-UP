@@ -578,12 +578,12 @@ export function AccountPage({ onNavigate, user, onLogout, onUserUpdate }: Accoun
 
         {!readOnlySupport && (
           <section className="p-5 border border-white/12 bg-white/[0.02]">
-            <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1"><ShieldCheck className="w-4 h-4" /> Verified email</div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-white mb-1"><ShieldCheck className="w-4 h-4" /> Email address</div>
             <p className="text-xs text-zinc-500 mb-4">Your current address is {user?.email}. A change takes effect only after you confirm the link sent to the new address; active sessions are then revoked.</p>
             <form onSubmit={requestEmailChange} className="grid md:grid-cols-[1fr_1fr_auto] gap-3 items-end">
               <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">New email address</span><input type="email" autoComplete="email" required value={newEmail} onChange={(event) => setNewEmail(event.target.value)} className="up-input w-full" /></label>
               <label><span className="text-[10px] uppercase tracking-wider text-zinc-500 block mb-1.5">Current password</span><input type="password" autoComplete="current-password" required value={emailChangePassword} onChange={(event) => setEmailChangePassword(event.target.value)} className="up-input w-full" /></label>
-              <button type="submit" disabled={busy === "email-change"} className="btn-up btn-up-solid">{busy === "email-change" ? "Sending…" : "Verify new email"}</button>
+              <button type="submit" disabled={busy === "email-change"} className="btn-up btn-up-solid">{busy === "email-change" ? "Sending…" : "Confirm new email"}</button>
             </form>
           </section>
         )}

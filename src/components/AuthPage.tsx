@@ -34,7 +34,6 @@ export default function AuthPage({ initialMode, onAuthSuccess, continuePath }: A
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [showPassword, setShowPassword] = React.useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
-  const [verificationEmail, setVerificationEmail] = React.useState("");
   const verificationStarted = React.useRef(false);
 
   React.useEffect(() => {
@@ -69,14 +68,14 @@ export default function AuthPage({ initialMode, onAuthSuccess, continuePath }: A
     })
       .then(async (res) => ({
         ok: res.ok,
-        data: await readApiPayload(res, "Email verification is temporarily unavailable."),
+        data: await readApiPayload(res, "Email confirmation is temporarily unavailable."),
       }))
       .then(({ ok, data }) => {
-        if (!ok) throw new Error(data.error || "Email verification failed.");
-        setSuccess(data.message || "Email verified.");
+        if (!ok) throw new Error(data.error || "Email confirmation failed.");
+        setSuccess(data.message || "Email update confirmed.");
         if (data.signedIn) setTimeout(() => onAuthSuccess(), 700);
       })
-      .catch((err) => setError(err.message || "Email verification failed."))
+      .catch((err) => setError(err.message || "Email confirmation failed."))
       .finally(() => setLoading(false));
   }, [onAuthSuccess]);
 
@@ -114,7 +113,6 @@ export default function AuthPage({ initialMode, onAuthSuccess, continuePath }: A
 
       if (!res.ok) {
         setError(data.error || "Authentication failed");
-        if (data.verificationRequired) setVerificationEmail(data.email || email || identifier);
         setLoading(false);
         return;
       }
@@ -138,36 +136,10 @@ export default function AuthPage({ initialMode, onAuthSuccess, continuePath }: A
         setTimeout(() => onAuthSuccess("password-change"), 350);
         return;
       }
-      if (data.verificationRequired) {
-        setVerificationEmail(email);
-        setSuccess(data.message || "Check your email to verify the account before signing in.");
-        setLoading(false);
-        return;
-      }
       setSuccess(mode === "login" ? "Signed in. Redirecting…" : "Account created. Redirecting…");
       setTimeout(() => onAuthSuccess(), 450);
     } catch {
       setError("Network error. Please try again.");
-      setLoading(false);
-    }
-  };
-
-  const resendVerification = async () => {
-    if (!verificationEmail) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/auth/resend-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: verificationEmail }),
-      });
-      const data = await readApiPayload(res, "Verification email service is temporarily unavailable.");
-      if (!res.ok) throw new Error(data.error || "Unable to resend verification.");
-      setSuccess(data.message);
-    } catch (err: any) {
-      setError(err.message || "Unable to resend verification.");
-    } finally {
       setLoading(false);
     }
   };
@@ -327,12 +299,6 @@ export default function AuthPage({ initialMode, onAuthSuccess, continuePath }: A
               </div>
             )}
 
-            {verificationEmail && (
-              <button type="button" disabled={loading} onClick={resendVerification} className="btn-up btn-up-outline w-full">
-                Resend verification email
-              </button>
-            )}
-
             <button type="submit" disabled={loading} className="btn-up btn-up-solid w-full">
               {loading
                 ? "Connecting..."
@@ -376,7 +342,7 @@ export default function AuthPage({ initialMode, onAuthSuccess, continuePath }: A
             {mode === "login" && (
               <p className="text-xs text-zinc-500">
                 Forgot your password?{" "}
-                <button type="button" onClick={() => { setFlow("forgot"); setEmail(""); setError(""); setSuccess(""); }} className="text-white underline underline-offset-4 hover:text-zinc-300">Reset by verified email</button>
+                <button type="button" onClick={() => { setFlow("forgot"); setEmail(""); setError(""); setSuccess(""); }} className="text-white underline underline-offset-4 hover:text-zinc-300">Reset by email</button>
               </p>
             )}</>}
             {flow !== "auth" && (

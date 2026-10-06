@@ -131,7 +131,7 @@ When changing routing, authentication, account, review, payment or order-history
 1. compare `TAB_PATHS` with explicit Vercel rewrites and prove there is no universal SPA catch-all;
 2. test a real unknown deployment path separately from the in-app not-found component;
 3. prove guarded pages do not render protected metadata/content before `/api/auth/me` resolves;
-4. prove URL credentials are scrubbed before verification/reset network activity;
+4. prove URL credentials are scrubbed before reset/email-change network activity;
 5. exercise keyboard-only open, focus trap, Escape close and opener-focus restoration for modal navigation;
 6. validate loading, first-use empty, filter miss and API failure as different UI states;
 7. verify payment methods are disabled outside their server-returned bounds;

@@ -42,7 +42,7 @@ export const PAGE_META: Record<string, PageMeta> = {
   },
   auth: {
     title: "Sign In or Create Free Account | SMM UP",
-    description: "Sign in to SMM UP or create an account with verified email. No social-media password is required; Direct UPI wallet funding has a 0% platform fee.",
+    description: "Sign in to SMM UP or create an account instantly with your username, email and password. No social-media password is required; Direct UPI wallet funding has a 0% platform fee.",
   },
   api: {
     title: "API Documentation for Resellers | SMM UP",

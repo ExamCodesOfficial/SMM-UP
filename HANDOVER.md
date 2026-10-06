@@ -39,7 +39,7 @@ The remote `improvement/private-repo-and-bot-modules` branch at `2c60e65` includ
 2. Google-compatible ICO/PNG favicon and square logo assets.
 3. Phase 5 Telegram owner control plane.
 4. Phase 6 platform hardening.
-5. Verified email registration, recovery and email changes.
+5. Immediate username/email/password registration plus email recovery and confirmed email changes.
 6. Exact Direct UPI settlement and reconciliation.
 7. Shared persistent limiting and critical-index validation.
 8. Expanded `/api` developer documentation.
@@ -225,7 +225,7 @@ flowchart LR
 | File | Responsibility |
 |---|---|
 | `src/App.tsx` | Application routing, shared state, support banner and permanent haze orb |
-| `src/components/AuthPage.tsx` | Login, verified registration, email recovery and token consumption |
+| `src/components/AuthPage.tsx` | Immediate registration/login, email recovery and email-change token consumption |
 | `src/components/AddFundsPage.tsx` | Direct UPI and Razorpay browser flows |
 | `src/components/pages/AccountPages.tsx` | Sessions, email change, named API keys, activity and reports |
 | `src/components/ApiDocs.tsx` | Public reseller API reference and key lifecycle documentation |

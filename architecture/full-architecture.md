@@ -111,7 +111,7 @@ flowchart TB
 
 ## Sequence diagrams
 
-### Verified registration
+### Immediate registration and sign-in
 
 ```mermaid
 sequenceDiagram
@@ -119,15 +119,13 @@ sequenceDiagram
   participant Web
   participant API
   participant DB
-  participant Email as Resend
   User->>Web: username + email + strong password
   Web->>API: POST /api/auth/register
-  API->>DB: bcrypt user, verification_required=true
-  API->>DB: hash-only expiring token
-  API->>Email: canonical verification link
-  User->>API: POST /api/auth/verify-email token
-  API->>DB: transaction claim token + verify user + security event
-  API-->>User: secure normal session or sign-in instruction
+  API->>DB: uniqueness checks + bcrypt-protected active user
+  API->>DB: normal session with hash-only token
+  API-->>Web: secure HttpOnly session cookie + success
+  Web-->>User: authenticated account experience
+  Note over API,DB: Signup creates no email token and makes no Resend call
 ```
 
 ### Exact Direct UPI settlement
@@ -197,20 +195,20 @@ sequenceDiagram
 - **SYS-0005** — Public discovery step: service catalog is fetched and sanitized.
 - **SYS-0006** — Public discovery step: user can navigate to order/auth/support/legal/platform pages.
 
-### End-to-end journey: Verified registration
+### End-to-end journey: Immediate registration
 
-- **SYS-0007** — Verified registration step: shared IP limiter permits bounded attempt.
-- **SYS-0008** — Verified registration step: username/email/password validated.
-- **SYS-0009** — Verified registration step: password bcrypt hash created.
-- **SYS-0010** — Verified registration step: user stored unverified.
-- **SYS-0011** — Verified registration step: prior account uniqueness checked.
-- **SYS-0012** — Verified registration step: hash-only one-time registration token stored.
-- **SYS-0013** — Verified registration step: Resend receives action link.
-- **SYS-0014** — Verified registration step: no normal session exists yet.
-- **SYS-0015** — Verified registration step: verification transaction claims token once.
-- **SYS-0016** — Verified registration step: user marked verified.
-- **SYS-0017** — Verified registration step: security event written.
-- **SYS-0018** — Verified registration step: normal session optionally issued.
+- **SYS-0007** — Immediate registration step: shared IP limiter permits a bounded attempt.
+- **SYS-0008** — Immediate registration step: username, email and password are validated.
+- **SYS-0009** — Immediate registration step: password bcrypt hash is created.
+- **SYS-0010** — Immediate registration step: active user is stored with signup verification disabled.
+- **SYS-0011** — Immediate registration step: username and email uniqueness are checked and enforced.
+- **SYS-0012** — Immediate registration step: no registration-verification token is created.
+- **SYS-0013** — Immediate registration step: no Resend or other email-provider call is made.
+- **SYS-0014** — Immediate registration step: cryptographically random normal-session token is generated.
+- **SYS-0015** — Immediate registration step: only the session-token hash is stored.
+- **SYS-0016** — Immediate registration step: secure HttpOnly SameSite session cookie is set.
+- **SYS-0017** — Immediate registration step: non-secret security event is written best-effort.
+- **SYS-0018** — Immediate registration step: success returns with the account already signed in.
 
 ### End-to-end journey: Normal login
 
@@ -218,7 +216,7 @@ sequenceDiagram
 - **SYS-0020** — Normal login step: identity lookup uses email or case-insensitive username.
 - **SYS-0021** — Normal login step: account lock enforced.
 - **SYS-0022** — Normal login step: bcrypt verifies supplied password.
-- **SYS-0023** — Normal login step: unverified new account blocked.
+- **SYS-0023** — Normal login step: a legacy pending-signup flag is retired only after correct-password authentication; obsolete registration tokens are invalidated.
 - **SYS-0024** — Normal login step: server session random token generated.
 - **SYS-0025** — Normal login step: only token hash stored.
 - **SYS-0026** — Normal login step: HttpOnly SameSite cookie set.
@@ -535,7 +533,7 @@ sequenceDiagram
 - **SYS-0280** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
 - **SYS-0281** — npm run test:direct-upi: exact, held, expired and concurrent settlement.
 - **SYS-0282** — npm run test:email-delivery: hash-only token and provider payload.
-- **SYS-0283** — npm run test:email-auth: verified registration/reset/email-change/replay.
+- **SYS-0283** — npm run test:email-auth: immediate registration/session with zero signup delivery, legacy pending-account login, reset/email-change and replay protection.
 - **SYS-0284** — npm run test:core-indexes: critical index availability/options.
 - **SYS-0285** — admin: npx tsc --noEmit: bot TypeScript.
 - **SYS-0286** — admin: npm run test:admin-actions: wallet/refund/control/API/worker transactional checks.
@@ -633,9 +631,9 @@ sequenceDiagram
 - **WEB-0061** — Route `/auth` maps to tab `auth` and renderer `AuthPage`.
 - **WEB-0062** — Route `/auth` access model is: Public.
 - **WEB-0063** — Route `/auth` provides sign-in and registration modes.
-- **WEB-0064** — Route `/auth` provides verified-email registration handoff.
-- **WEB-0065** — Route `/auth` provides email-verification link consumption.
-- **WEB-0066** — Route `/auth` provides verification resend.
+- **WEB-0064** — Route `/auth` creates and signs in a valid new account immediately.
+- **WEB-0065** — Route `/auth` consumes password-reset and requested email-change links after scrubbing secrets from the URL.
+- **WEB-0066** — Route `/auth` exposes no signup-verification or resend state.
 - **WEB-0067** — Route `/auth` provides forgot-password request.
 - **WEB-0068** — Route `/auth` provides email-reset link consumption.
 - **WEB-0069** — Route `/auth` provides temporary-password routing to mandatory permanent-password change.
@@ -978,7 +976,7 @@ sequenceDiagram
 - **WEB-0301** — `LandingHero` implements service/platform discovery.
 - **WEB-0302** — `LandingHero` implements primary conversion actions.
 - **WEB-0303** — `LandingHero` implements responsive layout.
-- **WEB-0304** — `LandingHero` implements verified-registration messaging.
+- **WEB-0304** — `LandingHero` implements immediate-registration and sign-in messaging.
 
 ### Component/module: NewOrder
 
@@ -1023,8 +1021,8 @@ sequenceDiagram
 ### Component/module: AuthPage
 
 - **WEB-0330** — `AuthPage` implements login/register/recovery/reset modes.
-- **WEB-0331** — `AuthPage` implements verification-token auto-consumption.
-- **WEB-0332** — `AuthPage` implements resend flow.
+- **WEB-0331** — `AuthPage` implements reset/email-change-token auto-consumption after immediate URL scrubbing.
+- **WEB-0332** — `AuthPage` implements immediate account-created and signed-in handoff without verification/resend UI.
 - **WEB-0333** — `AuthPage` implements password policy and confirmation.
 - **WEB-0334** — `AuthPage` implements temporary-login redirect.
 
@@ -1149,21 +1147,21 @@ sequenceDiagram
 ### Endpoint: POST /api/auth/register
 
 - **WEB-0387** — `POST /api/auth/register` access boundary: Public.
-- **WEB-0388** — `POST /api/auth/register` behavior: Creates a bcrypt-protected, unverified account; enforces registration rate limit and password policy; sends a one-time verification email; creates no normal session.
+- **WEB-0388** — `POST /api/auth/register` behavior: Enforces registration rate limit, uniqueness and password policy; creates a bcrypt-protected active account plus revocable normal session immediately; creates no registration token and sends no email.
 - **WEB-0389** — `POST /api/auth/register` is covered by the central no-store/noindex API response policy.
 - **WEB-0390** — `POST /api/auth/register` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
-### Endpoint: POST /api/auth/resend-verification
+### Retired signup-verification surface
 
-- **WEB-0391** — `POST /api/auth/resend-verification` access boundary: Public.
-- **WEB-0392** — `POST /api/auth/resend-verification` behavior: Returns a generic response; rate limits by IP/email key; supersedes prior registration token; avoids account enumeration.
-- **WEB-0393** — `POST /api/auth/resend-verification` is covered by the central no-store/noindex API response policy.
-- **WEB-0394** — `POST /api/auth/resend-verification` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
+- **WEB-0391** — Signup has no verification-required response or blocked-account state.
+- **WEB-0392** — The former resend action is a `404` tombstone for stale clients and performs no account lookup.
+- **WEB-0393** — Registration and the retired tombstone create no email token and invoke no email provider.
+- **WEB-0394** — Website authentication interfaces expose no signup-verification or resend control.
 
 ### Endpoint: POST /api/auth/verify-email
 
 - **WEB-0395** — `POST /api/auth/verify-email` access boundary: Public token.
-- **WEB-0396** — `POST /api/auth/verify-email` behavior: Atomically claims registration/email-change token; verifies or changes email; records security event; registration may issue a normal session; email change revokes sessions.
+- **WEB-0396** — `POST /api/auth/verify-email` behavior: Atomically consumes requested email-change tokens and, for backward compatibility, legacy registration tokens issued before signup verification was retired; records security events and revokes sessions for email changes.
 - **WEB-0397** — `POST /api/auth/verify-email` is covered by the central no-store/noindex API response policy.
 - **WEB-0398** — `POST /api/auth/verify-email` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1191,7 +1189,7 @@ sequenceDiagram
 ### Endpoint: POST /api/auth/login
 
 - **WEB-0411** — `POST /api/auth/login` access boundary: Public.
-- **WEB-0412** — `POST /api/auth/login` behavior: Rate limited by client IP; accepts username/email plus unrestricted-length login password; supports permanent and restricted temporary credential paths; blocks locked/unverified accounts.
+- **WEB-0412** — `POST /api/auth/login` behavior: Rate limited by client IP; accepts username/email plus bounded legacy-compatible login password; supports permanent and restricted temporary credential paths; blocks locked accounts and retires a legacy signup-verification flag after correct-password authentication.
 - **WEB-0413** — `POST /api/auth/login` is covered by the central no-store/noindex API response policy.
 - **WEB-0414** — `POST /api/auth/login` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1484,7 +1482,7 @@ sequenceDiagram
 
 ### Data collection: users
 
-- **WEB-0579** — `users` purpose: Account identity, bcrypt password hash, wallet/order totals, role, holds, email verification, revocation cutoff and legacy migration fields.
+- **WEB-0579** — `users` purpose: Account identity, bcrypt password hash, wallet/order totals, role, holds, truthful mailbox-evidence timestamp, revocation cutoff and legacy signup-verification migration fields.
 - **WEB-0580** — `users` index/retention contract: Unique email; case-insensitive unique username; sparse legacy API key.
 - **WEB-0581** — `users` security boundary: Never stores a readable permanent password.
 
@@ -1520,7 +1518,7 @@ sequenceDiagram
 
 ### Data collection: email_verification_tokens
 
-- **WEB-0597** — `email_verification_tokens` purpose: Hash-only registration, password-reset and email-change token state.
+- **WEB-0597** — `email_verification_tokens` purpose: Hash-only password-reset and email-change token state plus cleanup/consumption of legacy registration tokens; new registrations create none.
 - **WEB-0598** — `email_verification_tokens` index/retention contract: Unique token hash; TTL expiration.
 - **WEB-0599** — `email_verification_tokens` security boundary: Raw link token is delivered once by transactional email.
 
@@ -1715,7 +1713,7 @@ sequenceDiagram
 - **WEB-0720** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
 - **WEB-0721** — npm run test:direct-upi: exact, held, expired and concurrent settlement.
 - **WEB-0722** — npm run test:email-delivery: hash-only token and provider payload.
-- **WEB-0723** — npm run test:email-auth: verified registration/reset/email-change/replay.
+- **WEB-0723** — npm run test:email-auth: immediate registration/session with zero email delivery, legacy pending-account recovery, reset/email-change and replay protection.
 - **WEB-0724** — npm run test:core-indexes: critical index availability/options.
 - **WEB-0725** — admin: npx tsc --noEmit: bot TypeScript.
 - **WEB-0726** — admin: npm run test:admin-actions: wallet/refund/control/API/worker transactional checks.
@@ -2029,7 +2027,7 @@ Release smoke includes keyboard/focus/dialog behavior, programmatic labels/error
 | Direct UPI evidence mismatch | no credit; create reconciliation | exact pending user/ID/memo/amount/state must be proven |
 | Railway bot authorization risk | stop service; rotate token if needed | verify numeric owner and bot identity before restart |
 | Worker overlap/mailbox failure | stop/disable worker | one lease, one settlement, exact replay protection before resume |
-| Resend outage | no verification bypass | restore delivery/resend; keep one-time token semantics |
+| Resend outage | signup/login remain available; requested recovery and email-change confirmation are delayed | restore delivery for requested email flows; keep one-time token semantics |
 | Frontend/config regression | restore prior Vercel deployment | reconcile APIs/data/providers independently |
 | Domain/icon/search regression | fix Vercel/DNS/static routing | verify content types/canonical before Search Console request |
 
@@ -2101,7 +2099,7 @@ The remote feature branch is source evidence, not deployment evidence. Productio
 
 ### Routing and browser trust boundary
 
-Known SPA routes are explicit deployment rewrites. Unknown routes fall through to a standalone noindex 404 rather than receiving `index.html` with HTTP 200. `/profile` remains a permanent `/account` redirect. Guarded pages wait for `/api/auth/me`; protected metadata is not applied during unresolved auth. Auth query credentials are copied to memory and scrubbed before network verification.
+Known SPA routes are explicit deployment rewrites. Unknown routes fall through to a standalone noindex 404 rather than receiving `index.html` with HTTP 200. `/profile` remains a permanent `/account` redirect. Guarded pages wait for `/api/auth/me`; protected metadata is not applied during unresolved auth. Auth query credentials are copied to memory and scrubbed before reset/email-change network requests.
 
 ### Account/data lifecycle
 

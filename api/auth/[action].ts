@@ -126,30 +126,46 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
         total_orders: 0,
         role: "user",
         api_key_count: 0,
-        email_verification_required: true,
+        // Signup is intentionally immediate. Email delivery is reserved for
+        // requested recovery and confirmed email-change flows.
+        email_verification_required: false,
         email_verified_at: null,
         created_at: now,
         updated_at: now,
       };
 
       const insertResult = await users.insertOne(newUser);
+      const createdUser = { ...newUser, _id: insertResult.insertedId };
       try {
-        await issueEmailToken(db, {
-          userId: insertResult.insertedId,
-          email: cleanEmail,
-          purpose: "registration",
-        });
-      } catch (deliveryError) {
-        console.error("Registration verification delivery failed:", deliveryError);
-        return res.status(503).json({
-          error: "Your account was reserved, but the verification email could not be sent. Use Resend verification shortly.",
-          verificationRequired: true,
-        });
+        await createUserSession(db, req, res, createdUser);
+      } catch (sessionError) {
+        // Do not strand a reserved username/email when the mandatory immediate
+        // session cannot be established. Scope cleanup to this exact insert.
+        await Promise.all([
+          users.deleteOne({ _id: insertResult.insertedId, created_at: now }),
+          db.collection("sessions").deleteMany({ user_id: insertResult.insertedId }),
+        ]).catch(() => {});
+        throw sessionError;
       }
+      await db.collection("security_events").insertOne({
+        user_id: insertResult.insertedId,
+        type: "registration_succeeded",
+        created_at: now,
+      }).catch(() => {});
       return res.status(201).json({
         success: true,
-        verificationRequired: true,
-        message: "Check your email and verify your address before signing in.",
+        message: "Account created. You are signed in.",
+        user: {
+          userId: insertResult.insertedId.toString(),
+          username: cleanUsername,
+          email: cleanEmail,
+          balance: 0,
+          role: "user",
+          hasApiKey: false,
+          apiKeyCount: 0,
+          apiKey: null,
+          apiKeyMasked: null,
+        },
       });
     } catch (err: any) {
       if (err?.code === 11000) {
@@ -162,23 +178,13 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // ── EMAIL VERIFICATION, RECOVERY, AND EMAIL CHANGE ───────────
+  // The retired signup-verification action is an explicit tombstone so old
+  // clients cannot fall through to any authenticated account operation.
   if (action === "resend-verification") {
-    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const cleanEmail = String(req.body?.email || "").trim().toLowerCase();
-    const rate = await checkRateLimit(`resend_verification_${clientIp(req)}_${cleanEmail}`, 3, 3600, db);
-    if (!rate.allowed) return res.status(429).json({ error: `Please wait ${rate.remainingSec}s before trying again.` });
-    const user: any = cleanEmail ? await users.findOne({ email: cleanEmail }) : null;
-    if (user?.email_verification_required === true && !user.email_verified_at) {
-      try {
-        await issueEmailToken(db, { userId: user._id, email: user.email, purpose: "registration" });
-      } catch (error) {
-        console.error("Verification resend failed:", error);
-      }
-    }
-    return res.status(200).json({ success: true, message: "If that account needs verification, a new email has been sent." });
+    return res.status(404).json({ error: "Auth action not found" });
   }
 
+  // ── EMAIL ACTION LINKS, RECOVERY, AND EMAIL CHANGE ──────────
   if (action === "verify-email") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const rawToken = String(req.body?.token || "").trim();
@@ -438,12 +444,33 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
           },
         });
       }
-      if (user.email_verification_required === true && !user.email_verified_at) {
-        return res.status(403).json({
-          error: "Verify your email address before signing in.",
-          verificationRequired: true,
-          email: user.email,
-        });
+      // Compatibility repair for accounts created by the short-lived
+      // verification-required flow. Correct credentials activate them on login;
+      // no mailbox verification or Resend delivery is required.
+      if (user.email_verification_required === true) {
+        const now = new Date();
+        await users.updateOne(
+          { _id: user._id },
+          {
+            $set: {
+              email_verification_required: false,
+              signup_verification_bypassed_at: now,
+              updated_at: now,
+            },
+          },
+        );
+        user.email_verification_required = false;
+        await Promise.all([
+          db.collection("email_verification_tokens").updateMany(
+            { user_id: user._id, purpose: "registration", used_at: null, invalidated_at: null },
+            { $set: { invalidated_at: now, invalidation_reason: "signup_verification_retired" } },
+          ).catch(() => {}),
+          db.collection("security_events").insertOne({
+            user_id: user._id,
+            type: "signup_verification_requirement_retired",
+            created_at: now,
+          }).catch(() => {}),
+        ]);
       }
 
       await ensureApiKeyIndexes();
@@ -844,7 +871,7 @@ async function handleAuthRequest(req: VercelRequest, res: VercelResponse) {
           displayName: user.display_name || user.username,
           avatarColor: user.avatar_color || "zinc",
           email: user.email,
-          emailVerified: user.email_verification_required !== true || Boolean(user.email_verified_at),
+          emailVerified: Boolean(user.email_verified_at),
           balance: user.balance || 0.0,
           total_spent: user.total_spent || 0.0,
           total_orders: user.total_orders || 0,
