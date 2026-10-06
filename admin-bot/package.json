@@ -19,7 +19,7 @@
     "telegraf": "^4.16.3"
   },
   "devDependencies": {
-    "@types/node": "^22.13.1",
+    "@types/node": "^26.6.4",
     "mongodb-memory-server-core": "^10.4.3",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
