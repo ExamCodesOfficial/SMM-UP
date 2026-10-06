@@ -45,6 +45,7 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
   const [communityReviews, setCommunityReviews] = React.useState<ReviewItem[]>([]);
   const [elig, setElig] = React.useState<Eligibility | null>(null);
   const [listLoading, setListLoading] = React.useState(true);
+  const [listError, setListError] = React.useState("");
   const [rating, setRating] = React.useState(5);
   const [text, setText] = React.useState("");
   const [city, setCity] = React.useState("");
@@ -54,14 +55,18 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
   const [err, setErr] = React.useState<string | null>(null);
 
   const loadReviews = React.useCallback(async () => {
+    setListLoading(true);
+    setListError("");
     try {
       const r = await fetch("/api/reviews/list");
       const d = await readApiPayload(r);
-      if (Array.isArray(d.reviews)) setCommunityReviews(d.reviews);
-    } catch {
-      // A review form still works even if the public feed is temporarily unavailable.
+      if (!r.ok || !Array.isArray(d.reviews)) throw new Error(d.error || "Could not load community reviews.");
+      setCommunityReviews(d.reviews);
+    } catch (error: any) {
+      setListError(error?.message || "Could not load community reviews.");
+    } finally {
+      setListLoading(false);
     }
-    setListLoading(false);
   }, []);
 
   const loadEligibility = React.useCallback(async () => {
@@ -150,6 +155,13 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
             </h2>
           </div>
 
+          {err && <p role="alert" className="mb-4 p-3 border border-red-400/25 bg-red-950/25 text-xs text-red-200">{err}</p>}
+          {msg && (
+            <p role="status" aria-live="polite" className="mb-4 p-3 border border-emerald-400/25 bg-emerald-950/20 text-xs text-emerald-200 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" /> {msg}
+            </p>
+          )}
+
           {!user ? (
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <p className="text-xs sm:text-sm text-zinc-400 font-light flex-1">
@@ -204,9 +216,9 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
                 <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-zinc-500">
                   Your rating
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1" role="radiogroup" aria-label="Review rating">
                   {[1, 2, 3, 4, 5].map((i) => (
-                    <button key={i} onClick={() => setRating(i)} aria-label={`${i} star`}>
+                    <button key={i} type="button" role="radio" aria-checked={rating === i} onClick={() => setRating(i)} aria-label={`${i} star`}>
                       <Star
                         className={`w-6 h-6 transition ${
                           i <= rating ? "fill-white text-white" : "text-zinc-700 hover:text-zinc-500"
@@ -216,22 +228,37 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
                   ))}
                 </div>
               </div>
-              <textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={4}
-                maxLength={1200}
-                placeholder="What did you order, how did it go, and would you return? (minimum 40 characters)"
-                className="w-full bg-white/[0.03] border border-white/10 px-4 py-3 text-sm text-zinc-200 font-light placeholder-zinc-600 focus:outline-none focus:border-white/30 transition resize-y"
-              />
-              <div className="flex flex-col sm:flex-row gap-3">
-                <input
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  maxLength={40}
-                  placeholder="City (optional)"
-                  className="sm:w-56 bg-white/[0.03] border border-white/10 px-4 py-2.5 text-sm text-zinc-200 font-light placeholder-zinc-600 focus:outline-none focus:border-white/30 transition"
+              <div>
+                <label htmlFor="review-text" className="block text-xs font-semibold text-zinc-300 mb-2">Your review</label>
+                <textarea
+                  id="review-text"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  rows={4}
+                  minLength={40}
+                  maxLength={1200}
+                  aria-describedby="review-text-help"
+                  placeholder="What did you order, how did it go, and would you return?"
+                  className="w-full bg-white/[0.03] border border-white/10 px-4 py-3 text-sm text-zinc-200 font-light placeholder-zinc-600 focus:outline-none focus:border-white/30 transition resize-y"
                 />
+                <p id="review-text-help" className="mt-1.5 flex justify-between gap-3 text-[10px] text-zinc-500 font-mono">
+                  <span>Minimum 40 characters</span>
+                  <span>{text.length}/1200</span>
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="w-full sm:w-56">
+                  <label htmlFor="review-city" className="block text-xs font-semibold text-zinc-300 mb-2">City <span className="font-normal text-zinc-600">(optional)</span></label>
+                  <input
+                    id="review-city"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    maxLength={40}
+                    autoComplete="address-level2"
+                    placeholder="Your city"
+                    className="w-full bg-white/[0.03] border border-white/10 px-4 py-2.5 text-sm text-zinc-200 font-light placeholder-zinc-600 focus:outline-none focus:border-white/30 transition"
+                  />
+                </div>
                 <div className="flex-1" />
                 <button
                   onClick={submit}
@@ -241,12 +268,6 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
                   <span>{saving ? "Saving…" : elig.my_review ? "Update review" : "Publish review"}</span>
                 </button>
               </div>
-              {err && <p className="text-xs text-red-400/90">{err}</p>}
-              {msg && (
-                <p className="text-xs text-emerald-400/90 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> {msg}
-                </p>
-              )}
               <p className="text-[10px] font-mono text-zinc-600 uppercase tracking-wider">
                 Published under @{user.username} • {elig.order_count ?? 1} verified order{(elig.order_count ?? 1) === 1 ? "" : "s"}
               </p>
@@ -256,7 +277,6 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
       </Reveal>
 
       {/* Only recent community submissions — no inflated counter, aggregate, or pagination. */}
-      {(listLoading || communityReviews.length > 0) && (
         <section>
           <Reveal>
             <div className="mb-5">
@@ -268,7 +288,16 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
           </Reveal>
 
           {listLoading ? (
-            <div className="text-xs text-zinc-600 font-mono py-8">LOADING…</div>
+            <div role="status" aria-live="polite" className="text-xs text-zinc-600 font-mono py-8">LOADING COMMUNITY REVIEWS…</div>
+          ) : listError ? (
+            <div role="alert" className="border border-red-400/20 bg-red-950/20 p-5 text-sm text-red-200 flex flex-col sm:flex-row sm:items-center gap-4">
+              <span className="flex-1">{listError}</span>
+              <button type="button" onClick={loadReviews} className="btn-up btn-up-ghost btn-up-sm">Try again</button>
+            </div>
+          ) : communityReviews.length === 0 ? (
+            <div className="border border-white/[0.08] bg-white/[0.02] p-6 text-sm text-zinc-400">
+              No community reviews have been submitted yet. Verified buyers can publish the first one above.
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {communityReviews.map((r, idx) => (
@@ -300,7 +329,6 @@ export default function ReviewsPage({ user, onNavigate, onOpenAuth }: ReviewsPag
             </div>
           )}
         </section>
-      )}
     </ContentPage>
   );
 }

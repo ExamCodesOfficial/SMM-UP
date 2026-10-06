@@ -1,6 +1,7 @@
 import React from "react";
 import { Copy, Check, Key, BookOpen, Terminal, AlertTriangle, FlaskConical, ArrowLeft } from "lucide-react";
 import { SmmUpLogo } from "./icons/ExecutiveIcons";
+import { pathFor } from "../lib/routes";
 
 interface ApiDocsProps {
   user: any;
@@ -124,17 +125,17 @@ export default function ApiDocs({ user }: ApiDocsProps) {
           </div>
           <div className="flex gap-3 shrink-0">
             {user ? (
-              <a href="/account" className="btn-up btn-up-ghost btn-up-sm">
+              <a href={pathFor("account")} className="btn-up btn-up-ghost btn-up-sm">
                 <Key className="w-4 h-4" />
                 <span>Manage API keys</span>
               </a>
             ) : (
-              <a href="/auth" className="btn-up btn-up-solid btn-up-sm">
+              <a href={pathFor("auth")} className="btn-up btn-up-solid btn-up-sm">
                 <Key className="w-4 h-4" />
                 <span>Sign in to get key</span>
               </a>
             )}
-            <a href="/playground" className="btn-up btn-up-ghost btn-up-sm">
+            <a href={pathFor("playground")} className="btn-up btn-up-ghost btn-up-sm">
               <FlaskConical className="w-4 h-4" />
               <span>Playground</span>
             </a>

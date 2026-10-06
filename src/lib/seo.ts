@@ -12,6 +12,7 @@ export interface PageMeta {
 }
 
 export const SITE = "SMM UP";
+const SITE_ORIGIN = "https://smmup.co.in";
 const BASE_DESC = "SMM UP (SMMUP) is India's wholesale SMM panel, founded and owned by Aryan (@thatonearyan), with 0% UPI deposit fee, 2,100+ services and refill guarantees.";
 
 export const PAGE_META: Record<string, PageMeta> = {
@@ -34,6 +35,10 @@ export const PAGE_META: Record<string, PageMeta> = {
   logs: {
     title: "Order History | SMM UP",
     description: "Track SMM orders with provider status checks, start count, remains, refill windows and full order details.",
+  },
+  checking: {
+    title: "Checking Session | SMM UP",
+    description: "Securely checking your SMM UP session.",
   },
   auth: {
     title: "Sign In or Create Free Account | SMM UP",
@@ -172,7 +177,18 @@ export function applySeo(tab: string) {
   }
   tag.setAttribute("content", meta.description);
 
-  const privateTabs = new Set(["auth", "account", "password-change", "support-access", "transactions", "add-funds", "logs"]);
+  const privateTabs = new Set([
+    "checking",
+    "auth",
+    "account",
+    "password-change",
+    "support-access",
+    "transactions",
+    "add-funds",
+    "logs",
+    "status",
+    "notfound",
+  ]);
   let robots = document.querySelector('meta[name="robots"]');
   if (!robots) {
     robots = document.createElement("meta");
@@ -201,10 +217,23 @@ export function applySeo(tab: string) {
     document.head.appendChild(ogUrl);
   }
   ogUrl.setAttribute("content", absUrl);
-  let ogTitle = document.querySelector('meta[property="og:title"]');
-  if (ogTitle) ogTitle.setAttribute("content", meta.title);
-  let ogDesc = document.querySelector('meta[property="og:description"]');
-  if (ogDesc) ogDesc.setAttribute("content", meta.description);
+  const setMetaContent = (selector: string, attribute: "name" | "property", key: string, content: string) => {
+    let element = document.querySelector(selector);
+    if (!element) {
+      element = document.createElement("meta");
+      element.setAttribute(attribute, key);
+      document.head.appendChild(element);
+    }
+    element.setAttribute("content", content);
+  };
+
+  setMetaContent('meta[property="og:title"]', "property", "og:title", meta.title);
+  setMetaContent('meta[property="og:description"]', "property", "og:description", meta.description);
+  setMetaContent('meta[name="twitter:title"]', "name", "twitter:title", meta.title);
+  setMetaContent('meta[name="twitter:description"]', "name", "twitter:description", meta.description);
+
+  const ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute("content") || `${SITE_ORIGIN}/og-image.png`;
+  setMetaContent('meta[name="twitter:image"]', "name", "twitter:image", ogImage);
 }
 
 /* ── Per-route JSON-LD structured data (injected/replaced on navigation) ── */

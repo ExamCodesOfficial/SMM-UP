@@ -1,5 +1,6 @@
 import React from "react";
 import { readApiPayload } from "../lib/apiResponse";
+import { pathFor } from "../lib/routes";
 import { Layers, Send, AlertCircle, CheckCircle2, Info } from "lucide-react";
 import confetti from "canvas-confetti";
 import { formatINR } from "../lib/utils";
@@ -179,7 +180,7 @@ export default function MassOrder({
                 <span>{errorMsg}</span>
                 {/insufficient/i.test(errorMsg) && (
                   <a
-                    href="/add-funds"
+                    href={pathFor("add-funds")}
                     className="mt-2 inline-flex items-center gap-1.5 text-[#E4E4E7] hover:text-white font-semibold underline underline-offset-4 text-xs cursor-pointer"
                   >
                     Open Add Funds

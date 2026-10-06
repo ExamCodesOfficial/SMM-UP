@@ -1,5 +1,6 @@
 import React from "react";
 import { readApiPayload } from "../lib/apiResponse";
+import { pathFor } from "../lib/routes";
 import { AlertTriangle, Check, KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import ContentPage from "./ContentPage";
 
@@ -105,7 +106,7 @@ export default function PasswordChangePage({ onNavigate, onCompleted }: Props) {
         ) : (
           <div className="space-y-4">
             <div className="p-3 border border-white/15 bg-white/[0.04] text-xs text-zinc-200 flex gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {error}</div>
-            <a href="/support" className="btn-up btn-up-ghost w-full">Contact support</a>
+            <a href={pathFor("support")} className="btn-up btn-up-ghost w-full">Contact support</a>
           </div>
         )}
       </div>

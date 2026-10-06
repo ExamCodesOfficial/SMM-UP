@@ -17,6 +17,7 @@
     "test:email-auth": "tsx tests/emailAuthFlows.integration.ts",
     "test:core-indexes": "tsx tests/coreIndexes.integration.ts",
     "test:order-reservations": "tsx tests/orderReservations.integration.ts",
+    "test:presets": "tsx tests/presets.integration.ts",
     "test:search-appearance": "node tests/searchAppearance.mjs"
   },
   "dependencies": {

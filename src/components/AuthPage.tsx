@@ -1,4 +1,5 @@
 import React from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { SmmUpLogo } from "./icons/ExecutiveIcons";
 import { pathFor } from "../lib/routes";
 import { readApiPayload } from "../lib/apiResponse";
@@ -6,13 +7,21 @@ import { readApiPayload } from "../lib/apiResponse";
 interface AuthPageProps {
   initialMode: "login" | "register";
   onAuthSuccess: (destination?: string) => void;
+  continuePath?: string | null;
+}
+
+function cleanAuthUrl(params: URLSearchParams): string {
+  const next = params.get("next");
+  return next && /^\/[A-Za-z0-9/_-]*$/.test(next) && !next.startsWith("//")
+    ? `/auth?next=${encodeURIComponent(next)}`
+    : "/auth";
 }
 
 /**
  * Full-page Authentication Terminal — replaces the legacy popup modal.
  * Route: /auth (state-synced). Sharp, monochrome, mobile-first.
  */
-export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) {
+export default function AuthPage({ initialMode, onAuthSuccess, continuePath }: AuthPageProps) {
   const [mode, setMode] = React.useState<"login" | "register">(initialMode);
   const [identifier, setIdentifier] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -23,6 +32,8 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
   const [flow, setFlow] = React.useState<"auth" | "forgot" | "reset">("auth");
   const [resetToken, setResetToken] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   const [verificationEmail, setVerificationEmail] = React.useState("");
   const verificationStarted = React.useRef(false);
 
@@ -36,6 +47,13 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
     const params = new URLSearchParams(window.location.search);
     const passwordResetToken = params.get("reset_token") || "";
     const verificationToken = params.get("verify_token") || "";
+    const sanitizedUrl = cleanAuthUrl(params);
+
+    // Tokens are copied to component memory once, then removed from browser
+    // history/address state before any network request or further rendering.
+    if (passwordResetToken || verificationToken) {
+      window.history.replaceState({}, "", sanitizedUrl);
+    }
     if (passwordResetToken) {
       setResetToken(passwordResetToken);
       setFlow("reset");
@@ -56,7 +74,6 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
       .then(({ ok, data }) => {
         if (!ok) throw new Error(data.error || "Email verification failed.");
         setSuccess(data.message || "Email verified.");
-        window.history.replaceState({}, "", "/auth");
         if (data.signedIn) setTimeout(() => onAuthSuccess(), 700);
       })
       .catch((err) => setError(err.message || "Email verification failed."))
@@ -113,7 +130,6 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
         setConfirmPassword("");
         setFlow("auth");
         setMode("login");
-        window.history.replaceState({}, "", "/auth");
         setLoading(false);
         return;
       }
@@ -168,6 +184,11 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
             {flow === "forgot" ? "Recover Account" : flow === "reset" ? "Choose New Password" : mode === "login" ? "Welcome Back" : "Create Account"}
           </h1>
           <div className="w-12 h-px bg-white/20 mx-auto mt-4" />
+          {continuePath && flow === "auth" && (
+            <p className="mt-4 text-xs text-zinc-400" role="status">
+              Sign in to continue to <span className="text-zinc-200 font-mono">{continuePath}</span>.
+            </p>
+          )}
         </div>
 
         {/* Card */}
@@ -203,7 +224,7 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
             </div>}
           </div>
 
-          <form key={`${mode}-${flow}`} onSubmit={handleSubmit} className="space-y-4 form-swap">
+          <form onSubmit={handleSubmit} className="space-y-4 form-swap">
             {flow === "auth" && <div>
               <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                 {mode === "login" ? "Username or Email" : "Username"}
@@ -211,6 +232,7 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
               <input
                 type="text"
                 required
+                autoComplete={mode === "login" ? "username" : "username"}
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder={mode === "login" ? "Enter username or email" : "Choose username"}
@@ -226,6 +248,7 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
                 <input
                   type="email"
                   required
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="client@domain.com"
@@ -238,16 +261,28 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
               <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                 {flow === "reset" ? "New Password" : "Password"}
               </label>
-              <input
-                type="password"
-                required
-                minLength={mode === "register" || flow === "reset" ? 10 : undefined}
-                maxLength={mode === "register" || flow === "reset" ? 128 : undefined}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="up-input"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete={mode === "login" && flow === "auth" ? "current-password" : "new-password"}
+                  minLength={mode === "register" || flow === "reset" ? 10 : undefined}
+                  maxLength={mode === "register" || flow === "reset" ? 128 : undefined}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="up-input pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  className="absolute inset-y-0 right-0 min-w-11 flex items-center justify-center text-zinc-500 hover:text-white"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               {(mode === "register" || flow === "reset") && (
                 <p className="text-[10px] text-zinc-600 mt-1.5">10–128 characters; use at least three of lowercase, uppercase, numbers and symbols.</p>
               )}
@@ -256,18 +291,38 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
             {flow === "reset" && (
               <div>
                 <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">Confirm New Password</label>
-                <input type="password" required minLength={10} maxLength={128} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="up-input" />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    autoComplete="new-password"
+                    minLength={10}
+                    maxLength={128}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="up-input pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((visible) => !visible)}
+                    className="absolute inset-y-0 right-0 min-w-11 flex items-center justify-center text-zinc-500 hover:text-white"
+                    aria-label={showConfirmPassword ? "Hide password confirmation" : "Show password confirmation"}
+                    aria-pressed={showConfirmPassword}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             )}
 
             {error && (
-              <div className="p-3 rounded-none bg-white/[0.04] border border-white/15 text-zinc-200 text-xs">
+              <div role="alert" className="p-3 rounded-none bg-red-950/30 border border-red-400/30 text-red-100 text-xs">
                 {error}
               </div>
             )}
 
             {success && (
-              <div className="p-3 rounded-none bg-white/[0.06] border border-white/20 text-white text-xs">
+              <div role="status" aria-live="polite" className="p-3 rounded-none bg-emerald-950/25 border border-emerald-400/25 text-emerald-100 text-xs">
                 {success}
               </div>
             )}
@@ -326,7 +381,7 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
             )}</>}
             {flow !== "auth" && (
               <p className="text-xs text-zinc-500">
-                <button type="button" onClick={() => { setFlow("auth"); setMode("login"); setError(""); setSuccess(""); window.history.replaceState({}, "", "/auth"); }} className="text-white underline underline-offset-4 hover:text-zinc-300">Back to sign in</button>
+                <button type="button" onClick={() => { setFlow("auth"); setMode("login"); setError(""); setSuccess(""); }} className="text-white underline underline-offset-4 hover:text-zinc-300">Back to sign in</button>
               </p>
             )}
             <p className="text-[11px] text-zinc-600">

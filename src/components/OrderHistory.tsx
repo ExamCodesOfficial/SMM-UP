@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   XCircle,
   HelpCircle,
+  Ban,
+  Repeat2,
 } from "lucide-react";
 import { formatINR, formatNumber, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
 import { pathFor } from "../lib/routes";
@@ -38,10 +40,11 @@ interface Order {
 interface OrderHistoryProps {
   orders: Order[];
   onRefresh: () => void;
+  onReorder: (serviceId: number) => void;
   loading: boolean;
 }
 
-export default function OrderHistory({ orders, onRefresh, loading }: OrderHistoryProps) {
+export default function OrderHistory({ orders, onRefresh, onReorder, loading }: OrderHistoryProps) {
   const [filterTab, setFilterTab] = React.useState("All");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(null);
@@ -93,6 +96,37 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
     } finally {
       setActionLoadingId(null);
     }
+  };
+
+  const handleCancel = async (orderId: string) => {
+    if (!window.confirm("Submit a cancellation request? This is not final cancellation or a guaranteed refund; the supplier must confirm the final state.")) {
+      return;
+    }
+    setActionLoadingId(orderId);
+    setActionMsg(null);
+    try {
+      const res = await fetch("/api/orders/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: orderId }),
+      });
+      const data = await readApiPayload(res);
+      if (res.ok && data.success) {
+        setActionMsg({ id: orderId, msg: data.message || "Cancellation request submitted" });
+        onRefresh();
+      } else {
+        setActionMsg({ id: orderId, msg: data.error || "Cancellation request failed", err: true });
+      }
+    } catch {
+      setActionMsg({ id: orderId, msg: "Network error while requesting cancellation", err: true });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const clearFilters = () => {
+    setFilterTab("All");
+    setSearchQuery("");
   };
 
   const handleCheckStatus = async (orderId: string) => {
@@ -210,6 +244,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
               <button
                 key={tab}
                 onClick={() => setFilterTab(tab)}
+                aria-pressed={isActive}
                 className={`px-4 py-2 rounded-none text-xs font-semibold tracking-wider transition-all duration-200 cursor-pointer ${
                   isActive
                     ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.25)]"
@@ -227,7 +262,8 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
           <div className="relative flex-1 sm:w-64">
             <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
-              type="text"
+              type="search"
+              aria-label="Search orders by ID, service or target link"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by ID or target link..."
@@ -240,6 +276,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
             disabled={loading}
             className="p-2.5 rounded-none border border-white/10 hover:border-white/30 text-zinc-300 hover:text-white transition-all bg-white/[0.02] cursor-pointer"
             title="Refresh order statuses"
+            aria-label="Refresh order statuses"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -248,25 +285,43 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
 
       {/* Orders Table Container */}
       <div className="rounded-none border border-white/[0.08] bg-zinc-950/70 backdrop-blur-xl overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.6)]">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left text-xs" aria-busy={loading}>
+            <caption className="sr-only">Your SMM UP order history, current supplier status and available actions</caption>
             <thead className="bg-black/90 border-b border-white/10 text-zinc-400 uppercase tracking-wider text-[11px] font-semibold">
               <tr>
-                <th className="py-4 px-5">Order ID</th>
-                <th className="py-4 px-5">Platform &amp; Service</th>
-                <th className="py-4 px-5">Target Link</th>
-                <th className="py-4 px-5">Quantity</th>
-                <th className="py-4 px-5">Charge</th>
-                <th className="py-4 px-5">Status</th>
-                <th className="py-4 px-5 text-right">Actions</th>
+                <th scope="col" className="py-4 px-5">Order ID</th>
+                <th scope="col" className="py-4 px-5">Platform &amp; Service</th>
+                <th scope="col" className="py-4 px-5">Target Link</th>
+                <th scope="col" className="py-4 px-5">Quantity</th>
+                <th scope="col" className="py-4 px-5">Charge</th>
+                <th scope="col" className="py-4 px-5">Status</th>
+                <th scope="col" className="py-4 px-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.06]">
-              {filteredOrders.length === 0 ? (
+              {loading ? (
+                Array.from({ length: 5 }, (_, index) => (
+                  <tr key={`order-skeleton-${index}`} aria-hidden="true">
+                    <td colSpan={7} className="px-5 py-4">
+                      <div className="h-10 bg-white/[0.04] animate-pulse" />
+                    </td>
+                  </tr>
+                ))
+              ) : orders.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-zinc-400">
-                    <ListOrdered className="w-8 h-8 mx-auto mb-2 text-zinc-600" />
-                    <span>No orders found matching the filter.</span>
+                    <ListOrdered className="w-8 h-8 mx-auto mb-3 text-zinc-600" />
+                    <p className="text-sm text-zinc-300 mb-4">No orders yet.</p>
+                    <a href={pathFor("order")} className="btn-up btn-up-solid btn-up-sm">Place your first order</a>
+                  </td>
+                </tr>
+              ) : filteredOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-zinc-400">
+                    <Search className="w-8 h-8 mx-auto mb-3 text-zinc-600" />
+                    <p className="text-sm text-zinc-300">No orders match “{searchQuery || filterTab}”.</p>
+                    <button type="button" onClick={clearFilters} className="mt-4 btn-up btn-up-ghost btn-up-sm">Clear filter</button>
                   </td>
                 </tr>
               ) : (
@@ -275,6 +330,7 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                   const sanitizedCategory = sanitizeBrandText(ord.category);
                   const platformInfo = getPlatformInfo(sanitizedCategory, sanitizedName);
                   const PlatformIcon = platformInfo.icon;
+                  const canCancel = ord.cancelAvailable && /pending|processing|in progress|submitting/i.test(ord.status);
 
                   return (
                     <tr key={ord.id} className="hover:bg-white/[0.02] transition-colors">
@@ -377,18 +433,38 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
                             <button
                               onClick={() => handleRefill(ord.id)}
                               disabled={actionLoadingId === ord.id}
-                              className="px-3 py-1.5 rounded-sm border border-white/15 bg-white/[0.06] text-zinc-100 hover:bg-white/[0.06] text-xs font-medium transition-all cursor-pointer flex items-center gap-1"
+                              className="px-3 py-1.5 rounded-sm border border-white/15 bg-white/[0.06] text-zinc-100 hover:bg-white/[0.10] text-xs font-medium transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50"
                             >
                               <RotateCcw className="w-3 h-3" />
                               <span>Refill</span>
                             </button>
                           )}
+                          {canCancel && (
+                            <button
+                              onClick={() => handleCancel(ord.id)}
+                              disabled={actionLoadingId === ord.id}
+                              className="px-3 py-1.5 rounded-sm border border-red-400/25 text-red-200 hover:bg-red-950/30 text-xs font-medium transition-all cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                            >
+                              <Ban className="w-3 h-3" />
+                              <span>Cancel</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onReorder(ord.serviceId)}
+                            className="px-3 py-1.5 rounded-sm border border-white/10 text-zinc-300 hover:text-white hover:border-white/30 text-xs font-medium transition-all cursor-pointer flex items-center gap-1"
+                            title="Select this service again; target and quantity stay blank"
+                          >
+                            <Repeat2 className="w-3 h-3" />
+                            <span>Order again</span>
+                          </button>
                         </div>
 
                         {actionMsg?.id === ord.id && (
                           <div
-                            className={`text-[10px] mt-1 ${
-                              actionMsg.err ? "text-zinc-100" : "text-zinc-100"
+                            role={actionMsg.err ? "alert" : "status"}
+                            aria-live={actionMsg.err ? "assertive" : "polite"}
+                            className={`text-[11px] mt-2 max-w-sm ml-auto whitespace-normal ${
+                              actionMsg.err ? "text-red-300" : "text-emerald-300"
                             }`}
                           >
                             {actionMsg.msg}
@@ -401,6 +477,75 @@ export default function OrderHistory({ orders, onRefresh, loading }: OrderHistor
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden p-4 space-y-3" aria-busy={loading}>
+          {loading ? (
+            Array.from({ length: 4 }, (_, index) => (
+              <div key={`mobile-order-skeleton-${index}`} className="h-44 border border-white/[0.06] bg-white/[0.03] animate-pulse" aria-hidden="true" />
+            ))
+          ) : orders.length === 0 ? (
+            <div className="py-12 text-center">
+              <ListOrdered className="w-8 h-8 mx-auto mb-3 text-zinc-600" />
+              <p className="text-sm text-zinc-300 mb-4">No orders yet.</p>
+              <a href={pathFor("order")} className="btn-up btn-up-solid btn-up-sm">Place your first order</a>
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="py-12 text-center">
+              <Search className="w-8 h-8 mx-auto mb-3 text-zinc-600" />
+              <p className="text-sm text-zinc-300">No orders match “{searchQuery || filterTab}”.</p>
+              <button type="button" onClick={clearFilters} className="mt-4 btn-up btn-up-ghost btn-up-sm">Clear filter</button>
+            </div>
+          ) : (
+            filteredOrders.map((ord) => {
+              const serviceName = sanitizeBrandText(ord.serviceName);
+              const category = sanitizeBrandText(ord.category);
+              const platform = getPlatformInfo(category, serviceName);
+              const PlatformIcon = platform.icon;
+              const canCancel = ord.cancelAvailable && /pending|processing|in progress|submitting/i.test(ord.status);
+              return (
+                <article key={`mobile-${ord.id}`} className="border border-white/[0.08] bg-black/40 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-zinc-500">
+                        <PlatformIcon size={14} />
+                        <span>{platform.name}</span>
+                      </div>
+                      <h3 className="mt-1 text-sm font-semibold text-white line-clamp-2">{serviceName}</h3>
+                    </div>
+                    {getStatusBadge(ord.status)}
+                  </div>
+
+                  <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                    <div><dt className="text-zinc-600">Order</dt><dd className="text-zinc-200">#{ord.orderId || ord.id.slice(-6)}</dd></div>
+                    <div><dt className="text-zinc-600">Placed</dt><dd className="text-zinc-200">{new Date(ord.createdAt).toLocaleDateString()}</dd></div>
+                    <div><dt className="text-zinc-600">Quantity</dt><dd className="text-zinc-200">{formatNumber(ord.quantity)}</dd></div>
+                    <div><dt className="text-zinc-600">Charge</dt><dd className="text-white font-semibold">{formatINR(ord.charge)}</dd></div>
+                  </dl>
+
+                  <div className="mt-3 flex items-center gap-2 border-t border-white/[0.06] pt-3 text-xs text-zinc-400">
+                    <span className="truncate flex-1">{ord.link}</span>
+                    <button type="button" onClick={() => copyToClipboard(ord.link, `${ord.id}_mobile_link`)} aria-label={`Copy target link for order ${ord.orderId || ord.id}`} className="p-2 text-zinc-500 hover:text-white">
+                      {copiedId === `${ord.id}_mobile_link` ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => handleCheckStatus(ord.id)} disabled={actionLoadingId === ord.id} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-50">Status</button>
+                    {ord.refillAvailable && <button type="button" onClick={() => handleRefill(ord.id)} disabled={actionLoadingId === ord.id} className="btn-up btn-up-ghost btn-up-sm disabled:opacity-50">Refill</button>}
+                    {canCancel && <button type="button" onClick={() => handleCancel(ord.id)} disabled={actionLoadingId === ord.id} className="px-3 py-2 border border-red-400/25 text-red-200 text-xs disabled:opacity-50">Cancel</button>}
+                    <button type="button" onClick={() => onReorder(ord.serviceId)} className="btn-up btn-up-solid btn-up-sm">Order again</button>
+                  </div>
+
+                  {actionMsg?.id === ord.id && (
+                    <p role={actionMsg.err ? "alert" : "status"} aria-live={actionMsg.err ? "assertive" : "polite"} className={`mt-3 text-xs ${actionMsg.err ? "text-red-300" : "text-emerald-300"}`}>
+                      {actionMsg.msg}
+                    </p>
+                  )}
+                </article>
+              );
+            })
+          )}
         </div>
       </div>
     </div>
