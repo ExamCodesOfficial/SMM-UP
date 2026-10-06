@@ -120,7 +120,7 @@ Prefer synthetic accounts, deposits and orders. If production-shaped records are
 | `FAMPAY_SENDER_FILTER` | One exact trusted receipt sender address |
 | `DIRECT_UPI_IMAP_SCAN_LIMIT` | Bounded 10–100 recent-receipt fallback scan; defaults to 40 |
 
-A submitted UTR is checked by the Vercel API itself. Railway worker or Telegram long-polling availability must not affect this manual path. Each new request reserves one globally unique non-whole-rupee exact amount in `direct_upi_amount_reservations` for the entire bounded late-verification window; MongoDB uniqueness arbitrates concurrent creators and TTL removes expired reservations. Lookup scans Inbox first and provider-declared Gmail All Mail only as a bounded archive fallback; it never scans Spam or Trash. SUP remains primary, while a provider-removed memo may fall back only to the still-valid unique reservation that predates the trusted receipt and is owned by the signed-in account. Validate MIME/alternate-reference parsing, distinct diagnostics, duplicate rejection, refresh/redeployment recovery, owner `/settleupi` confirmation and recently expired-request recovery before release.
+A submitted UTR, bank/UPI reference number or FMPIB transaction ID is checked by the Vercel API itself. Railway worker or Telegram long-polling availability must not affect this manual path. Each new request reserves one globally unique non-whole-rupee exact amount in `direct_upi_amount_reservations` for the entire bounded late-verification window; MongoDB uniqueness arbitrates concurrent creators and TTL removes expired reservations. Lookup scans Inbox first and provider-declared Gmail All Mail only as a bounded archive fallback; it never scans Spam or Trash. SUP remains primary. If the provider removes it, the verifier uses a valid reservation first, then may bind an exact replay-protected identifier plus exact receipt amount/time to an eligible request owned by the signed-in account. Validate MIME/alternate-reference parsing, distinct diagnostics, duplicate rejection, refresh/redeployment recovery, owner `/settleupi` confirmation and recently expired-request recovery before release.
 
 ### Razorpay
 
@@ -335,7 +335,7 @@ Create exact pending deposits and test:
 - globally unique payable-paise reservation under concurrent creation, expiry cleanup and configured min/max boundaries;
 - full quoted amount credited with no fee/skimming;
 - wrong amount;
-- missing/wrong memo, including automatic success only for a still-valid account-owned unique reservation;
+- missing/wrong memo, including automatic success with a live reservation or exact replay-protected identifier plus amount/time against an eligible account-owned request;
 - duplicate UTR/transaction/memo/settlement and reserved amount;
 - plain-text, quoted-printable and base64 trusted-sender receipts, including current `Purpose: Paid via …` replacement wording, which is treated as no usable SUP rather than as a mismatching SUP;
 - alternate UTR/RRN/UPI-reference labels;

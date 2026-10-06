@@ -420,6 +420,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
       const receiptMemo = normalizeDirectUpiReceiptMemo(observedReceiptReference);
       let settlementDeposit: any = null;
       let allowMissingMemoWithUniqueAmount = false;
+      let allowMissingMemoWithExactIdentifierAmount = false;
 
       if (receiptMemo) {
         // A transmitted SUP reference is authoritative and can restore the
@@ -444,6 +445,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         const reservation: any = await db.collection("direct_upi_amount_reservations").findOne({
           amount_paise: parsedAmountPaise,
           expires_at: { $gt: new Date() },
+          created_at: { $lte: receiptDate },
         });
         if (reservation?.pending_transaction_id) {
           settlementDeposit = await db.collection("transactions").findOne({
@@ -457,6 +459,24 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
           });
           allowMissingMemoWithUniqueAmount = Boolean(settlementDeposit);
         }
+
+        // An exact UTR/reference/FMPIB identifier is itself replay-protected.
+        // If no reservation exists (for example, a legacy whole-rupee request),
+        // bind it to the latest eligible request for this same account and exact
+        // amount that existed when the trusted receipt arrived.
+        if (!settlementDeposit) {
+          settlementDeposit = await db.collection("transactions").findOne({
+            user_id: userObjectId,
+            method: "FAMPAY_UPI",
+            amount: parsedPayment.amount,
+            status: { $in: ["pending", "expired"] },
+            created_at: {
+              $gt: verificationCutoff,
+              $lte: new Date(receiptDate.getTime() + 5 * 60_000),
+            },
+          }, { sort: { created_at: -1 } });
+          allowMissingMemoWithExactIdentifierAmount = Boolean(settlementDeposit);
+        }
       }
 
       const settlementCreatedAt = settlementDeposit ? new Date(settlementDeposit.created_at) : null;
@@ -466,7 +486,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         || !Number.isFinite(settlementCreatedAt.getTime())
         || receiptDate.getTime() < settlementCreatedAt.getTime() - 5 * 60_000
       ) {
-        const reason = receiptMemo ? "receipt_memo_mismatch" : "receipt_memo_missing_without_unique_amount";
+        const reason = receiptMemo ? "receipt_memo_mismatch" : "receipt_memo_missing_without_owned_amount_match";
         await db.collection("payment_reconciliation").updateOne(
           { memo: storedMemo, status: "open", reason },
           {
@@ -488,7 +508,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
           errorCode: receiptMemo ? "RECEIPT_REFERENCE_MISMATCH" : "RECEIPT_REFERENCE_MISSING",
           error: receiptMemo
             ? "The trusted receipt reference does not match an eligible deposit owned by this account. It has been flagged for reconciliation; do not pay again."
-            : "The trusted receipt has no SUP reference and its amount was not a server-reserved unique-paise quote. It cannot be guessed into a wallet credit. The payment is flagged for owner reconciliation; do not pay again.",
+            : "The exact identifier was found, but no eligible request on this account has the same amount and receipt timing. The payment is flagged for owner reconciliation; do not pay again.",
         });
       }
 
@@ -507,6 +527,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         receiptMemo: parsedPayment.purpose,
         receiptDate,
         allowMissingMemoWithUniqueAmount,
+        allowMissingMemoWithExactIdentifierAmount,
         utr: finalUtr,
         transactionId: finalTxId,
         sender: parsedPayment.sender,

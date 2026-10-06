@@ -154,6 +154,59 @@ async function run() {
     assert.equal(uniqueResult.newBalance, 120 + uniqueQuote.amount);
     assert.equal((await db.collection("transactions").findOne({ _id: uniquePendingId }))?.status, "paid");
 
+    const exactIdentifierPendingId = new ObjectId();
+    await db.collection("transactions").insertOne({
+      _id: exactIdentifierPendingId, user_id: userId, method: "FAMPAY_UPI", amount: 50,
+      memo: "SUPIDAM1", status: "expired", created_at: new Date(Date.now() - 30 * 60_000),
+      expires_at: new Date(Date.now() - 5 * 60_000),
+    });
+    const identifierAmountInput = {
+      ...exact,
+      pendingId: exactIdentifierPendingId,
+      expectedAmount: 50,
+      receivedAmount: 50,
+      expectedMemo: "SUPIDAM1",
+      receiptMemo: undefined,
+      receiptDate: new Date(Date.now() - 20 * 60_000),
+      utr: "423456789012",
+      transactionId: "FMPIBIDAMT1",
+      allowExpiredWithinHours: 24,
+      allowMissingMemoWithExactIdentifierAmount: true,
+    };
+    const identifierAmountRace = await Promise.allSettled([
+      settleDirectUpiPayment(identifierAmountInput),
+      settleDirectUpiPayment(identifierAmountInput),
+    ]);
+    const identifierAmountSuccesses = identifierAmountRace.filter(
+      (result): result is PromiseFulfilledResult<{ newBalance: number }> => result.status === "fulfilled",
+    );
+    assert.equal(identifierAmountSuccesses.length, 1, "exact identifier and amount must credit once under concurrent retries");
+    assert.equal(identifierAmountSuccesses[0].value.newBalance, 170 + uniqueQuote.amount);
+    assert.equal((await db.collection("transactions").findOne({ _id: exactIdentifierPendingId }))?.status, "paid");
+    assert.equal(await db.collection("processed_transactions").countDocuments({ utr: "423456789012" }), 1);
+
+    const receiptPredatingRequestId = new ObjectId();
+    await db.collection("transactions").insertOne({
+      _id: receiptPredatingRequestId, user_id: userId, method: "FAMPAY_UPI", amount: 50,
+      memo: "SUPIDAM2", status: "pending", created_at: new Date(),
+      expires_at: new Date(Date.now() + 30 * 60_000),
+    });
+    await assert.rejects(() => settleDirectUpiPayment({
+      ...exact,
+      pendingId: receiptPredatingRequestId,
+      expectedAmount: 50,
+      receivedAmount: 50,
+      expectedMemo: "SUPIDAM2",
+      receiptMemo: undefined,
+      receiptDate: new Date(Date.now() - 20 * 60_000),
+      utr: "423456789013",
+      transactionId: "FMPIBIDAMT2",
+      allowExpiredWithinHours: 24,
+      allowMissingMemoWithExactIdentifierAmount: true,
+    }), (error: any) => error?.code === "RECEIPT_MISMATCH");
+    assert.equal((await db.collection("transactions").findOne({ _id: receiptPredatingRequestId }))?.status, "pending");
+    assert.equal(await db.collection("processed_transactions").countDocuments({ utr: "423456789013" }), 0);
+
     await assert.rejects(() => settleDirectUpiPayment({
       ...exact, pendingId, userId: otherUserId,
       utr: "123456789015", transactionId: "FMPIBWRONG1",

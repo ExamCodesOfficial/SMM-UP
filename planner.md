@@ -232,20 +232,20 @@ flowchart LR
 
 - Create a unique expiring pending transaction before displaying payment instructions.
 - Reserve one globally unique payable paise amount for the entire late-verification window; credit that full amount, with no fee.
-- Retain exact pending transaction ID in browser state, while allowing exact UTR recovery of the original request after browser state is lost.
+- Retain exact pending transaction ID in browser state, while allowing exact identifier recovery of the original request after browser state is lost.
 - Poll status by exact ID, not merely amount.
 - Manual identifier submission includes exact pending ID and memo.
-- Receipt SUP memo is primary; if FamApp removes it, automatic credit requires the still-valid globally unique reservation owned by the account.
+- Receipt SUP memo is primary; if FamApp removes it, use the live unique reservation first, then allow exact replay-protected UTR/reference/FMPIB plus amount/time to bind an eligible request owned by the account.
 - Compare amount as integer paise.
 - Enforce unique memo, UTR, transaction ID and settlement key.
 - Use MongoDB transactions for claim and wallet settlement.
 - Website manual verification connects to the trusted mailbox directly and never depends on Railway bot/worker availability.
 - Decode plain-text, quoted-printable and base64 MIME receipts; fall back from Gmail BODY search to bounded trusted-sender scans of Inbox and provider-declared All Mail, never Spam/Trash.
-- Return an exact UTR/TxID candidate before amount filtering so a real mismatch is reported rather than hidden as no receipt.
+- Return an exact UTR/reference/FMPIB candidate before amount filtering so a real mismatch is reported rather than hidden as no receipt.
 - Distinguish mailbox unavailability, no trusted alert, unreadable trusted format, missing exact identifier and amount mismatch.
 - Allow only website manual verification to recover a recently expired request inside the bounded 1–72-hour window after all exact evidence checks.
 - Worker and website verifier retain equivalent exactness, sender allowlisting and idempotency rules.
-- Reconciliation records missing/mismatched evidence; legacy receipts without SUP or unique reservation require exact owner-confirmed Telegram `/settleupi` settlement.
+- Reconciliation records missing/mismatched evidence; receipts that cannot resolve by SUP, reservation or exact identifier-plus-amount/time require owner-confirmed Telegram `/settleupi` settlement.
 
 ### Razorpay
 

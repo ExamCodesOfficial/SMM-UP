@@ -54,7 +54,7 @@ flowchart LR
   V -->|supplier API| P[Upstream SMM provider]
   V -->|Orders / verify / webhook| R[Razorpay]
   V -->|transactional email| E[Resend]
-  V -->|manual exact UTR/TxID receipt lookup| I[Payment mailbox]
+  V -->|manual exact UTR/reference/FMPIB receipt lookup| I[Payment mailbox]
   V -->|alerts only| T[Telegram Bot API]
   M --> W[Railway owner bot + IMAP worker]
   W -->|long polling| T
@@ -369,7 +369,7 @@ stateDiagram-v2
 - **WEB-0138** — Route `/add-funds` provides exact pending transaction identifier retention.
 - **WEB-0139** — Route `/add-funds` provides UPI deep link and copy controls.
 - **WEB-0140** — Route `/add-funds` provides automatic status polling.
-- **WEB-0141** — Route `/add-funds` provides manual UTR/transaction-ID verification.
+- **WEB-0141** — Route `/add-funds` provides manual UTR/reference/FMPIB verification.
 - **WEB-0142** — Route `/add-funds` provides expired-request handling.
 - **WEB-0143** — Route `/add-funds` provides confetti and balance refresh on success.
 - **WEB-0144** — Route `/add-funds` provides Razorpay test/live configuration.
@@ -1018,7 +1018,7 @@ stateDiagram-v2
 ### Endpoint: POST /api/payments/verify-identifier
 
 - **WEB-0519** — `POST /api/payments/verify-identifier` access boundary: Normal session.
-- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Independently of Railway, Vercel searches bounded exact-sender Inbox/All-Mail receipts by exact UTR/TxID across supported MIME/reference forms. SUP binds normally; if FamApp removed it, only an unexpired globally unique payable-paise reservation owned by the account may bind. The original request can be recovered after browser-state loss; distinct diagnostics remain reconciliation-only and exact settlement credits once.
+- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Independently of Railway, Vercel searches bounded exact-sender Inbox/All-Mail receipts by exact UTR, reference number or FMPIB ID. SUP or a live unique reservation binds first; otherwise the exact replay-protected identifier plus receipt amount/time may bind an eligible request owned by the account. Browser-state loss is recoverable, distinct diagnostics remain reconciliation-only and settlement credits once.
 - **WEB-0521** — `POST /api/payments/verify-identifier` is covered by the central no-store/noindex API response policy.
 - **WEB-0522** — `POST /api/payments/verify-identifier` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1295,7 +1295,7 @@ stateDiagram-v2
 - **WEB-0668** — API-key pause preserves the secret; archive and reissue revoke versions.
 - **WEB-0669** — Owner-required reissue cannot resume until secure website rotation completes.
 - **WEB-0670** — Wallet charges/refunds/credits use settlement keys and replica-set transactions.
-- **WEB-0671** — Direct UPI requires exact user, pending ID, UTR/TxID, receipt time and either SUP or an unexpired globally unique payable-paise reservation; only exact website verification may recover recently expired/original state inside the bounded window.
+- **WEB-0671** — Direct UPI requires exact user, pending ID, UTR/reference/FMPIB, amount and receipt time. SUP and live reservations are preferred; exact identifier-plus-amount/time may recover eligible legacy or expired account-owned state inside the bounded window.
 - **WEB-0672** — UTR, transaction ID and memo have independent sparse uniqueness constraints.
 - **WEB-0673** — Razorpay checkout orders are server-created in paise and signatures are server verified.
 - **WEB-0674** — Razorpay webhooks require raw-body HMAC and provider event deduplication.
@@ -1351,7 +1351,7 @@ stateDiagram-v2
 - **WEB-0718** — npm run test:recovery: temporary credential and session concurrency.
 - **WEB-0719** — npm run test:support-access: actor/subject, read-only and one-time exchange.
 - **WEB-0720** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
-- **WEB-0721** — npm run test:direct-upi/test:imap-receipts plus admin tests cover concurrent unique-paise allocation, missing-SUP fallback, exact/late settlement, MIME diagnostics and owner reconciliation replay denial.
+- **WEB-0721** — npm run test:direct-upi/test:imap-receipts plus admin tests cover concurrent unique-paise allocation, missing-SUP identifier-plus-amount fallback, exact/late settlement, MIME diagnostics and owner reconciliation replay denial.
 - **WEB-0722** — npm run test:email-delivery: hash-only token and provider payload.
 - **WEB-0723** — npm run test:email-auth/session-bootstrap/session-redeploy: immediate registration, zero signup delivery, recovery/action replay, transient bootstrap retry and opaque cross-instance session persistence.
 - **WEB-0724** — npm run test:core-indexes: critical index availability/options.
@@ -1398,7 +1398,7 @@ stateDiagram-v2
 | `POST /api/orders/cancel` | Normal session | Validates ownership/cancel policy; forwards request and supports safe refund accounting. |
 | `POST /api/payments/create-order` | Normal session | Reserves a globally unique payable-paise quote, then creates the exact pending request/memo/QR; the full quote is wallet credit, not a fee. |
 | `GET /api/payments/check-status` | Authenticated normal session | Exact owned pending-ID polling; returns paid/pending/expired state and triggers bounded delayed alert. |
-| `POST /api/payments/verify-identifier` | Normal session | Exact UTR/TxID mailbox lookup recovers the original owned request; SUP is primary and missing SUP may fall back only to its unexpired global payable-paise reservation. Distinct diagnostics remain fail-closed; exact settlement credits once. |
+| `POST /api/payments/verify-identifier` | Normal session | Accepts one exact UTR, bank/UPI reference or FMPIB ID. Trusted receipt amount/time must match an eligible account-owned request; SUP and live reservations bind first, and replay-protected legacy fallback credits once. |
 | `POST /api/payments/verify-utr` | Normal session | Compatibility alias for exact identifier verification with identical safeguards. |
 | `GET /api/payments/history` | Authenticated/read-only support | Returns bounded owned transaction history. |
 | `GET /api/razorpay/config` | Authenticated/read-only support | Returns safe enabled/mode/test-credit configuration without provider secrets. |
@@ -1491,7 +1491,7 @@ erDiagram
 | `server/lib/auth.ts` | Password policy, cookies, sessions, Support Access authorization |
 | `server/lib/db.ts` | Mongo client, critical indexes and transaction client access |
 | `server/lib/directUpiQuote.ts` | Globally unique payable-paise reservation allocation and expiry |
-| `server/lib/directUpiSettlement.ts` | Exact transaction-safe Direct UPI settlement with fail-closed missing-SUP reservation fallback |
+| `server/lib/directUpiSettlement.ts` | Exact transaction-safe Direct UPI settlement with reservation-first and identifier-plus-amount/time missing-SUP fallback |
 | `server/lib/email.ts` | Resend adapter and hash-only action-token issuance |
 | `server/lib/http.ts` | Shared Vercel request/response types |
 | `server/lib/imap.ts` | Bounded Inbox/All-Mail payment parser/search with exact identifier matching and safe lookup diagnostics |
@@ -1616,7 +1616,7 @@ erDiagram
 | `npm run test:recovery` | temporary credential and session concurrency |
 | `npm run test:support-access` | actor/subject, read-only and one-time exchange |
 | `npm run test:rate-limit` | shared limiter concurrency and raw-key exclusion |
-| `npm run test:direct-upi` | concurrent unique-paise reservation, exact/missing-SUP/held/expired/late settlement and replay denial |
+| `npm run test:direct-upi` | concurrent unique-paise reservation, exact identifier-plus-amount/missing-SUP/held/expired/late settlement and replay denial |
 | `npm run test:imap-receipts` | plain/quoted-printable/base64 MIME, current FamApp wording, alternate references, exact identifier matching and safe failure classification |
 | `npm run test:email-delivery` | hash-only token and provider payload |
 | `npm run test:email-auth` | immediate signup/session, zero signup delivery, legacy pending login, reset/email-change/replay |

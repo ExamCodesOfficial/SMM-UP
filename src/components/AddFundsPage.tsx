@@ -907,7 +907,7 @@ export default function AddFundsPage({
                   <span>Taking longer than 60 seconds?</span>
                 </div>
                 <p className="text-[11px] text-zinc-300 leading-relaxed">
-                  Bank notifications can be delayed. Enter your 12-digit UTR or FamPay Transaction ID below for receipt verification, or contact support if the bank record is not available yet.
+                  Bank notifications can be delayed. Enter any one exact receipt identifier—UTR, bank/UPI reference number, or FMPIB transaction ID—or contact support if the bank record is not available yet.
                 </p>
                 <a
                   href={pathFor("support")}
@@ -923,7 +923,7 @@ export default function AddFundsPage({
             <form onSubmit={handleManualVerify} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-2">
-                  Or Enter 12-Digit UTR / FamPay Transaction ID
+                  Enter UTR / Reference No. / FMPIB ID
                 </label>
                 <input
                   type="text"
@@ -935,7 +935,7 @@ export default function AddFundsPage({
                   className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500 tracking-wider text-center font-semibold uppercase"
                 />
                 <p className="text-[11px] text-zinc-400 mt-2 text-center leading-relaxed">
-                  The website checks the trusted receipt using the exact identifier, time and either its SUP reference or server-reserved unique paise amount. Telegram bot availability is not required.
+                  The website checks the trusted receipt using the exact identifier, amount and time, then binds it to an eligible request owned by this account. Telegram bot availability is not required.
                 </p>
               </div>
 

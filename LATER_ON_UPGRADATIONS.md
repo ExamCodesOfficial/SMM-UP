@@ -183,10 +183,10 @@ Never translate a GitHub push into a production-complete claim. GitHub, Vercel, 
 - [x] Full quoted payment credited without fee; configured min/max remains enforced.
 - [x] Exact user/method/status/expiry checks.
 - [x] Exact integer-paise amount check.
-- [x] Exact receipt SUP check with fail-closed unique-reservation fallback when FamApp removes the note.
-- [x] Exact UTR recovery of the original pending request after refresh/redeployment.
-- [x] Owner-confirmed Telegram `/settleupi` recovery for legacy ambiguous receipts.
-- [x] Website-side UTR/TxID mailbox verification independent of Railway bot/worker uptime.
+- [x] Exact receipt SUP check with unique-reservation fallback when FamApp removes the note.
+- [x] Exact UTR/reference/FMPIB plus amount/time recovery of an eligible account-owned request after refresh/redeployment, including legacy requests without reservations.
+- [x] Owner-confirmed Telegram `/settleupi` recovery for receipts that remain unresolved.
+- [x] Website-side UTR/reference/FMPIB mailbox verification independent of Railway bot/worker uptime.
 - [x] Plain/quoted-printable/base64 MIME receipt decoding with bounded Inbox/All-Mail Gmail-search fallback.
 - [x] Current FamApp wording and alternate UTR/RRN/reference-label parsing without inventing a generic purpose into an SUP reference.
 - [x] Distinct mailbox-outage/no-alert/unreadable-format/missing-ID/amount-mismatch responses and bounded recently-expired manual recovery.
@@ -230,7 +230,7 @@ The post-implementation suite has passed locally:
 - [x] recovery replica-set test;
 - [x] Support Access replica-set test;
 - [x] persistent limiter test;
-- [x] exact Direct UPI, concurrent unique-paise reservation, missing-SUP fallback and bounded late-manual recovery test;
+- [x] exact Direct UPI, concurrent unique-paise reservation, identifier-plus-amount missing-SUP fallback and bounded late-manual recovery test;
 - [x] receipt MIME/current-wording/alternate-reference parsing and failure-classification test;
 - [x] email-delivery test;
 - [x] email-auth lifecycle test;
