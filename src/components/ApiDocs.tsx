@@ -79,6 +79,9 @@ function Section({ id, title, children }: { id: string; title: string; children:
 const NAV = [
   { id: "getting-started", label: "Getting started" },
   { id: "authentication", label: "Authentication" },
+  { id: "key-lifecycle", label: "Key lifecycle" },
+  { id: "scopes-limits", label: "Scopes & limits" },
+  { id: "security-telemetry", label: "Security & activity" },
   { id: "add-order", label: "Add order" },
   { id: "order-status", label: "Order status" },
   { id: "multi-status", label: "Multiple statuses" },
@@ -136,6 +139,17 @@ export default function ApiDocs({ user }: ApiDocsProps) {
           </div>
         </div>
       </div>
+
+      <details className="lg:hidden mb-7 border border-white/10 bg-white/[0.02]">
+        <summary className="cursor-pointer px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-300">Documentation index</summary>
+        <nav className="grid grid-cols-2 gap-px border-t border-white/10 bg-white/10">
+          {NAV.map((item) => (
+            <a key={item.id} href={`#${item.id}`} className="bg-[#080808] px-3 py-2.5 text-[11px] text-zinc-400 hover:text-white">
+              {item.label}
+            </a>
+          ))}
+        </nav>
+      </details>
 
       <div className="lg:grid lg:grid-cols-[220px_1fr] lg:gap-10">
         {/* Sticky sidebar */}
@@ -207,6 +221,90 @@ export default function ApiDocs({ user }: ApiDocsProps) {
                 Signed in — manage named keys, limits and expiration on the Account page.
               </p>
             )}
+          </Section>
+
+          <Section id="key-lifecycle" title="Named-key lifecycle">
+            <p>
+              API access uses named credential identities rather than one permanent account-wide secret. Each key has a stable public identity,
+              an independently managed secret version, scopes, spend limits, optional expiry and its own activity history.
+            </p>
+            <div className="overflow-x-auto border border-white/10 my-4">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-black/80 border-b border-white/10 text-zinc-400 uppercase tracking-wider">
+                  <tr><th className="px-3.5 py-2.5">Operation</th><th className="px-3.5 py-2.5">Effect</th><th className="px-3.5 py-2.5">Secret behavior</th></tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.06] text-zinc-300">
+                  {[
+                    ["Create", "Creates a separately named integration identity. The current account page shows the configured creation fee before confirmation.", "The complete secret is returned once; only its hash and masked hint persist."],
+                    ["Pause", "Temporarily blocks authentication without deleting history or configuration.", "The current secret is preserved and works again after resume."],
+                    ["Resume", "Returns a paused key to active status if no secure reissue is pending.", "No new secret is generated."],
+                    ["Rotate / reissue", "Free replacement for a compromised, lost or owner-flagged secret.", "The old version is permanently revoked and can never be restored."],
+                    ["Archive", "Permanently disables the named identity after exact-name confirmation. There is no fee refund.", "All versions stay revoked; operational history remains attributable."],
+                  ].map(([operation, effect, secret]) => (
+                    <tr key={operation}><td className="px-3.5 py-2.5 font-mono text-white">{operation}</td><td className="px-3.5 py-2.5">{effect}</td><td className="px-3.5 py-2.5">{secret}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-4 border border-white/15 bg-white/[0.03] text-xs">
+              <strong className="text-white">One-time reveal:</strong> if you close the reveal without saving a new secret, rotate the key again.
+              SMM UP cannot retrieve an earlier raw secret because it is never stored.
+            </div>
+          </Section>
+
+          <Section id="scopes-limits" title="Scopes, spend limits & expiry">
+            <p>Grant only what an integration needs. A request is rejected before supplier or wallet mutation when its key lacks the required scope.</p>
+            <div className="overflow-x-auto border border-white/10 my-4">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-black/80 border-b border-white/10 text-zinc-400 uppercase tracking-wider">
+                  <tr><th className="px-3.5 py-2.5">Scope</th><th className="px-3.5 py-2.5">Permitted actions</th></tr>
+                </thead>
+                <tbody className="divide-y divide-white/[0.06] text-zinc-300">
+                  {[
+                    ["services:read", "services"],
+                    ["balance:read", "balance"],
+                    ["orders:create", "add; may spend wallet funds"],
+                    ["orders:read", "status and multiple-status lookup"],
+                    ["orders:cancel", "cancel eligible orders"],
+                    ["orders:refill", "refill and refill_status"],
+                  ].map(([scope, actions]) => (
+                    <tr key={scope}><td className="px-3.5 py-2.5 font-mono text-white">{scope}</td><td className="px-3.5 py-2.5">{actions}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ul className="list-disc pl-5 space-y-2 text-xs text-zinc-400">
+              <li><strong className="text-zinc-200">Full Access</strong> synchronizes all scopes that exist today; it is not a wildcard for future permissions.</li>
+              <li><strong className="text-zinc-200">Daily and monthly limits</strong> are optional INR spending ceilings enforced atomically in IST buckets.</li>
+              <li>Concurrent order attempts cannot jointly exceed the same key limit; a rejected/rolled-back order does not consume settled spend.</li>
+              <li><strong className="text-zinc-200">Expiry</strong> is optional. “Never” leaves the key active until it is paused, rotated, archived or owner-disabled.</li>
+              <li>Account-level ordering holds and payment/security controls override individual key status.</li>
+            </ul>
+          </Section>
+
+          <Section id="security-telemetry" title="Security, throttling & activity">
+            <div className="grid md:grid-cols-2 gap-3 my-4">
+              {[
+                ["Server-side only", "Never embed a key in browser JavaScript, mobile binaries, public repositories, screenshots or client-visible logs."],
+                ["Shared throttling", "Each key is limited to 120 requests per 60-second fixed window through a shared persistent limiter across server instances."],
+                ["Complete attribution", "Orders, targets, charges, refunds and key version remain attributed to the named key that performed the operation."],
+                ["Bounded telemetry", "Detailed request telemetry is retained for 90 days; lifetime financial/order attribution remains on durable operational records."],
+              ].map(([title, detail]) => (
+                <div key={title} className="p-4 border border-white/10 bg-white/[0.02]"><h3 className="text-xs font-semibold text-white mb-1">{title}</h3><p className="text-xs text-zinc-500">{detail}</p></div>
+              ))}
+            </div>
+            <p className="text-xs text-zinc-500">
+              Activity records may include action, result, HTTP status, latency, service ID, order ID, amount and timestamps. They exclude raw API
+              secrets, passwords, authorization headers, cookies, OTPs and banking credentials. Use the Account page to filter activity and view lifetime reports.
+            </p>
+            <CodeBlock
+              id="auth-header"
+              lang="Recommended server-side header"
+              code={`curl -X POST ${BASE} \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/x-www-form-urlencoded" \\
+  --data "action=balance"`}
+            />
           </Section>
 
           <Section id="add-order" title="Add order">
@@ -391,10 +489,13 @@ export default function ApiDocs({ user }: ApiDocsProps) {
                 <tbody className="divide-y divide-white/[0.06]">
                   {[
                     ["400", "Missing/invalid parameters, insufficient balance, or quantity outside min/max"],
-                    ["401", "Invalid or missing API key"],
-                    ["404", "Order/service not found, or not owned by your key"],
-                    ["429", "Rate limit hit — 120 requests per 60 seconds per key. Back off and retry"],
-                    ["500", "Something broke on our side — retry shortly; contact support if it persists"],
+                    ["401", "Missing, invalid, expired, paused, archived or revoked API credential"],
+                    ["403", "Required scope is absent, ordering is held, or another account security control blocks the action"],
+                    ["404", "Order/service not found, or the resource is not owned by this account/key context"],
+                    ["409", "A concurrent, idempotency or lifecycle conflict prevented the operation"],
+                    ["429", "Shared rate limit hit — 120 requests per 60 seconds per key. Back off and retry"],
+                    ["500", "The request failed safely on our side — retry with backoff; contact support if it persists"],
+                    ["503", "A required internal dependency is unavailable or securely misconfigured; retry later"],
                   ].map(([c, d]) => (
                     <tr key={c} className="hover:bg-white/[0.02]">
                       <td className="px-3.5 py-2.5 font-mono text-white">{c}</td>

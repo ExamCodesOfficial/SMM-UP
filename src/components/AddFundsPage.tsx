@@ -96,6 +96,7 @@ export default function AddFundsPage({
     qrUrl: string;
     upiUrl: string;
     memo: string;
+    transactionId: string;
     amount: number;
     upiVpa: string;
   } | null>(null);
@@ -147,7 +148,7 @@ export default function AddFundsPage({
       // 2. Poll status endpoint every 3.5 seconds
       const pollStatus = async () => {
         try {
-          const res = await fetch(`/api/payments/check-status?memo=${encodeURIComponent(qrData.memo)}`);
+          const res = await fetch(`/api/payments/check-status?transactionId=${encodeURIComponent(qrData.transactionId)}`);
           const data = await res.json();
           if (res.ok && data.status === "paid") {
             stopPolling();
@@ -157,6 +158,9 @@ export default function AddFundsPage({
               onDepositSuccess(data.newBalance);
             }
             loadHistory();
+          } else if (res.ok && data.status === "expired") {
+            stopPolling();
+            setVerifyError(data.message || "This payment request expired. Generate a fresh QR.");
           }
         } catch {
           // Silent catch during periodic polling
@@ -415,6 +419,8 @@ export default function AddFundsPage({
         body: JSON.stringify({
           identifier: cleanInput,
           amount: qrData ? qrData.amount : amount,
+          transactionId: qrData?.transactionId,
+          memo: qrData?.memo,
         }),
       });
 

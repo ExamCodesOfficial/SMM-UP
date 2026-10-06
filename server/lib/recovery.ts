@@ -125,6 +125,9 @@ export async function tryTemporaryPasswordLogin(
   suppliedPassword: string,
 ): Promise<{ accepted: boolean; expiresAt?: Date; usesRemaining?: number }> {
   await ensureSessionIndexes();
+  if (user.email_verification_required === true && !user.email_verified_at) {
+    return { accepted: false };
+  }
   const now = new Date();
   const temporary: any = await db.collection("temporary_passwords").findOne({
     user_id: user._id,

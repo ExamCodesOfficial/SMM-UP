@@ -188,7 +188,16 @@ export default function LandingHero({
         return;
       }
 
-      setAuthSuccess(authMode === "login" ? "Signed in. Redirecting…" : "Account created. Redirecting…");
+      if (data.verificationRequired) {
+        setAuthSuccess(data.message || "Check your email and verify the account before signing in.");
+        return;
+      }
+      if (data.requiresPasswordChange) {
+        setAuthSuccess("Temporary credential accepted. Opening password change…");
+        setTimeout(() => { window.location.href = "/account/password-change"; }, 450);
+        return;
+      }
+      setAuthSuccess("Signed in. Redirecting…");
       setTimeout(() => {
         window.location.reload();
       }, 550);

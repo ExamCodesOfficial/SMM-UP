@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { getDb } from "../../server/lib/db.js";
 import { checkOrderStatusMulti } from "../../server/lib/smm.js";
@@ -28,13 +29,16 @@ function normaliseStatus(raw: string | undefined): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
   const expected = process.env.CRON_SECRET;
-  if (expected) {
-    const got = String(req.headers.authorization || "");
-    if (got !== `Bearer ${expected}`) {
-      return res.status(401).json({ error: "Unauthorised" });
-    }
+  if (!expected || expected.length < 32) {
+    console.error("status-sync cron refused: CRON_SECRET is missing or too short");
+    return res.status(503).json({ error: "Internal authentication is not configured" });
   }
+  const got = String(req.headers.authorization || "");
+  const wanted = `Bearer ${expected}`;
+  const valid = got.length === wanted.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(wanted));
+  if (!valid) return res.status(401).json({ error: "Unauthorised" });
 
   try {
     const db = await getDb();

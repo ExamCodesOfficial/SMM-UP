@@ -49,7 +49,31 @@ function escapeHtml(value: unknown): string {
     .replace(/"/g, "&quot;");
 }
 
-const pendingCustomPasswords = new Map<string, { value: string; expiresAt: number }>();
+function adminStateEncryptionKey(): Buffer {
+  const material = process.env.ADMIN_BOT_STATE_SECRET || BOT_TOKEN;
+  if (!material || material.length < 24) throw new Error("ADMIN_BOT_STATE_SECRET or a strong bot token is required.");
+  return crypto.createHash("sha256").update(`smm-up-admin-state:${material}`).digest();
+}
+
+function encryptAdminStateSecret(value: string) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", adminStateEncryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return {
+    ciphertext: ciphertext.toString("base64"),
+    iv: iv.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+  };
+}
+
+function decryptAdminStateSecret(value: any): string {
+  const decipher = crypto.createDecipheriv("aes-256-gcm", adminStateEncryptionKey(), Buffer.from(value.iv, "base64"));
+  decipher.setAuthTag(Buffer.from(value.tag, "base64"));
+  return Buffer.concat([
+    decipher.update(Buffer.from(value.ciphertext, "base64")),
+    decipher.final(),
+  ]).toString("utf8");
+}
 
 function temporaryPasswordTtlMinutes(): number {
   const parsed = Number.parseInt(String(process.env.TEMP_PASSWORD_TTL_MINUTES || "180"), 10);
@@ -71,6 +95,272 @@ function generateTemporaryPassword(): string {
 
 function hashActionToken(raw: string): string {
   return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+const ADMIN_ACTION_TTL_MS = 5 * 60_000;
+
+export async function ensureAdminControlIndexes(database: Db) {
+  await Promise.all([
+    database.collection("admin_pending_actions").createIndex({ token_hash: 1 }, { unique: true }),
+    database.collection("admin_pending_actions").createIndex({ expires_at: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60 }),
+    database.collection("admin_pending_actions").createIndex({ actor_telegram_id: 1, created_at: -1 }),
+    database.collection("admin_action_tokens").createIndex({ token_hash: 1 }, { unique: true }),
+    database.collection("admin_action_tokens").createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
+    database.collection("admin_audit").createIndex({ created_at: -1 }),
+    database.collection("admin_audit").createIndex({ subject_user_id: 1, created_at: -1 }),
+    database.collection("admin_notes").createIndex({ user_id: 1, created_at: -1 }),
+    database.collection("security_events").createIndex({ user_id: 1, created_at: -1 }),
+    database.collection("payment_reconciliation").createIndex(
+      { memo: 1, status: 1, reason: 1 },
+      { unique: true, partialFilterExpression: { status: "open" } },
+    ),
+    database.collection("processed_transactions").createIndex({ utr: 1 }, { unique: true, sparse: true }),
+    database.collection("processed_transactions").createIndex({ transaction_id: 1 }, { unique: true, sparse: true }),
+    database.collection("processed_transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
+    database.collection("transactions").createIndex({ memo: 1 }, { unique: true, sparse: true }),
+    database.collection("transactions").createIndex(
+      { direct_upi_settlement_key: 1 },
+      { unique: true, partialFilterExpression: { direct_upi_settlement_key: { $type: "string" } } },
+    ),
+    database.collection("wallet_ledger").createIndex(
+      { settlement_key: 1 },
+      { unique: true, partialFilterExpression: { settlement_key: { $type: "string" } } },
+    ),
+  ]);
+}
+
+async function queueAdminAction(ctx: any, type: string, payload: Record<string, any>, summary: string) {
+  const database = await getDatabase();
+  await ensureAdminControlIndexes(database);
+  const actorTelegramId = String(ctx.from?.id || "");
+  const recent = await database.collection("admin_pending_actions").countDocuments({
+    actor_telegram_id: actorTelegramId,
+    created_at: { $gt: new Date(Date.now() - ADMIN_ACTION_TTL_MS) },
+  });
+  if (recent >= 20) throw new Error("Too many pending administrative actions. Wait five minutes.");
+  const raw = crypto.randomBytes(18).toString("base64url");
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ADMIN_ACTION_TTL_MS);
+  await database.collection("admin_pending_actions").insertOne({
+    token_hash: hashActionToken(raw),
+    type,
+    payload,
+    summary,
+    status: "pending",
+    actor_telegram_id: actorTelegramId,
+    actor_username: ctx.from?.username || null,
+    chat_id: ctx.chat?.id || null,
+    created_at: now,
+    expires_at: expiresAt,
+    consumed_at: null,
+    cancelled_at: null,
+  });
+  await ctx.reply(
+    `${summary}\n\n⏳ Confirm by <code>${expiresAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST</code>.\n<i>The action is rebuilt from current database state when confirmed.</i>`,
+    {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [[
+          { text: "✅ Confirm", callback_data: `adm-ok:${raw}` },
+          { text: "Cancel", callback_data: `adm-no:${raw}` },
+        ]],
+      },
+    },
+  );
+}
+
+function parseReasonedCommand(text: string, command: string) {
+  const input = text.replace(new RegExp(`^\\/${command}(?:@\\w+)?\\s*`, "i"), "").trim();
+  const separator = input.indexOf("|");
+  if (separator < 0) return null;
+  const left = input.slice(0, separator).trim().split(/\s+/);
+  const reason = input.slice(separator + 1).trim();
+  if (reason.length < 5 || reason.length > 500) return null;
+  return { left, reason };
+}
+
+async function appendAdminAudit(database: Db, session: any, action: any, outcome: string, details: Record<string, any> = {}) {
+  await database.collection("admin_audit").insertOne({
+    action_id: action._id,
+    action_type: action.type,
+    actor_telegram_id: action.actor_telegram_id,
+    actor_username: action.actor_username || null,
+    subject_user_id: action.payload?.user_id && ObjectId.isValid(action.payload.user_id)
+      ? new ObjectId(action.payload.user_id)
+      : null,
+    outcome,
+    details,
+    created_at: new Date(),
+  }, { session });
+}
+
+export async function executeConfirmedAdminAction(database: Db, action: any, session: any): Promise<string> {
+  const now = new Date();
+  const payload = action.payload || {};
+  if (["wallet_credit", "wallet_debit"].includes(action.type)) {
+    const userId = new ObjectId(String(payload.user_id));
+    const amountPaise = Number(payload.amount_paise);
+    if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0) throw new Error("INVALID_AMOUNT");
+    const amount = amountPaise / 100;
+    const user: any = await database.collection("users").findOne({ _id: userId }, { session });
+    if (!user) throw new Error("USER_NOT_FOUND");
+    const beforePaise = Math.round(Number(user.balance || 0) * 100);
+    if (action.type === "wallet_debit" && beforePaise < amountPaise) throw new Error("INSUFFICIENT_BALANCE");
+    const delta = action.type === "wallet_credit" ? amount : -amount;
+    const updated: any = await database.collection("users").findOneAndUpdate(
+      { _id: userId, ...(delta < 0 ? { balance: { $gte: amount } } : {}) },
+      { $inc: { balance: delta }, $set: { updated_at: now } },
+      { returnDocument: "after", session },
+    );
+    if (!updated) throw new Error("BALANCE_CHANGED");
+    const settlementKey = `admin_wallet:${action._id.toString()}`;
+    await database.collection("wallet_ledger").insertOne({
+      settlement_key: settlementKey,
+      type: action.type,
+      user_id: userId,
+      amount: delta,
+      amount_paise: action.type === "wallet_credit" ? amountPaise : -amountPaise,
+      currency: "INR",
+      source: "telegram_bot",
+      reason: payload.reason,
+      actor_telegram_id: action.actor_telegram_id,
+      before_balance_paise: beforePaise,
+      after_balance_paise: Math.round(Number(updated.balance || 0) * 100),
+      created_at: now,
+    }, { session });
+    await database.collection("transactions").insertOne({
+      user_id: userId,
+      user_email: user.email,
+      amount: delta,
+      type: action.type === "wallet_credit" ? "manual_credit" : "manual_debit",
+      status: "completed",
+      source: "telegram_bot",
+      reason: payload.reason,
+      wallet_settlement_key: settlementKey,
+      actor_telegram_id: action.actor_telegram_id,
+      created_at: now,
+    }, { session });
+    await appendAdminAudit(database, session, action, "completed", {
+      amount_paise: amountPaise,
+      before_balance_paise: beforePaise,
+      after_balance_paise: Math.round(Number(updated.balance || 0) * 100),
+      reason: payload.reason,
+    });
+    return `${action.type === "wallet_credit" ? "✅ Credited" : "🔻 Debited"} <b>₹${amount.toFixed(2)}</b> for <code>${escapeHtml(user.email)}</code>. New balance: <b>₹${Number(updated.balance || 0).toFixed(2)}</b>.`;
+  }
+
+  if (action.type === "order_refund") {
+    const orderId = new ObjectId(String(payload.order_id));
+    const order: any = await database.collection("orders").findOne({ _id: orderId }, { session });
+    if (!order) throw new Error("ORDER_NOT_FOUND");
+    if (order.refund_status === "refunded") throw new Error("ALREADY_REFUNDED");
+    const refundAmount = Number(order.charge || 0);
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0) throw new Error("INVALID_REFUND_AMOUNT");
+    const refundPaise = Math.round(refundAmount * 100);
+    const settlementKey = `order_refund:${order._id.toString()}`;
+    await database.collection("wallet_ledger").insertOne({
+      settlement_key: settlementKey,
+      type: "api_order_refund",
+      user_id: order.user_id,
+      order_id: order._id,
+      api_key_id: order.api_key_id || null,
+      api_key_version: order.api_key_version || null,
+      amount: refundAmount,
+      amount_paise: refundPaise,
+      currency: "INR",
+      source: "telegram_bot",
+      reason: payload.reason,
+      actor_telegram_id: action.actor_telegram_id,
+      created_at: now,
+    }, { session });
+    const changed = await database.collection("orders").updateOne(
+      { _id: order._id, refund_status: { $ne: "refunded" } },
+      { $set: { status: "Refunded", refund_status: "refunded", refunded_at: now, refunded_by: action.actor_telegram_id, refund_reason: payload.reason, updated_at: now } },
+      { session },
+    );
+    if (changed.modifiedCount !== 1) throw new Error("ALREADY_REFUNDED");
+    const user: any = await database.collection("users").findOneAndUpdate(
+      { _id: order.user_id },
+      [{ $set: {
+        balance: { $add: [{ $ifNull: ["$balance", 0] }, refundAmount] },
+        total_spent: { $max: [0, { $subtract: [{ $ifNull: ["$total_spent", 0] }, refundAmount] }] },
+        total_orders: { $max: [0, { $subtract: [{ $ifNull: ["$total_orders", 0] }, 1] }] },
+        updated_at: now,
+      } }],
+      { returnDocument: "after", session },
+    );
+    if (!user) throw new Error("USER_NOT_FOUND");
+    await database.collection("transactions").insertOne({
+      user_id: order.user_id, user_email: order.user_email, amount: refundAmount,
+      type: "manual_refund", status: "completed", order_id: order._id,
+      api_key_id: order.api_key_id || null, api_key_version: order.api_key_version || null,
+      wallet_settlement_key: settlementKey, source: "telegram_bot", reason: payload.reason,
+      actor_telegram_id: action.actor_telegram_id, created_at: now,
+    }, { session });
+    await appendAdminAudit(database, session, action, "completed", { order_id: orderId, amount_paise: refundPaise, reason: payload.reason });
+    return `✅ Refunded order <code>${orderId.toString()}</code> by <b>₹${refundAmount.toFixed(2)}</b>. New balance: <b>₹${Number(user.balance || 0).toFixed(2)}</b>.`;
+  }
+
+  if (["account_lock", "account_unlock", "ordering_hold", "ordering_release", "payment_hold", "payment_release"].includes(action.type)) {
+    const userId = new ObjectId(String(payload.user_id));
+    const fieldMap: Record<string, [string, boolean]> = {
+      account_lock: ["account_locked", true], account_unlock: ["account_locked", false],
+      ordering_hold: ["ordering_hold", true], ordering_release: ["ordering_hold", false],
+      payment_hold: ["payment_hold", true], payment_release: ["payment_hold", false],
+    };
+    const [field, value] = fieldMap[action.type];
+    const update: any = { [field]: value, [`${field}_reason`]: payload.reason, [`${field}_at`]: now, updated_at: now };
+    if (!value) update[`${field}_cleared_at`] = now;
+    const user: any = await database.collection("users").findOneAndUpdate(
+      { _id: userId }, { $set: update }, { returnDocument: "after", session },
+    );
+    if (!user) throw new Error("USER_NOT_FOUND");
+    if (action.type === "account_lock") {
+      await database.collection("sessions").updateMany(
+        { $or: [{ user_id: userId }, { actor_admin_id: userId }], revoked_at: null },
+        { $set: { revoked_at: now, revoked_reason: "account_locked_by_owner" } }, { session },
+      );
+      await database.collection("restricted_sessions").updateMany(
+        { user_id: userId, invalidated_at: null },
+        { $set: { invalidated_at: now, invalidation_reason: "account_locked_by_owner" } }, { session },
+      );
+      await database.collection("users").updateOne({ _id: userId }, { $set: { sessions_revoked_before: now } }, { session });
+    }
+    await database.collection("security_events").insertOne({
+      user_id: userId, type: action.type, reason: payload.reason,
+      actor_telegram_id: action.actor_telegram_id, created_at: now,
+    }, { session });
+    await appendAdminAudit(database, session, action, "completed", { reason: payload.reason, value });
+    return `✅ <b>${action.type.replace(/_/g, " ")}</b> applied to <code>${escapeHtml(user.email)}</code>.`;
+  }
+
+  if (["api_pause", "api_resume", "api_archive", "api_reissue_required"].includes(action.type)) {
+    const keyId = new ObjectId(String(payload.key_id));
+    const key: any = await database.collection("api_keys").findOne({ _id: keyId }, { session });
+    if (!key) throw new Error("API_KEY_NOT_FOUND");
+    if (action.type === "api_resume" && key.owner_reissue_required === true) throw new Error("API_REISSUE_PENDING");
+    const nextStatus = action.type === "api_resume" ? "active" : action.type === "api_archive" ? "archived" : "paused";
+    const set: any = { status: nextStatus, updated_at: now, owner_action_reason: payload.reason };
+    if (action.type === "api_archive") {
+      set.archived_at = now; set.active_name_normalized = null;
+    }
+    if (action.type === "api_reissue_required") set.owner_reissue_required = true;
+    await database.collection("api_keys").updateOne({ _id: keyId }, { $set: set }, { session });
+    if (["api_archive", "api_reissue_required"].includes(action.type)) {
+      await database.collection("api_key_versions").updateMany(
+        { key_id: keyId, revoked_at: null },
+        { $set: { revoked_at: now, revoked_reason: action.type } }, { session },
+      );
+    }
+    await database.collection("api_key_audit").insertOne({
+      user_id: key.user_id, api_key_id: keyId, event: action.type, reason: payload.reason,
+      actor_telegram_id: action.actor_telegram_id, created_at: now,
+    }, { session });
+    await appendAdminAudit(database, session, action, "completed", { key_id: keyId, reason: payload.reason });
+    return `✅ API key <b>${escapeHtml(key.name)}</b>: ${action.type.replace("api_", "").replace(/_/g, " ")}.`;
+  }
+
+  throw new Error("UNSUPPORTED_ADMIN_ACTION");
 }
 
 function reviewModerationText(review: any, status: "approved" | "hidden"): string {
@@ -107,6 +397,73 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
+bot.action(/^adm-no:([A-Za-z0-9_-]{24})$/, async (ctx) => {
+  try {
+    const database = await getDatabase();
+    const result = await database.collection("admin_pending_actions").updateOne(
+      {
+        token_hash: hashActionToken(ctx.match[1]),
+        actor_telegram_id: String(ctx.from?.id || ""),
+        status: "pending",
+        expires_at: { $gt: new Date() },
+      },
+      { $set: { status: "cancelled", cancelled_at: new Date() } },
+    );
+    await ctx.answerCbQuery(result.modifiedCount ? "Action cancelled." : "Action already expired or consumed.");
+    await ctx.editMessageText(result.modifiedCount ? "Cancelled. No change was made." : "This action is no longer available.");
+  } catch (error: any) {
+    await ctx.answerCbQuery(`Cancel failed: ${String(error.message).slice(0, 100)}`, { show_alert: true });
+  }
+});
+
+bot.action(/^adm-ok:([A-Za-z0-9_-]{24})$/, async (ctx) => {
+  const database = await getDatabase();
+  if (!mongoClient) return ctx.answerCbQuery("Database unavailable.", { show_alert: true });
+  const mongoSession = mongoClient.startSession();
+  let resultText = "";
+  try {
+    await mongoSession.withTransaction(async () => {
+      const now = new Date();
+      const action: any = await database.collection("admin_pending_actions").findOneAndUpdate(
+        {
+          token_hash: hashActionToken(ctx.match[1]),
+          actor_telegram_id: String(ctx.from?.id || ""),
+          status: "pending",
+          expires_at: { $gt: now },
+        },
+        { $set: { status: "executing", consumed_at: now } },
+        { returnDocument: "after", session: mongoSession },
+      );
+      if (!action) throw new Error("ACTION_EXPIRED_OR_USED");
+      resultText = await executeConfirmedAdminAction(database, action, mongoSession);
+      await database.collection("admin_pending_actions").updateOne(
+        { _id: action._id, status: "executing" },
+        { $set: { status: "completed", completed_at: new Date() } },
+        { session: mongoSession },
+      );
+    });
+    await ctx.answerCbQuery("Action completed.");
+    await ctx.editMessageText(resultText, { parse_mode: "HTML" });
+  } catch (error: any) {
+    const messages: Record<string, string> = {
+      ACTION_EXPIRED_OR_USED: "This confirmation expired or was already used.",
+      USER_NOT_FOUND: "The user no longer exists.",
+      INSUFFICIENT_BALANCE: "The user no longer has enough balance.",
+      BALANCE_CHANGED: "The balance changed. Build a new confirmation.",
+      ORDER_NOT_FOUND: "The order no longer exists.",
+      ALREADY_REFUNDED: "The order was already refunded.",
+      INVALID_REFUND_AMOUNT: "The order has no refundable amount.",
+      API_KEY_NOT_FOUND: "The API key no longer exists.",
+      API_REISSUE_PENDING: "The user must securely rotate this key on the website before it can resume.",
+    };
+    const message = messages[error?.message] || "Action failed safely; no partial mutation was committed.";
+    console.error("[AdminBot] Confirmed action failed:", error);
+    await ctx.answerCbQuery(message, { show_alert: true });
+  } finally {
+    await mongoSession.endSession();
+  }
+});
+
 // ── 3. BOT COMMANDS ────────────────────────────────────────────────
 
 // /start or /help
@@ -120,10 +477,13 @@ Zero-Web-Surface Operations Engine
 🔍 <code>/user &lt;email&gt;</code> — Inspect user balance, spent, and stats
 🔐 <code>/resetpassword &lt;email&gt; auto | reason</code> — Confirm a temporary-password reset
 👁 <code>/supportaccess &lt;email&gt; | reason</code> — Create a 5-minute read-only Support Access code
-💰 <code>/credit &lt;email&gt; &lt;amount&gt; [reason]</code> — Atomically add wallet balance
-🔻 <code>/debit &lt;email&gt; &lt;amount&gt; [reason]</code> — Deduct wallet balance
+💰 <code>/credit &lt;email&gt; &lt;amount&gt; | reason</code> — Confirm an atomic wallet credit
+🔻 <code>/debit &lt;email&gt; &lt;amount&gt; | reason</code> — Confirm an atomic wallet debit
+🛡 <code>/lock</code>, <code>/orderhold</code>, <code>/paymenthold</code> — Confirm account controls
+🔑 <code>/keypause</code>, <code>/keyresume</code>, <code>/keyreissue</code>, <code>/keyarchive</code>
+📒 <code>/userorders</code>, <code>/deposits</code>, <code>/wallet</code>, <code>/events</code>, <code>/note</code>
 🚨 <code>/failed</code> — View failed orders requiring manual review
-↩️ <code>/refund &lt;orderId&gt; [reason]</code> — Manually refund debited order funds
+↩️ <code>/refund &lt;orderId&gt; | reason</code> — Confirm an atomic order refund
 ⏳ <code>/pending</code> — View recent pending QR/memo deposit requests
 📦 <code>/orders [limit]</code> — View latest provider orders
 📑 <code>/checkmemo &lt;memo&gt;</code> — Check status of a payment memo
@@ -132,7 +492,32 @@ Zero-Web-Surface Operations Engine
 
 <i>All changes execute atomically directly on MongoDB Atlas.</i>
 `;
-  await ctx.reply(helpText, { parse_mode: "HTML" });
+  await ctx.reply(helpText, {
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "📊 Overview", callback_data: "menu:overview" }, { text: "👥 Users", callback_data: "menu:users" }],
+        [{ text: "📦 Orders", callback_data: "menu:orders" }, { text: "💳 Payments", callback_data: "menu:payments" }],
+        [{ text: "🛡 Security", callback_data: "menu:security" }, { text: "⭐ Reviews", callback_data: "menu:reviews" }],
+        [{ text: "✖ Close", callback_data: "menu:close" }],
+      ],
+    },
+  });
+});
+
+bot.action(/^menu:(overview|users|orders|payments|security|reviews|close)$/, async (ctx) => {
+  const section = ctx.match[1];
+  await ctx.answerCbQuery();
+  if (section === "close") return ctx.deleteMessage().catch(() => {});
+  const text: Record<string, string> = {
+    overview: "📊 Use <code>/stats</code> for live platform telemetry.",
+    users: "👥 Use <code>/user user@example.com</code>, then use the inline profile controls.",
+    orders: "📦 Use <code>/orders</code>, <code>/failed</code> or <code>/userorders user@example.com</code>.",
+    payments: "💳 Use <code>/pending</code>, <code>/checkmemo MEMO</code>, <code>/deposits user@example.com</code> or <code>/wallet user@example.com</code>.",
+    security: "🛡 Use <code>/events user@example.com</code>. Every sensitive mutation requires a five-minute one-time confirmation.",
+    reviews: "⭐ Use <code>/reviews</code> for inline hide/show moderation.",
+  };
+  return ctx.reply(text[section], { parse_mode: "HTML" });
 });
 
 // /stats
@@ -220,10 +605,17 @@ bot.action(/^review-toggle:([a-f0-9]{24})$/, async (ctx) => {
     }
 
     const nextStatus: "approved" | "hidden" = review.status === "hidden" ? "approved" : "hidden";
-    await database.collection("reviews").updateOne(
-      { _id: id },
-      { $set: { status: nextStatus, moderated_at: new Date(), moderated_via: "telegram_bot" } }
-    );
+    const moderatedAt = new Date();
+    await Promise.all([
+      database.collection("reviews").updateOne(
+        { _id: id },
+        { $set: { status: nextStatus, moderated_at: moderatedAt, moderated_via: "telegram_bot" } },
+      ),
+      database.collection("admin_audit").insertOne({
+        action_type: "review_moderation", actor_telegram_id: String(ctx.from?.id),
+        outcome: "completed", details: { review_id: id, status: nextStatus }, created_at: moderatedAt,
+      }),
+    ]);
 
     await ctx.editMessageText(reviewModerationText(review, nextStatus), {
       parse_mode: "HTML",
@@ -273,10 +665,17 @@ bot.command("user", async (ctx) => {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "🖥 Active Sessions", callback_data: `user-sessions:${user._id.toString()}` },
+            { text: "🖥 Sessions", callback_data: `user-sessions:${user._id.toString()}` },
             { text: "👁 Support Access", callback_data: `user-support:${user._id.toString()}` },
           ],
-          [{ text: "🚫 Revoke All Sessions", callback_data: `sessions-revoke-prompt:${user._id.toString()}` }],
+          [
+            { text: "🛡 Account Controls", callback_data: `user-controls:${user._id.toString()}` },
+            { text: "🔑 API Keys", callback_data: `user-keys:${user._id.toString()}` },
+          ],
+          [
+            { text: "📒 Records", callback_data: `user-records:${user._id.toString()}` },
+            { text: "🚫 Revoke All Sessions", callback_data: `sessions-revoke-prompt:${user._id.toString()}` },
+          ],
         ],
       },
     });
@@ -348,6 +747,78 @@ bot.action(/^user-support:([a-f0-9]{24})$/, async (ctx) => {
     );
   } catch (error: any) {
     await ctx.answerCbQuery(`Failed: ${String(error.message).slice(0, 120)}`, { show_alert: true });
+  }
+});
+
+bot.action(/^user-controls:([a-f0-9]{24})$/, async (ctx) => {
+  try {
+    const database = await getDatabase();
+    const user: any = await database.collection("users").findOne({ _id: new ObjectId(ctx.match[1]) });
+    if (!user) return ctx.answerCbQuery("User no longer exists.", { show_alert: true });
+    await ctx.answerCbQuery("Current account controls loaded.");
+    await ctx.reply(
+      `🛡 <b>Account Controls</b>\nUser: <code>${escapeHtml(user.email)}</code>\n\n` +
+      `Account: <b>${user.account_locked ? "LOCKED" : "ACTIVE"}</b>\n` +
+      `Ordering: <b>${user.ordering_hold ? "HELD" : "ALLOWED"}</b>\n` +
+      `Payments: <b>${user.payment_hold ? "HELD" : "ALLOWED"}</b>\n\n` +
+      `<code>/${user.account_locked ? "unlock" : "lock"} ${escapeHtml(user.email)} | exact reason</code>\n` +
+      `<code>/${user.ordering_hold ? "orderrelease" : "orderhold"} ${escapeHtml(user.email)} | exact reason</code>\n` +
+      `<code>/${user.payment_hold ? "paymentrelease" : "paymenthold"} ${escapeHtml(user.email)} | exact reason</code>`,
+      { parse_mode: "HTML" },
+    );
+  } catch (error: any) {
+    await ctx.answerCbQuery(`Failed: ${String(error.message).slice(0, 100)}`, { show_alert: true });
+  }
+});
+
+bot.action(/^user-keys:([a-f0-9]{24})$/, async (ctx) => {
+  try {
+    const database = await getDatabase();
+    const user: any = await database.collection("users").findOne({ _id: new ObjectId(ctx.match[1]) });
+    if (!user) return ctx.answerCbQuery("User no longer exists.", { show_alert: true });
+    const keys: any[] = await database.collection("api_keys").find({ user_id: user._id }).sort({ created_at: -1 }).limit(20).toArray();
+    await ctx.answerCbQuery(`${keys.length} API key record${keys.length === 1 ? "" : "s"}.`);
+    if (!keys.length) return ctx.reply("No dedicated API-key identities found.");
+    for (const key of keys) {
+      await ctx.reply(
+        `🔑 <b>${escapeHtml(key.name)}</b> · ${escapeHtml(key.status)}\n` +
+        `ID: <code>${key._id.toString()}</code>\nPublic: <code>${escapeHtml(key.public_id || key.prefix || "n/a")}</code>\n` +
+        `Scopes: <code>${escapeHtml((key.scopes || []).join(", "))}</code>\n` +
+        `Last used: <code>${key.last_used_at ? new Date(key.last_used_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "Never"}</code>\n\n` +
+        `<code>/key${key.status === "paused" ? "resume" : "pause"} ${key._id.toString()} | exact reason</code>\n` +
+        `<code>/keyreissue ${key._id.toString()} | compromised; require user reissue</code>\n` +
+        `<code>/keyarchive ${key._id.toString()} | exact reason</code>`,
+        { parse_mode: "HTML" },
+      );
+    }
+  } catch (error: any) {
+    await ctx.answerCbQuery(`Failed: ${String(error.message).slice(0, 100)}`, { show_alert: true });
+  }
+});
+
+bot.action(/^user-records:([a-f0-9]{24})$/, async (ctx) => {
+  try {
+    const database = await getDatabase();
+    const user: any = await database.collection("users").findOne({ _id: new ObjectId(ctx.match[1]) });
+    if (!user) return ctx.answerCbQuery("User no longer exists.", { show_alert: true });
+    const [orders, deposits, ledger, events, notes] = await Promise.all([
+      database.collection("orders").countDocuments({ user_id: user._id }),
+      database.collection("transactions").countDocuments({ user_id: user._id }),
+      database.collection("wallet_ledger").countDocuments({ user_id: user._id }),
+      database.collection("security_events").countDocuments({ user_id: user._id }),
+      database.collection("admin_notes").countDocuments({ user_id: user._id }),
+    ]);
+    await ctx.answerCbQuery("Operational record counts loaded.");
+    await ctx.reply(
+      `📒 <b>User Records</b>\nUser: <code>${escapeHtml(user.email)}</code>\n` +
+      `Orders: <code>${orders}</code> · Deposits: <code>${deposits}</code> · Ledger: <code>${ledger}</code>\n` +
+      `Security events: <code>${events}</code> · Admin notes: <code>${notes}</code>\n\n` +
+      `<code>/userorders ${escapeHtml(user.email)}</code>\n<code>/deposits ${escapeHtml(user.email)}</code>\n` +
+      `<code>/wallet ${escapeHtml(user.email)}</code>\n<code>/events ${escapeHtml(user.email)}</code>`,
+      { parse_mode: "HTML" },
+    );
+  } catch (error: any) {
+    await ctx.answerCbQuery(`Failed: ${String(error.message).slice(0, 100)}`, { show_alert: true });
   }
 });
 
@@ -482,6 +953,116 @@ bot.action(/^sessions-revoke-confirm:([a-f0-9]{24})$/, async (ctx) => {
   }
 });
 
+for (const [command, type] of [
+  ["lock", "account_lock"], ["unlock", "account_unlock"],
+  ["orderhold", "ordering_hold"], ["orderrelease", "ordering_release"],
+  ["paymenthold", "payment_hold"], ["paymentrelease", "payment_release"],
+] as const) {
+  bot.command(command, async (ctx) => {
+    try {
+      const parsed = parseReasonedCommand(ctx.message.text, command);
+      if (!parsed || parsed.left.length !== 1) {
+        return ctx.reply(`⚠️ Usage: <code>/${command} user@example.com | exact reason</code>`, { parse_mode: "HTML" });
+      }
+      const database = await getDatabase();
+      const user: any = await database.collection("users").findOne({ email: parsed.left[0].toLowerCase() });
+      if (!user) return ctx.reply("❌ User not found.");
+      await queueAdminAction(ctx, type, { user_id: user._id.toString(), reason: parsed.reason },
+        `🛡 <b>Confirm ${escapeHtml(type.replace(/_/g, " "))}</b>\nUser: <code>${escapeHtml(user.email)}</code>\nReason: ${escapeHtml(parsed.reason)}`);
+    } catch (error: any) {
+      await ctx.reply(`❌ ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+    }
+  });
+}
+
+for (const [command, type] of [
+  ["keypause", "api_pause"], ["keyresume", "api_resume"],
+  ["keyarchive", "api_archive"], ["keyreissue", "api_reissue_required"],
+] as const) {
+  bot.command(command, async (ctx) => {
+    try {
+      const parsed = parseReasonedCommand(ctx.message.text, command);
+      if (!parsed || parsed.left.length !== 1 || !ObjectId.isValid(parsed.left[0])) {
+        return ctx.reply(`⚠️ Usage: <code>/${command} &lt;keyId&gt; | exact reason</code>`, { parse_mode: "HTML" });
+      }
+      const database = await getDatabase();
+      const key: any = await database.collection("api_keys").findOne({ _id: new ObjectId(parsed.left[0]) });
+      if (!key) return ctx.reply("❌ API key not found.");
+      await queueAdminAction(ctx, type, { key_id: key._id.toString(), user_id: key.user_id.toString(), reason: parsed.reason },
+        `🔑 <b>Confirm ${escapeHtml(type.replace("api_", "").replace(/_/g, " "))}</b>\nKey: <code>${escapeHtml(key.name)}</code>\nPublic ID: <code>${escapeHtml(key.public_id || key.prefix)}</code>\nReason: ${escapeHtml(parsed.reason)}\n\n<i>No raw API secret will be sent through Telegram.</i>`);
+    } catch (error: any) {
+      await ctx.reply(`❌ ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+    }
+  });
+}
+
+bot.command("note", async (ctx) => {
+  try {
+    const parsed = parseReasonedCommand(ctx.message.text, "note");
+    if (!parsed || parsed.left.length !== 1) return ctx.reply("⚠️ Usage: <code>/note user@example.com | administrative note</code>", { parse_mode: "HTML" });
+    const database = await getDatabase();
+    await ensureAdminControlIndexes(database);
+    const user: any = await database.collection("users").findOne({ email: parsed.left[0].toLowerCase() });
+    if (!user) return ctx.reply("❌ User not found.");
+    const now = new Date();
+    await Promise.all([
+      database.collection("admin_notes").insertOne({ user_id: user._id, note: parsed.reason, actor_telegram_id: String(ctx.from?.id), created_at: now }),
+      database.collection("admin_audit").insertOne({ action_type: "admin_note_added", actor_telegram_id: String(ctx.from?.id), subject_user_id: user._id, outcome: "completed", details: { note: parsed.reason }, created_at: now }),
+    ]);
+    await ctx.reply(`✅ Note added for <code>${escapeHtml(user.email)}</code>.`, { parse_mode: "HTML" });
+  } catch (error: any) {
+    await ctx.reply(`❌ ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+  }
+});
+
+for (const command of ["userorders", "deposits", "wallet", "events"] as const) {
+  bot.command(command, async (ctx) => {
+    try {
+      const email = ctx.message.text.trim().split(/\s+/)[1]?.toLowerCase();
+      if (!email) return ctx.reply(`⚠️ Usage: <code>/${command} user@example.com</code>`, { parse_mode: "HTML" });
+      const database = await getDatabase();
+      const user: any = await database.collection("users").findOne({ email });
+      if (!user) return ctx.reply("❌ User not found.");
+      if (command === "userorders") {
+        const records: any[] = await database.collection("orders").find({ user_id: user._id }).sort({ created_at: -1 }).limit(10).toArray();
+        if (!records.length) return ctx.reply("No orders for this user.");
+        for (const item of records) await ctx.reply(
+          `📦 <b>${escapeHtml(item.status)}</b> · <code>${item._id.toString()}</code>\nProvider: <code>${escapeHtml(item.provider_order_id || "not accepted")}</code>\n` +
+          `Service: ${escapeHtml(item.service_name || item.service_id)}\nTarget: <code>${escapeHtml(item.link)}</code>\n` +
+          `Quantity: <code>${item.quantity || 0}</code> · Charge: <code>₹${Number(item.charge || 0).toFixed(2)}</code>\nRefund: <code>${escapeHtml(item.refund_status || "none")}</code>`,
+          { parse_mode: "HTML" },
+        );
+      } else if (command === "deposits") {
+        const records: any[] = await database.collection("transactions").find({ user_id: user._id }).sort({ created_at: -1 }).limit(15).toArray();
+        if (!records.length) return ctx.reply("No deposit/transaction records for this user.");
+        for (const item of records) await ctx.reply(
+          `💳 <b>${escapeHtml(item.status)}</b> · ${escapeHtml(item.method || item.type || "transaction")}\nID: <code>${item._id.toString()}</code>\n` +
+          `Amount: <code>₹${Number(item.amount || 0).toFixed(2)}</code> · Memo: <code>${escapeHtml(item.memo || "—")}</code>\n` +
+          `UTR/Payment: <code>${escapeHtml(item.utr || item.razorpay_payment_id || item.transaction_id || "—")}</code>`,
+          { parse_mode: "HTML" },
+        );
+      } else if (command === "wallet") {
+        const records: any[] = await database.collection("wallet_ledger").find({ user_id: user._id }).sort({ created_at: -1 }).limit(20).toArray();
+        if (!records.length) return ctx.reply("No wallet-ledger records for this user.");
+        let text = `📒 <b>Wallet Ledger</b> · <code>${escapeHtml(user.email)}</code>\nBalance: <b>₹${Number(user.balance || 0).toFixed(2)}</b>\n\n`;
+        for (const item of records) text += `${Number(item.amount || 0) >= 0 ? "+" : ""}₹${Number(item.amount || 0).toFixed(2)} · ${escapeHtml(item.type)} · <code>${escapeHtml(item.settlement_key || item._id.toString())}</code>\n`;
+        await ctx.reply(text.slice(0, 3900), { parse_mode: "HTML" });
+      } else {
+        const [events, notes] = await Promise.all([
+          database.collection("security_events").find({ user_id: user._id }).sort({ created_at: -1 }).limit(15).toArray(),
+          database.collection("admin_notes").find({ user_id: user._id }).sort({ created_at: -1 }).limit(10).toArray(),
+        ]);
+        let text = `🛡 <b>Security & Admin Record</b> · <code>${escapeHtml(user.email)}</code>\n\n`;
+        for (const event of events) text += `• ${escapeHtml(event.type)} · <code>${new Date(event.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}</code>\n`;
+        for (const note of notes) text += `📝 ${escapeHtml(note.note)}\n`;
+        await ctx.reply(text.slice(0, 3900), { parse_mode: "HTML" });
+      }
+    } catch (error: any) {
+      await ctx.reply(`❌ ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
+    }
+  });
+}
+
 // /resetpassword <email> <auto|custom-password> | <mandatory reason>
 bot.command("resetpassword", async (ctx) => {
   try {
@@ -521,10 +1102,7 @@ bot.command("resetpassword", async (ctx) => {
     const tokenHash = hashActionToken(rawActionToken);
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 5 * 60_000);
-    await Promise.all([
-      database.collection("admin_action_tokens").createIndex({ token_hash: 1 }, { unique: true }),
-      database.collection("admin_action_tokens").createIndex({ expires_at: 1 }, { expireAfterSeconds: 0 }),
-    ]);
+    await ensureAdminControlIndexes(database);
     await database.collection("admin_action_tokens").insertOne({
       token_hash: tokenHash,
       action: "password_reset",
@@ -534,13 +1112,13 @@ bot.command("resetpassword", async (ctx) => {
       username: user.username,
       mode: generatedMode ? "generated" : "owner_selected",
       custom_password_hash: generatedMode ? null : await bcrypt.hash(mode, 12),
+      custom_password_encrypted: generatedMode ? null : encryptAdminStateSecret(mode),
       reason,
       created_at: now,
       expires_at: expiresAt,
       consumed_at: null,
       cancelled_at: null,
     });
-    if (!generatedMode) pendingCustomPasswords.set(tokenHash, { value: mode, expiresAt: expiresAt.getTime() });
 
     await ctx.reply(
       `⚠️ <b>Confirm Temporary-Password Reset</b>\n\n` +
@@ -590,9 +1168,8 @@ bot.action(/^pwdreset-(confirm|cancel):([a-f0-9]{32})$/, async (ctx) => {
     if (mode === "cancel") {
       await database.collection("admin_action_tokens").updateOne(
         { _id: action._id, consumed_at: null },
-        { $set: { cancelled_at: new Date() } },
+        { $set: { cancelled_at: new Date() }, $unset: { custom_password_encrypted: "", custom_password_hash: "" } },
       );
-      pendingCustomPasswords.delete(tokenHash);
       await ctx.editMessageText("✖ Temporary-password reset cancelled.");
       await ctx.answerCbQuery("Cancelled");
       return;
@@ -600,9 +1177,9 @@ bot.action(/^pwdreset-(confirm|cancel):([a-f0-9]{32})$/, async (ctx) => {
 
     const temporaryPassword = action.mode === "generated"
       ? generateTemporaryPassword()
-      : pendingCustomPasswords.get(tokenHash)?.value;
+      : decryptAdminStateSecret(action.custom_password_encrypted);
     if (!temporaryPassword) {
-      await ctx.answerCbQuery("Custom value expired from secure memory. Start again.", { show_alert: true });
+      await ctx.answerCbQuery("The protected action state is unavailable. Start again.", { show_alert: true });
       return;
     }
     const passwordHash = action.custom_password_hash || await bcrypt.hash(temporaryPassword, 12);
@@ -625,7 +1202,10 @@ bot.action(/^pwdreset-(confirm|cancel):([a-f0-9]{32})$/, async (ctx) => {
             cancelled_at: null,
             expires_at: { $gt: now },
           },
-          { $set: { consumed_at: now, identity_checklist_attested: true } },
+          {
+            $set: { consumed_at: now, identity_checklist_attested: true },
+            $unset: { custom_password_encrypted: "", custom_password_hash: "" },
+          },
           { returnDocument: "after", session },
         );
         if (!claimed) throw new Error("RESET_TOKEN_ALREADY_USED");
@@ -707,7 +1287,6 @@ bot.action(/^pwdreset-(confirm|cancel):([a-f0-9]{32})$/, async (ctx) => {
       });
     } finally {
       await session.endSession();
-      pendingCustomPasswords.delete(tokenHash);
     }
 
     try {
@@ -842,122 +1421,51 @@ bot.command("supportaccess", async (ctx) => {
   }
 });
 
-// /credit <email> <amount> [reason]
+// /credit <email> <amount> | <mandatory reason>
 bot.command("credit", async (ctx) => {
   try {
-    const parts = ctx.message.text.trim().split(/\s+/);
-    if (parts.length < 3) {
-      return ctx.reply("⚠️ Usage: <code>/credit &lt;email&gt; &lt;amount&gt; [reason]</code>", { parse_mode: "HTML" });
+    const parsed = parseReasonedCommand(ctx.message.text, "credit");
+    if (!parsed || parsed.left.length !== 2) {
+      return ctx.reply("⚠️ Usage: <code>/credit user@example.com 250 | exact correction reason</code>", { parse_mode: "HTML" });
     }
-
-    const email = parts[1].toLowerCase().trim();
-    const amount = parseFloat(parts[2]);
-    const reason = parts.slice(3).join(" ") || "Manual admin credit via Telegram";
-
-    if (isNaN(amount) || amount <= 0) {
-      return ctx.reply("❌ Amount must be a valid positive number.");
+    const [emailRaw, amountRaw] = parsed.left;
+    const email = emailRaw.toLowerCase();
+    const amountPaise = Math.round(Number(amountRaw) * 100);
+    if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0 || amountPaise > 100_000_000_00) {
+      return ctx.reply("❌ Enter a valid positive amount within the administrative bound.");
     }
-
     const database = await getDatabase();
-    const user = await database.collection("users").findOne({ email });
-    if (!user) {
-      return ctx.reply(`❌ User <code>${email}</code> not found in database.`, { parse_mode: "HTML" });
-    }
-
-    // Atomically increment user balance
-    const updated = await database.collection("users").findOneAndUpdate(
-      { _id: user._id },
-      { $inc: { balance: amount } },
-      { returnDocument: "after" }
-    );
-
-    // Record transaction entry for audit trail
-    await database.collection("transactions").insertOne({
-      user_id: user._id,
-      user_email: email,
-      amount: amount,
-      type: "manual_credit",
-      status: "paid",
-      source: "telegram_bot",
-      reason: reason,
-      credited_by: ctx.from?.id,
-      created_at: new Date(),
-    });
-
-    const newBalance = updated?.balance ?? ((user.balance || 0) + amount);
-
-    await ctx.reply(
-      `✅ <b>Credit Successful!</b>\n` +
-      `👤 User: <code>${email}</code>\n` +
-      `➕ Added: <b>₹${amount.toFixed(2)}</b>\n` +
-      `💳 New Balance: <b>₹${Number(newBalance).toFixed(2)}</b>\n` +
-      `📝 Reason: <i>${reason}</i>`,
-      { parse_mode: "HTML" }
-    );
-  } catch (err: any) {
-    await ctx.reply(`❌ Credit operation failed: ${err.message}`);
+    const user: any = await database.collection("users").findOne({ email });
+    if (!user) return ctx.reply("❌ User not found.");
+    await queueAdminAction(ctx, "wallet_credit", {
+      user_id: user._id.toString(), amount_paise: amountPaise, reason: parsed.reason,
+    }, `💰 <b>Confirm wallet credit</b>\nUser: <code>${escapeHtml(user.email)}</code>\nAmount: <b>₹${(amountPaise / 100).toFixed(2)}</b>\nCurrent balance: <code>₹${Number(user.balance || 0).toFixed(2)}</code>\nReason: ${escapeHtml(parsed.reason)}`);
+  } catch (error: any) {
+    await ctx.reply(`❌ ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
   }
 });
 
-// /debit <email> <amount> [reason]
+// /debit <email> <amount> | <mandatory reason>
 bot.command("debit", async (ctx) => {
   try {
-    const parts = ctx.message.text.trim().split(/\s+/);
-    if (parts.length < 3) {
-      return ctx.reply("⚠️ Usage: <code>/debit &lt;email&gt; &lt;amount&gt; [reason]</code>", { parse_mode: "HTML" });
+    const parsed = parseReasonedCommand(ctx.message.text, "debit");
+    if (!parsed || parsed.left.length !== 2) {
+      return ctx.reply("⚠️ Usage: <code>/debit user@example.com 250 | exact correction reason</code>", { parse_mode: "HTML" });
     }
-
-    const email = parts[1].toLowerCase().trim();
-    const amount = parseFloat(parts[2]);
-    const reason = parts.slice(3).join(" ") || "Manual admin debit via Telegram";
-
-    if (isNaN(amount) || amount <= 0) {
-      return ctx.reply("❌ Amount must be a valid positive number.");
+    const [emailRaw, amountRaw] = parsed.left;
+    const email = emailRaw.toLowerCase();
+    const amountPaise = Math.round(Number(amountRaw) * 100);
+    if (!Number.isSafeInteger(amountPaise) || amountPaise <= 0 || amountPaise > 100_000_000_00) {
+      return ctx.reply("❌ Enter a valid positive amount within the administrative bound.");
     }
-
     const database = await getDatabase();
-    const user = await database.collection("users").findOne({ email });
-    if (!user) {
-      return ctx.reply(`❌ User <code>${email}</code> not found in database.`, { parse_mode: "HTML" });
-    }
-
-    // Atomic deduction safeguarding against negative balance
-    const updated = await database.collection("users").findOneAndUpdate(
-      { _id: user._id, balance: { $gte: amount } },
-      { $inc: { balance: -amount } },
-      { returnDocument: "after" }
-    );
-
-    if (!updated) {
-      return ctx.reply(
-        `❌ <b>Insufficient balance!</b>\nUser has <code>₹${(user.balance || 0).toFixed(2)}</code>, cannot debit <code>₹${amount.toFixed(2)}</code>.`,
-        { parse_mode: "HTML" }
-      );
-    }
-
-    // Record transaction audit
-    await database.collection("transactions").insertOne({
-      user_id: user._id,
-      user_email: email,
-      amount: -amount,
-      type: "manual_debit",
-      status: "completed",
-      source: "telegram_bot",
-      reason: reason,
-      debited_by: ctx.from?.id,
-      created_at: new Date(),
-    });
-
-    await ctx.reply(
-      `🔻 <b>Debit Successful!</b>\n` +
-      `👤 User: <code>${email}</code>\n` +
-      `➖ Deducted: <b>₹${amount.toFixed(2)}</b>\n` +
-      `💳 New Balance: <b>₹${Number(updated.balance).toFixed(2)}</b>\n` +
-      `📝 Reason: <i>${reason}</i>`,
-      { parse_mode: "HTML" }
-    );
-  } catch (err: any) {
-    await ctx.reply(`❌ Debit operation failed: ${err.message}`);
+    const user: any = await database.collection("users").findOne({ email });
+    if (!user) return ctx.reply("❌ User not found.");
+    await queueAdminAction(ctx, "wallet_debit", {
+      user_id: user._id.toString(), amount_paise: amountPaise, reason: parsed.reason,
+    }, `🔻 <b>Confirm wallet debit</b>\nUser: <code>${escapeHtml(user.email)}</code>\nAmount: <b>₹${(amountPaise / 100).toFixed(2)}</b>\nCurrent balance: <code>₹${Number(user.balance || 0).toFixed(2)}</code>\nReason: ${escapeHtml(parsed.reason)}`);
+  } catch (error: any) {
+    await ctx.reply(`❌ ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
   }
 });
 
@@ -981,7 +1489,7 @@ bot.command("pending", async (ctx) => {
       const minutesAgo = Math.round((Date.now() - new Date(item.created_at).getTime()) / 60000);
       msg += `• <b>₹${item.amount}</b> | <code>${item.memo || "NO_MEMO"}</code>\n`;
       msg += `  User: <code>${item.user_email}</code> (${minutesAgo}m ago)\n`;
-      msg += `  Quick Credit: <code>/credit ${item.user_email} ${item.amount} Memo verified</code>\n\n`;
+      msg += `  Inspect: <code>/checkmemo ${item.memo || "NO_MEMO"}</code>\n\n`;
     }
 
     await ctx.reply(msg, { parse_mode: "HTML" });
@@ -1053,7 +1561,7 @@ bot.command("failed", async (ctx) => {
       msg += `  ⚠️ Reason: <i>${ord.provider_error || "Unknown"}</i>\n`;
       msg += `  🚦 Status: <b>${ord.status}</b> (${ord.refund_status || "held"})\n`;
       if (!isRefunded) {
-        msg += `  ↩️ <b>Quick Refund:</b> <code>/refund ${id} Manual review approval</code>\n\n`;
+        msg += `  ↩️ <b>Reviewed Refund:</b> <code>/refund ${id} | exact reviewed reason</code>\n\n`;
       } else {
         msg += `  ✅ <i>Already refunded manually</i>\n\n`;
       }
@@ -1065,179 +1573,22 @@ bot.command("failed", async (ctx) => {
   }
 });
 
-// /refund <orderId> [reason]
+// /refund <orderId> | <mandatory reason>
 bot.command("refund", async (ctx) => {
   try {
-    const parts = ctx.message.text.trim().split(/\s+/);
-    if (parts.length < 2) {
-      return ctx.reply("⚠️ Usage: <code>/refund &lt;orderId&gt; [reason]</code>", { parse_mode: "HTML" });
+    const parsed = parseReasonedCommand(ctx.message.text, "refund");
+    if (!parsed || parsed.left.length !== 1 || !ObjectId.isValid(parsed.left[0])) {
+      return ctx.reply("⚠️ Usage: <code>/refund &lt;orderId&gt; | exact reviewed reason</code>", { parse_mode: "HTML" });
     }
-
-    const orderIdStr = parts[1].trim();
-    const reason = parts.slice(2).join(" ") || "Manual refund approved by admin via Telegram";
-
-    if (!ObjectId.isValid(orderIdStr)) {
-      return ctx.reply("❌ Invalid MongoDB Order ID format.");
-    }
-
-    const orderId = new ObjectId(orderIdStr);
     const database = await getDatabase();
-    if (!mongoClient) throw new Error("MongoDB client is unavailable");
-
-    // The uniqueness index is a hard prerequisite for an idempotent refund.
-    await database.collection("wallet_ledger").createIndex(
-      { settlement_key: 1 },
-      {
-        unique: true,
-        partialFilterExpression: { settlement_key: { $type: "string" } },
-      },
-    );
-
-    const session = mongoClient.startSession();
-    let summary: { email: string; refundAmount: number; newBalance: number } | null = null;
-    try {
-      await session.withTransaction(async () => {
-        const order: any = await database.collection("orders").findOne({ _id: orderId }, { session });
-        if (!order) throw new Error("ORDER_NOT_FOUND");
-        if (order.refund_status === "refunded") throw new Error("ALREADY_REFUNDED");
-
-        const refundAmount = Number(order.charge || 0);
-        if (!Number.isFinite(refundAmount) || refundAmount <= 0) throw new Error("INVALID_REFUND_AMOUNT");
-        const now = new Date();
-        const settlementKey = `order_refund:${order._id.toString()}`;
-
-        await database.collection("wallet_ledger").insertOne(
-          {
-            settlement_key: settlementKey,
-            type: "api_order_refund",
-            user_id: order.user_id,
-            order_id: order._id,
-            api_key_id: order.api_key_id || null,
-            api_key_version: order.api_key_version || null,
-            amount: refundAmount,
-            amount_paise: Math.round(refundAmount * 100),
-            currency: "INR",
-            source: "telegram_bot",
-            refunded_by: ctx.from?.id,
-            created_at: now,
-          },
-          { session },
-        );
-
-        const orderUpdate = await database.collection("orders").updateOne(
-          { _id: order._id, refund_status: { $ne: "refunded" } },
-          {
-            $set: {
-              status: "Refunded",
-              refund_status: "refunded",
-              refunded_at: now,
-              refunded_by: ctx.from?.id,
-              refund_reason: reason,
-              updated_at: now,
-            },
-          },
-          { session },
-        );
-        if (orderUpdate.modifiedCount !== 1) throw new Error("ALREADY_REFUNDED");
-
-        const userUpdate: any = await database.collection("users").findOneAndUpdate(
-          { _id: order.user_id },
-          [
-            {
-              $set: {
-                balance: { $add: [{ $ifNull: ["$balance", 0] }, refundAmount] },
-                total_spent: {
-                  $max: [0, { $subtract: [{ $ifNull: ["$total_spent", 0] }, refundAmount] }],
-                },
-                total_orders: {
-                  $max: [0, { $subtract: [{ $ifNull: ["$total_orders", 0] }, 1] }],
-                },
-                updated_at: now,
-              },
-            },
-          ],
-          { returnDocument: "after", session },
-        );
-        if (!userUpdate) throw new Error("REFUND_USER_NOT_FOUND");
-
-        await database.collection("transactions").insertOne(
-          {
-            user_id: order.user_id,
-            user_email: order.user_email,
-            amount: refundAmount,
-            type: "manual_refund",
-            status: "completed",
-            order_id: order._id,
-            api_key_id: order.api_key_id || null,
-            api_key_version: order.api_key_version || null,
-            wallet_settlement_key: settlementKey,
-            source: "telegram_bot",
-            reason,
-            refunded_by: ctx.from?.id,
-            created_at: now,
-          },
-          { session },
-        );
-
-        if (order.api_key_id) {
-          await database.collection("api_key_activity").insertOne(
-            {
-              user_id: order.user_id,
-              api_key_id: order.api_key_id,
-              api_key_version: order.api_key_version || null,
-              action: "refund",
-              scope: "financial:refund",
-              http_status: 200,
-              result: "refunded_by_owner",
-              request_id: `telegram-refund:${order._id.toString()}`,
-              order_id: order._id,
-              service_id: order.service_id || null,
-              service_name: order.service_name || null,
-              target: order.link || null,
-              quantity: order.quantity || null,
-              gross_charge_inr: refundAmount,
-              refund_inr: refundAmount,
-              net_charge_inr: 0,
-              started_at: now,
-              completed_at: now,
-              duration_ms: 0,
-            },
-            { session },
-          );
-        }
-
-        summary = {
-          email: String(order.user_email || "unknown"),
-          refundAmount,
-          newBalance: Number(userUpdate.balance || 0),
-        };
-      });
-    } finally {
-      await session.endSession();
-    }
-
-    if (!summary) throw new Error("Refund transaction did not complete");
-    await ctx.reply(
-      `✅ <b>Order Refunded Successfully!</b>\n\n` +
-      `🆔 Order ID: <code>${orderIdStr}</code>\n` +
-      `👤 Client: <code>${escapeHtml(summary.email)}</code>\n` +
-      `💵 Refunded: <b>₹${summary.refundAmount.toFixed(2)} INR</b>\n` +
-      `💳 New Balance: <b>₹${summary.newBalance.toFixed(2)}</b>\n` +
-      `📝 Reason: <i>${escapeHtml(reason)}</i>`,
-      { parse_mode: "HTML" }
-    );
-  } catch (err: any) {
-    if (err?.message === "ORDER_NOT_FOUND") {
-      return ctx.reply("❌ Order not found.");
-    }
-    if (err?.message === "ALREADY_REFUNDED" || err?.code === 11000) {
-      return ctx.reply("⚠️ This order has already been refunded.");
-    }
-    if (err?.message === "INVALID_REFUND_AMOUNT") {
-      return ctx.reply("❌ This order does not have a refundable charge.");
-    }
-    console.error("[AdminBot] Refund failed:", err);
-    await ctx.reply("❌ Refund operation failed safely. No partial refund was committed.");
+    const order: any = await database.collection("orders").findOne({ _id: new ObjectId(parsed.left[0]) });
+    if (!order) return ctx.reply("❌ Order not found.");
+    if (order.refund_status === "refunded") return ctx.reply("⚠️ This order is already refunded.");
+    await queueAdminAction(ctx, "order_refund", {
+      order_id: order._id.toString(), reason: parsed.reason,
+    }, `↩️ <b>Confirm atomic order refund</b>\nOrder: <code>${order._id.toString()}</code>\nUser: <code>${escapeHtml(order.user_email)}</code>\nAmount: <b>₹${Number(order.charge || 0).toFixed(2)}</b>\nService: ${escapeHtml(order.service_name || order.service_id)}\nReason: ${escapeHtml(parsed.reason)}`);
+  } catch (error: any) {
+    await ctx.reply(`❌ ${escapeHtml(error.message)}`, { parse_mode: "HTML" });
   }
 });
 
@@ -1273,12 +1624,22 @@ ${txn.utr ? `🔗 <b>UTR:</b> <code>${txn.utr}</code>\n` : ""}${txn.transaction_
 
 // /scan (Manual trigger for IMAP scan)
 bot.command("scan", async (ctx) => {
+  if (workerActive) return ctx.reply("ℹ️ A settlement scan is already active on this instance.");
+  workerActive = true;
   await ctx.reply("📡 Running manual IMAP settlement scan...");
   try {
+    const database = await getDatabase();
+    if (!await acquireWorkerLease(database)) return ctx.reply("ℹ️ Another Railway instance currently owns the settlement lease.");
     const result = await scanAndSettlePayments();
+    await reconcilePaymentOperations(database);
+    await recordWorkerHealth(database, true);
     await ctx.reply(result);
   } catch (err: any) {
+    const database = await getDatabase().catch(() => null);
+    if (database) await recordWorkerHealth(database, false, err.message).catch(() => {});
     await ctx.reply(`❌ IMAP scan failed: ${err.message}`);
+  } finally {
+    workerActive = false;
   }
 });
 
@@ -1290,6 +1651,100 @@ function decodeQuotedPrintable(str: string): string {
   return str
     .replace(/=\r?\n/g, "")
     .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+export async function settleImapPendingPayment(
+  database: Db,
+  client: MongoClient,
+  input: {
+    pendingId: ObjectId;
+    userId: ObjectId;
+    userEmail: string;
+    memo: string;
+    amount: number;
+    utr?: string | null;
+    transactionId?: string | null;
+  },
+): Promise<{ newBalance: number }> {
+  const memo = String(input.memo || "").trim().toUpperCase();
+  if (!memo || !Number.isFinite(input.amount) || input.amount <= 0) throw new Error("RECEIPT_INVALID");
+  const settlementKey = `direct_upi:${input.pendingId.toString()}`;
+  const session = client.startSession();
+  let newBalance = 0;
+  try {
+    await session.withTransaction(async () => {
+      const current: any = await database.collection("transactions").findOne({
+        _id: input.pendingId,
+        user_id: input.userId,
+        method: "FAMPAY_UPI",
+        memo,
+        amount: input.amount,
+        status: "pending",
+        expires_at: { $gt: new Date() },
+      }, { session });
+      if (!current) throw new Error("PENDING_DEPOSIT_STALE");
+
+      await database.collection("processed_transactions").insertOne({
+        memo,
+        ...(input.utr ? { utr: input.utr } : {}),
+        ...(input.transactionId ? { transaction_id: input.transactionId } : {}),
+        amount: input.amount,
+        pending_transaction_id: input.pendingId,
+        user_id: input.userId,
+        user_email: input.userEmail,
+        processed_at: new Date(),
+        source: "railway_imap_worker",
+      }, { session });
+
+      const transactionUpdate = await database.collection("transactions").updateOne(
+        { _id: input.pendingId, status: "pending" },
+        {
+          $set: {
+            status: "paid",
+            direct_upi_settlement_key: settlementKey,
+            paid_at: new Date(),
+            ...(input.utr ? { utr: input.utr } : {}),
+            ...(input.transactionId ? { transaction_id: input.transactionId } : {}),
+            verified_amount: input.amount,
+            settled_by: "railway_imap_worker",
+          },
+        },
+        { session },
+      );
+      if (transactionUpdate.modifiedCount !== 1) throw new Error("PENDING_DEPOSIT_STALE");
+
+      const userUpdate: any = await database.collection("users").findOneAndUpdate(
+        { _id: input.userId, payment_hold: { $ne: true } },
+        { $inc: { balance: input.amount }, $set: { updated_at: new Date() } },
+        { returnDocument: "after", session },
+      );
+      if (!userUpdate) throw new Error("PAYMENT_HOLD_ACTIVE");
+      newBalance = Number(userUpdate.balance || 0);
+
+      await database.collection("wallet_ledger").insertOne({
+        settlement_key: settlementKey,
+        user_id: input.userId,
+        type: "credit",
+        amount: input.amount,
+        balance_after: newBalance,
+        source: "direct_upi",
+        transaction_id: input.pendingId,
+        created_at: new Date(),
+      }, { session });
+      await database.collection("security_events").insertOne({
+        user_id: input.userId,
+        type: "direct_upi_worker_verified",
+        pending_transaction_id: input.pendingId,
+        created_at: new Date(),
+      }, { session });
+    }, {
+      readConcern: { level: "snapshot" },
+      writeConcern: { w: "majority" },
+    });
+    return { newBalance };
+  } finally {
+    await session.endSession();
+  }
 }
 
 async function scanAndSettlePayments(): Promise<string> {
@@ -1372,62 +1827,87 @@ async function scanAndSettlePayments(): Promise<string> {
           if (!alreadyProcessed) {
             // Find matching pending transaction in MongoDB
             const pendingTxn = await database.collection("transactions").findOne({
-              memo: memo,
+              memo,
+              method: "FAMPAY_UPI",
               status: "pending",
+              expires_at: { $gt: new Date() },
             });
 
             if (pendingTxn) {
-              const creditAmount = amount > 0 ? amount : pendingTxn.amount;
-
-              // Atomically credit user
-              const userUpdate = await database.collection("users").findOneAndUpdate(
-                { _id: pendingTxn.user_id },
-                { $inc: { balance: creditAmount } },
-                { returnDocument: "after" }
-              );
-
-              // Update transaction record
-              await database.collection("transactions").updateOne(
-                { _id: pendingTxn._id },
-                {
-                  $set: {
-                    status: "paid",
-                    paid_at: new Date(),
-                    utr: utr || undefined,
-                    transaction_id: txId || undefined,
-                    verified_amount: creditAmount,
-                    settled_by: "railway_imap_worker",
+              if (!amount || Math.round(amount * 100) !== Math.round(Number(pendingTxn.amount) * 100)) {
+                const issue = await database.collection("payment_reconciliation").updateOne(
+                  { memo, status: "open", reason: "amount_missing_or_mismatch" },
+                  {
+                    $set: {
+                      pending_transaction_id: pendingTxn._id,
+                      user_id: pendingTxn.user_id,
+                      expected_amount: Number(pendingTxn.amount),
+                      observed_amount: amount || null,
+                      last_seen_at: new Date(),
+                    },
+                    $inc: { attempts: 1 },
+                    $setOnInsert: { created_at: new Date(), status: "open" },
                   },
+                  { upsert: true },
+                );
+                if (issue.upsertedCount && OWNER_ID) {
+                  await bot.telegram.sendMessage(
+                    OWNER_ID,
+                    `⚠️ <b>Direct UPI reconciliation required</b>\nMemo: <code>${memo}</code>\nExpected: ₹${Number(pendingTxn.amount).toFixed(2)}\nObserved: ${amount ? `₹${amount.toFixed(2)}` : "not parsed"}`,
+                    { parse_mode: "HTML" },
+                  ).catch(console.error);
                 }
-              );
+                continue;
+              }
 
-              // Insert into processed_transactions with sparse unique keys
-              await database.collection("processed_transactions").insertOne({
-                memo: memo,
-                utr: utr || undefined,
-                transaction_id: txId || undefined,
-                amount: creditAmount,
-                user_id: pendingTxn.user_id,
-                user_email: pendingTxn.user_email,
-                credited_at: new Date(),
-                source: "railway_imap_worker",
-              });
+              if (!mongoClient) throw new Error("Database client unavailable for settlement transaction");
+              try {
+                const result = await settleImapPendingPayment(database, mongoClient, {
+                  pendingId: pendingTxn._id,
+                  userId: pendingTxn.user_id,
+                  userEmail: pendingTxn.user_email,
+                  memo,
+                  amount,
+                  utr,
+                  transactionId: txId,
+                });
+                settledCount++;
+                await database.collection("payment_reconciliation").updateMany(
+                  { memo, status: "open" },
+                  { $set: { status: "resolved", resolved_at: new Date() } },
+                );
 
-              settledCount++;
-
-              // Notify platform owner via Telegram
-              if (OWNER_ID) {
-                const alertMsg = `
+                if (OWNER_ID) {
+                  const alertMsg = `
 🎉 <b>[AUTOMATIC ZERO-CLICK SETTLEMENT]</b> 🎉
-User: <code>${pendingTxn.user_email}</code>
-Credited: <b>₹${creditAmount.toFixed(2)}</b>
-New Balance: <b>₹${Number(userUpdate?.balance || 0).toFixed(2)}</b>
+User: <code>${escapeHtml(pendingTxn.user_email)}</code>
+Credited: <b>₹${amount.toFixed(2)}</b>
+New Balance: <b>₹${result.newBalance.toFixed(2)}</b>
 Memo: <code>${memo}</code>
 UTR: <code>${utr || "N/A"}</code>
 TxID: <code>${txId || "N/A"}</code>
 Time: <code>${new Date().toLocaleTimeString("en-IN")}</code>
 `;
-                await bot.telegram.sendMessage(OWNER_ID, alertMsg, { parse_mode: "HTML" }).catch(console.error);
+                  await bot.telegram.sendMessage(OWNER_ID, alertMsg, { parse_mode: "HTML" }).catch(console.error);
+                }
+              } catch (error: any) {
+                if (error?.code !== 11000 && error?.message !== "PENDING_DEPOSIT_STALE") {
+                  await database.collection("payment_reconciliation").updateOne(
+                    { memo, status: "open", reason: error?.message === "PAYMENT_HOLD_ACTIVE" ? "payment_hold" : "settlement_error" },
+                    {
+                      $set: {
+                        pending_transaction_id: pendingTxn._id,
+                        user_id: pendingTxn.user_id,
+                        last_error: String(error?.message || error).slice(0, 500),
+                        last_seen_at: new Date(),
+                      },
+                      $inc: { attempts: 1 },
+                      $setOnInsert: { created_at: new Date(), status: "open" },
+                    },
+                    { upsert: true },
+                  );
+                  throw error;
+                }
               }
             }
           }
@@ -1579,6 +2059,93 @@ function startTemporaryPasswordStatusWorker() {
 
 // Background scheduler for Railway (executes every 20 seconds cleanly)
 let workerActive = false;
+const workerInstanceId = `railway_${process.pid}_${crypto.randomBytes(6).toString("hex")}`;
+
+async function acquireWorkerLease(database: Db): Promise<boolean> {
+  const now = new Date();
+  const leaseUntil = new Date(now.getTime() + 180_000);
+  const updated = await database.collection<any>("worker_leases").findOneAndUpdate(
+    { _id: "imap_settlement", $or: [{ lease_until: { $lte: now } }, { holder: workerInstanceId }] },
+    { $set: { holder: workerInstanceId, lease_until: leaseUntil, heartbeat_at: now } },
+    { returnDocument: "after" },
+  );
+  if (updated?.holder === workerInstanceId) return true;
+  try {
+    await database.collection<any>("worker_leases").insertOne({
+      _id: "imap_settlement", holder: workerInstanceId, lease_until: leaseUntil,
+      heartbeat_at: now, created_at: now,
+    } as any);
+    return true;
+  } catch (error: any) {
+    if (error?.code === 11000) return false;
+    throw error;
+  }
+}
+
+async function reconcilePaymentOperations(database: Db) {
+  const now = new Date();
+  await database.collection("transactions").updateMany(
+    { method: "FAMPAY_UPI", status: "pending", expires_at: { $lte: now } },
+    { $set: { status: "expired", expired_at: now } },
+  );
+  const needsAlert: any[] = await database.collection("payment_reconciliation").find({
+    status: "open",
+    attempts: { $gte: 3 },
+    owner_alerted_at: { $exists: false },
+  }).sort({ created_at: 1 }).limit(10).toArray();
+  for (const issue of needsAlert) {
+    if (OWNER_ID) {
+      await bot.telegram.sendMessage(
+        OWNER_ID,
+        `🚨 <b>Payment reconciliation retry limit reached</b>\nMemo: <code>${escapeHtml(issue.memo || "unknown")}</code>\nReason: <code>${escapeHtml(issue.reason || "unknown")}</code>\nAttempts: <b>${Number(issue.attempts || 0)}</b>`,
+        { parse_mode: "HTML" },
+      );
+    }
+    await database.collection("payment_reconciliation").updateOne(
+      { _id: issue._id, owner_alerted_at: { $exists: false } },
+      { $set: { owner_alerted_at: now } },
+    );
+  }
+}
+
+async function recordWorkerHealth(database: Db, ok: boolean, detail?: string) {
+  const now = new Date();
+  if (ok) {
+    await database.collection<any>("system_health").updateOne(
+      { _id: "imap_settlement_worker" },
+      {
+        $set: {
+          status: "healthy", holder: workerInstanceId, heartbeat_at: now,
+          last_success_at: now, consecutive_errors: 0,
+        },
+        $setOnInsert: { created_at: now },
+        $unset: { last_error: "" },
+      },
+      { upsert: true },
+    );
+    return;
+  }
+  const health: any = await database.collection<any>("system_health").findOneAndUpdate(
+    { _id: "imap_settlement_worker" },
+    {
+      $set: {
+        status: "error", holder: workerInstanceId, heartbeat_at: now,
+        last_error_at: now, last_error: String(detail || "unknown").slice(0, 500),
+      },
+      $inc: { consecutive_errors: 1 },
+      $setOnInsert: { created_at: now },
+    },
+    { upsert: true, returnDocument: "after" },
+  );
+  const failures = Number(health?.consecutive_errors || 1);
+  if (OWNER_ID && (failures === 3 || failures % 10 === 0)) {
+    await bot.telegram.sendMessage(
+      OWNER_ID,
+      `🚨 <b>IMAP settlement worker unhealthy</b>\nConsecutive failures: <b>${failures}</b>\nError: <code>${escapeHtml(String(detail || "unknown").slice(0, 300))}</code>`,
+      { parse_mode: "HTML" },
+    ).catch(console.error);
+  }
+}
 
 function startBackgroundWorker() {
   const isEnabled = process.env.ENABLE_IMAP_WORKER !== "false";
@@ -1590,12 +2157,18 @@ function startBackgroundWorker() {
   console.log("[Worker] Starting Railway background IMAP settlement worker (interval: 20s)...");
 
   setInterval(async () => {
-    if (workerActive) return; // Prevent overlapping runs
+    if (workerActive) return;
     workerActive = true;
     try {
+      const database = await getDatabase();
+      if (!await acquireWorkerLease(database)) return;
       await scanAndSettlePayments();
+      await reconcilePaymentOperations(database);
+      await recordWorkerHealth(database, true);
     } catch (err: any) {
       console.error("[Worker Error]", err.message);
+      const database = await getDatabase().catch(() => null);
+      if (database) await recordWorkerHealth(database, false, err.message).catch(() => {});
     } finally {
       workerActive = false;
     }
@@ -1605,11 +2178,16 @@ function startBackgroundWorker() {
 // ── 5. START BOT & WORKER ──────────────────────────────────────────
 async function main() {
   try {
-    await getDatabase();
+    const database = await getDatabase();
+    await ensureAdminControlIndexes(database);
+    const identity = await bot.telegram.getMe();
 
-    // Launch Telegram Long-Polling
-    await bot.launch();
-    console.log("🚀 SMM UP Sovereign Admin Bot launched successfully via Telegram Bot API long polling.");
+    // Launch Telegram Bot API long polling. Webhook secrets are not applicable to this transport.
+    await bot.launch({
+      allowedUpdates: ["message", "callback_query"],
+      dropPendingUpdates: true,
+    });
+    console.log(`🚀 SMM UP Sovereign Admin Bot @${identity.username} launched via Telegram Bot API long polling.`);
 
     // Start independent settlement and recovery-status workers.
     startBackgroundWorker();
@@ -1632,4 +2210,6 @@ async function main() {
   }
 }
 
-main();
+if (process.env.ADMIN_BOT_DISABLE_AUTOSTART !== "true") {
+  main();
+}

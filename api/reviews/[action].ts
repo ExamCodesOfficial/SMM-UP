@@ -168,7 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const u = await getUserFromRequest(req, db);
     if (!u) return res.status(401).json({ error: "Sign in to write a review." });
     if (denySupportMutation(u, res, false)) return;
-    const rl = checkRateLimit(`review_${u.userId}`, 5, 600);
+    const rl = await checkRateLimit(`review_${u.userId}`, 5, 600, db);
     if (!rl.allowed) {
       return res.status(429).json({ error: `Too many edits. Try again in ${rl.remainingSec}s.` });
     }

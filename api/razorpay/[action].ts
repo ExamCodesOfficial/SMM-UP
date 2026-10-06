@@ -117,10 +117,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const userObjectId = new ObjectId(authUser.userId);
+  if (["create-order", "verify"].includes(action)) {
+    const hold = await db.collection("users").findOne(
+      { _id: userObjectId },
+      { projection: { payment_hold: 1 } },
+    );
+    if (hold?.payment_hold) {
+      return res.status(403).json({ error: "Deposits are temporarily paused on this account. Please contact support." });
+    }
+  }
 
   if (action === "create-order") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const rate = checkRateLimit(`razorpay_create_${authUser.userId}`, 8, 300);
+    const rate = await checkRateLimit(`razorpay_create_${authUser.userId}`, 8, 300, db);
     if (!rate.allowed) {
       return res.status(429).json({
         error: `Too many payment attempts. Please wait ${rate.remainingSec} seconds.`,
@@ -222,7 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (action === "verify") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-    const rate = checkRateLimit(`razorpay_verify_${authUser.userId}`, 12, 300);
+    const rate = await checkRateLimit(`razorpay_verify_${authUser.userId}`, 12, 300, db);
     if (!rate.allowed) {
       return res.status(429).json({
         error: `Too many verification attempts. Please wait ${rate.remainingSec} seconds.`,
@@ -326,7 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (action === "status") {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-    const rate = checkRateLimit(`razorpay_status_${authUser.userId}`, 90, 300);
+    const rate = await checkRateLimit(`razorpay_status_${authUser.userId}`, 90, 300, db);
     if (!rate.allowed) {
       return res.status(429).json({
         error: `Too many status checks. Please wait ${rate.remainingSec} seconds.`,

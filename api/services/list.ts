@@ -1,9 +1,23 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { fetchAllServices } from "../../server/lib/smm.js";
+import { getDb } from "../../server/lib/db.js";
+import { getUserFromRequest } from "../../server/lib/auth.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    const forceRefresh = req.query.refresh === "1" || req.query.refresh === "true";
+    const refreshRequested = req.query.refresh === "1" || req.query.refresh === "true";
+    let forceRefresh = false;
+    if (refreshRequested) {
+      if (req.method !== "POST") return res.status(405).json({ error: "Catalog refresh requires POST." });
+      const db = await getDb();
+      const actor = await getUserFromRequest(req, db);
+      if (!actor || actor.role !== "admin" || actor.purpose !== "normal") {
+        return res.status(403).json({ error: "Owner authentication is required for catalog refresh." });
+      }
+      forceRefresh = true;
+    } else if (req.method !== "GET") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
     const services = await fetchAllServices(forceRefresh);
 
     const categoriesMap: { [cat: string]: number } = {};

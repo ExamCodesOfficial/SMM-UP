@@ -19,12 +19,45 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
+  const [flow, setFlow] = React.useState<"auth" | "forgot" | "reset">("auth");
+  const [resetToken, setResetToken] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [verificationEmail, setVerificationEmail] = React.useState("");
+  const verificationStarted = React.useRef(false);
 
   React.useEffect(() => {
     setMode(initialMode);
     setError("");
     setSuccess("");
   }, [initialMode]);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const passwordResetToken = params.get("reset_token") || "";
+    const verificationToken = params.get("verify_token") || "";
+    if (passwordResetToken) {
+      setResetToken(passwordResetToken);
+      setFlow("reset");
+      return;
+    }
+    if (!verificationToken || verificationStarted.current) return;
+    verificationStarted.current = true;
+    setLoading(true);
+    fetch("/api/auth/verify-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: verificationToken }),
+    })
+      .then(async (res) => ({ ok: res.ok, data: await res.json() }))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || "Email verification failed.");
+        setSuccess(data.message || "Email verified.");
+        window.history.replaceState({}, "", "/auth");
+        if (data.signedIn) setTimeout(() => onAuthSuccess(), 700);
+      })
+      .catch((err) => setError(err.message || "Email verification failed."))
+      .finally(() => setLoading(false));
+  }, [onAuthSuccess]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,11 +66,23 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
     setSuccess("");
 
     try {
-      const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
-      const payload =
-        mode === "login"
-          ? { identifier, password }
-          : { username: identifier, email, password };
+      if (flow === "reset" && password !== confirmPassword) {
+        setError("Passwords do not match.");
+        setLoading(false);
+        return;
+      }
+      const endpoint = flow === "forgot"
+        ? "/api/auth/forgot-password"
+        : flow === "reset"
+          ? "/api/auth/reset-password-email"
+          : mode === "login" ? "/api/auth/login" : "/api/auth/register";
+      const payload = flow === "forgot"
+        ? { email }
+        : flow === "reset"
+          ? { token: resetToken, password }
+          : mode === "login"
+            ? { identifier, password }
+            : { username: identifier, email, password };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -48,19 +93,61 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
 
       if (!res.ok) {
         setError(data.error || "Authentication failed");
+        if (data.verificationRequired) setVerificationEmail(data.email || email || identifier);
         setLoading(false);
         return;
       }
 
+      if (flow === "forgot") {
+        setSuccess(data.message || "If the account exists, a reset email has been sent.");
+        setLoading(false);
+        return;
+      }
+      if (flow === "reset") {
+        setSuccess(data.message || "Password reset complete. You can now sign in.");
+        setPassword("");
+        setConfirmPassword("");
+        setFlow("auth");
+        setMode("login");
+        window.history.replaceState({}, "", "/auth");
+        setLoading(false);
+        return;
+      }
       if (data.requiresPasswordChange) {
         setSuccess("Temporary credential accepted. Opening the required password-change step…");
         setTimeout(() => onAuthSuccess("password-change"), 350);
+        return;
+      }
+      if (data.verificationRequired) {
+        setVerificationEmail(email);
+        setSuccess(data.message || "Check your email to verify the account before signing in.");
+        setLoading(false);
         return;
       }
       setSuccess(mode === "login" ? "Signed in. Redirecting…" : "Account created. Redirecting…");
       setTimeout(() => onAuthSuccess(), 450);
     } catch {
       setError("Network error. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    if (!verificationEmail) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verificationEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Unable to resend verification.");
+      setSuccess(data.message);
+    } catch (err: any) {
+      setError(err.message || "Unable to resend verification.");
+    } finally {
       setLoading(false);
     }
   };
@@ -74,7 +161,7 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
             Member Access
           </span>
           <h1 className="text-2xl sm:text-3xl font-light tracking-[0.10em] text-white uppercase">
-            {mode === "login" ? "Welcome Back" : "Create Account"}
+            {flow === "forgot" ? "Recover Account" : flow === "reset" ? "Choose New Password" : mode === "login" ? "Welcome Back" : "Create Account"}
           </h1>
           <div className="w-12 h-px bg-white/20 mx-auto mt-4" />
         </div>
@@ -90,7 +177,7 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
               </span>
             </div>
 
-            <div className="flex items-center rounded-none bg-black/60 p-1 border border-white/10">
+            {flow === "auth" && <div className="flex items-center rounded-none bg-black/60 p-1 border border-white/10">
               <button
                 type="button"
                 onClick={() => { setMode("login"); setError(""); setSuccess(""); }}
@@ -109,11 +196,11 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
               >
                 SIGN UP
               </button>
-            </div>
+            </div>}
           </div>
 
-          <form key={mode} onSubmit={handleSubmit} className="space-y-4 form-swap">
-            <div>
+          <form key={`${mode}-${flow}`} onSubmit={handleSubmit} className="space-y-4 form-swap">
+            {flow === "auth" && <div>
               <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                 {mode === "login" ? "Username or Email" : "Username"}
               </label>
@@ -125,9 +212,9 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
                 placeholder={mode === "login" ? "Enter username or email" : "Choose username"}
                 className="up-input"
               />
-            </div>
+            </div>}
 
-            {mode === "register" && (
+            {(flow === "forgot" || (flow === "auth" && mode === "register")) && (
               <div>
                 <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                   Email Address
@@ -143,24 +230,31 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
               </div>
             )}
 
-            <div>
+            {flow !== "forgot" && <div>
               <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-                Password
+                {flow === "reset" ? "New Password" : "Password"}
               </label>
               <input
                 type="password"
                 required
-                minLength={mode === "register" ? 10 : undefined}
-                maxLength={mode === "register" ? 128 : undefined}
+                minLength={mode === "register" || flow === "reset" ? 10 : undefined}
+                maxLength={mode === "register" || flow === "reset" ? 128 : undefined}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
                 className="up-input"
               />
-              {mode === "register" && (
+              {(mode === "register" || flow === "reset") && (
                 <p className="text-[10px] text-zinc-600 mt-1.5">10–128 characters; use at least three of lowercase, uppercase, numbers and symbols.</p>
               )}
-            </div>
+            </div>}
+
+            {flow === "reset" && (
+              <div>
+                <label className="block text-[11px] font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">Confirm New Password</label>
+                <input type="password" required minLength={10} maxLength={128} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="up-input" />
+              </div>
+            )}
 
             {error && (
               <div className="p-3 rounded-none bg-white/[0.04] border border-white/15 text-zinc-200 text-xs">
@@ -174,18 +268,28 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
               </div>
             )}
 
+            {verificationEmail && (
+              <button type="button" disabled={loading} onClick={resendVerification} className="btn-up btn-up-outline w-full">
+                Resend verification email
+              </button>
+            )}
+
             <button type="submit" disabled={loading} className="btn-up btn-up-solid w-full">
               {loading
                 ? "Connecting..."
-                : mode === "login"
-                ? "Sign In"
-                : "Create Free Account"}
+                : flow === "forgot"
+                  ? "Send Reset Link"
+                  : flow === "reset"
+                    ? "Set New Password"
+                    : mode === "login"
+                      ? "Sign In"
+                      : "Create Free Account"}
             </button>
           </form>
 
           {/* Mode switch line */}
           <div className="pt-5 mt-5 border-t border-white/[0.06] text-center space-y-3">
-            <p className="text-xs text-zinc-500">
+            {flow === "auth" && <><p className="text-xs text-zinc-500">
               {mode === "login" ? (
                 <>
                   New here?{" "}
@@ -213,7 +317,12 @@ export default function AuthPage({ initialMode, onAuthSuccess }: AuthPageProps) 
             {mode === "login" && (
               <p className="text-xs text-zinc-500">
                 Forgot your password?{" "}
-                <a href="/support" className="text-white underline underline-offset-4 hover:text-zinc-300">Contact support</a>
+                <button type="button" onClick={() => { setFlow("forgot"); setEmail(""); setError(""); setSuccess(""); }} className="text-white underline underline-offset-4 hover:text-zinc-300">Reset by verified email</button>
+              </p>
+            )}</>}
+            {flow !== "auth" && (
+              <p className="text-xs text-zinc-500">
+                <button type="button" onClick={() => { setFlow("auth"); setMode("login"); setError(""); setSuccess(""); window.history.replaceState({}, "", "/auth"); }} className="text-white underline underline-offset-4 hover:text-zinc-300">Back to sign in</button>
               </p>
             )}
             <p className="text-[11px] text-zinc-600">

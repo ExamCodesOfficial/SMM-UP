@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { ObjectId } from "mongodb";
 import { getDb } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
+import { checkRateLimit } from "../../server/lib/rateLimit.js";
 import {
   fetchAllServices,
   calculateOrderTotal,
@@ -27,6 +28,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // ── 1. CREATE ORDER ──────────────────────────────────────────
   if (action === "create") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const rate = await checkRateLimit(`web_order_${authUser.userId}`, 30, 60, db);
+    if (!rate.allowed) return res.status(429).json({ error: `Too many order attempts. Try again in ${rate.remainingSec}s.` });
     const {
       serviceId,
       link,
@@ -76,7 +79,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const users = db.collection("users");
       const debitResult: any = await users.findOneAndUpdate(
-        { _id: userObjectId, balance: { $gte: totalCharge }, payment_hold: { $ne: true } },
+        { _id: userObjectId, balance: { $gte: totalCharge }, payment_hold: { $ne: true }, ordering_hold: { $ne: true } },
         {
           $inc: {
             balance: -totalCharge,
@@ -90,11 +93,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!debitResult) {
         const currentUser = await users.findOne(
           { _id: userObjectId },
-          { projection: { payment_hold: 1 } },
+          { projection: { payment_hold: 1, ordering_hold: 1, ordering_hold_reason: 1 } },
         );
-        if (currentUser?.payment_hold) {
+        if (currentUser?.payment_hold || currentUser?.ordering_hold) {
           return res.status(403).json({
-            error: "Ordering is temporarily paused while a payment refund or dispute is reviewed. Please contact support.",
+            error: currentUser?.ordering_hold
+              ? "Ordering is temporarily paused on this account. Please contact support."
+              : "Ordering is temporarily paused while a payment refund or dispute is reviewed. Please contact support.",
           });
         }
         return res.status(400).json({
