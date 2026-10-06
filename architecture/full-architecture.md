@@ -50,6 +50,8 @@ MongoDB replica set <------------/        Payment mailbox
 Supplier  Razorpay Resend
 ```
 
+The payment mailbox has two independent consumers: the Vercel manual UTR/transaction-ID endpoint performs its own exact trusted-receipt lookup, while the Railway worker provides secondary automatic memo scanning and reconciliation. Turning off the bot or worker must not disable a user-initiated website verification.
+
 ## C4 context
 
 ```mermaid
@@ -311,9 +313,9 @@ sequenceDiagram
 - **SYS-0094** — Direct UPI step: unique memo and exact pending transaction stored.
 - **SYS-0095** — Direct UPI step: QR/deep link contains amount and memo.
 - **SYS-0096** — Direct UPI step: browser polls exact transaction ID.
-- **SYS-0097** — Direct UPI step: worker or manual path finds receipt.
+- **SYS-0097** — Direct UPI step: the Vercel manual path independently searches the trusted mailbox by exact UTR/TxID with MIME-aware bounded fallback; Railway worker availability is not required.
 - **SYS-0098** — Direct UPI step: receipt amount matches exact paise.
-- **SYS-0099** — Direct UPI step: receipt memo matches pending memo.
+- **SYS-0099** — Direct UPI step: receipt reference matches pending reference; exact manual verification may recover a recently expired request only inside the bounded window.
 - **SYS-0100** — Direct UPI step: UTR/TxID/memo anti-replay inserts.
 - **SYS-0101** — Direct UPI step: wallet/pending/ledger/security commit together.
 - **SYS-0102** — Direct UPI step: concurrent retry cannot double credit.
@@ -503,7 +505,7 @@ sequenceDiagram
 - **SYS-0253** — TIER1_MARKUP / TIER2_MARKUP (Vercel): Private pricing configuration; values must never be disclosed in public source/docs.
 - **SYS-0254** — UPI_VPA / UPI_MERCHANT_NAME (Vercel): Direct UPI destination and display name.
 - **SYS-0255** — DIRECT_UPI_PENDING_TTL_MINUTES (Vercel): Bounded pending QR lifetime.
-- **SYS-0256** — DIRECT_UPI_MAX_AMOUNT_INR (Vercel): Bounded Direct UPI amount ceiling.
+- **SYS-0256** — DIRECT_UPI_MAX_AMOUNT_INR / DIRECT_UPI_LATE_VERIFICATION_HOURS (Vercel): Bounded amount ceiling and 1–72-hour exact-manual recovery window.
 - **SYS-0257** — RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET (Vercel): Razorpay API credentials.
 - **SYS-0258** — RAZORPAY_WEBHOOK_SECRET (Vercel): Webhook HMAC secret.
 - **SYS-0259** — RAZORPAY_MODE / RAZORPAY_ALLOW_TEST_WALLET_CREDIT / RAZORPAY_MAX_DEPOSIT_INR (Vercel): Explicit test/live and bounded-amount safeguards.
@@ -516,7 +518,7 @@ sequenceDiagram
 - **SYS-0266** — ADMIN_BOT_STATE_SECRET (Railway): AES-GCM key material for short-lived protected action state.
 - **SYS-0267** — TELEGRAM_ADMIN_CHAT_ID (Vercel): Payment/security alert destination.
 - **SYS-0268** — IMAP_USER / IMAP_PASSWORD (Railway): Worker mailbox credentials; app password only.
-- **SYS-0269** — FAMPAY_EMAIL / FAMPAY_APP_PASSWORD (Vercel): Website-side Direct UPI mailbox configuration.
+- **SYS-0269** — FAMPAY_EMAIL / FAMPAY_APP_PASSWORD / FAMPAY_SENDER_FILTER / DIRECT_UPI_IMAP_SCAN_LIMIT (Vercel): Website-side Direct UPI mailbox, exact sender and bounded MIME fallback configuration.
 - **SYS-0270** — FAMPAY_SENDER_FILTER (Vercel + Railway): Expected payment-email sender.
 - **SYS-0271** — ENABLE_IMAP_WORKER / ADMIN_BOT_DISABLE_AUTOSTART (Railway/tests): Explicit worker role plus test-only controlled-import switch.
 - **SYS-0272** — TEMP_PASSWORD_TTL_MINUTES / TEMP_PASSWORD_MAX_USES (Both): Bounded temporary-credential policy.
@@ -531,7 +533,7 @@ sequenceDiagram
 - **SYS-0278** — npm run test:recovery: temporary credential and session concurrency.
 - **SYS-0279** — npm run test:support-access: actor/subject, read-only and one-time exchange.
 - **SYS-0280** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
-- **SYS-0281** — npm run test:direct-upi: exact, held, expired and concurrent settlement.
+- **SYS-0281** — npm run test:direct-upi and test:imap-receipts: exact/held/expired/late/concurrent settlement plus plain, quoted-printable, base64 and fail-closed parsing.
 - **SYS-0282** — npm run test:email-delivery: hash-only token and provider payload.
 - **SYS-0283** — npm run test:email-auth: immediate registration/session with zero signup delivery, legacy pending-account login, reset/email-change and replay protection.
 - **SYS-0284** — npm run test:core-indexes: critical index availability/options.
@@ -1378,7 +1380,7 @@ sequenceDiagram
 ### Endpoint: POST /api/payments/verify-identifier
 
 - **WEB-0519** — `POST /api/payments/verify-identifier` access boundary: Normal session.
-- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Requires exact pending ID, amount and memo; searches bank email; requires receipt memo; transactionally claims identifiers and credits once.
+- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Independently of the Railway bot, the Vercel API requires an account-owned payment ID and exact amount/reference, searches the trusted receipt mailbox by UTR/transaction ID plus bounded recent fallback, decodes plain/quoted-printable/base64 MIME, distinguishes mailbox outage from no match, optionally recovers a recently expired request inside the bounded window, and transactionally claims identifiers and credits once.
 - **WEB-0521** — `POST /api/payments/verify-identifier` is covered by the central no-store/noindex API response policy.
 - **WEB-0522** — `POST /api/payments/verify-identifier` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1711,7 +1713,7 @@ sequenceDiagram
 - **WEB-0718** — npm run test:recovery: temporary credential and session concurrency.
 - **WEB-0719** — npm run test:support-access: actor/subject, read-only and one-time exchange.
 - **WEB-0720** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
-- **WEB-0721** — npm run test:direct-upi: exact, held, expired and concurrent settlement.
+- **WEB-0721** — npm run test:direct-upi and test:imap-receipts: exact, held, expired, bounded late-manual recovery, concurrent settlement and MIME parsing.
 - **WEB-0722** — npm run test:email-delivery: hash-only token and provider payload.
 - **WEB-0723** — npm run test:email-auth: immediate registration/session with zero email delivery, legacy pending-account recovery, reset/email-change and replay protection.
 - **WEB-0724** — npm run test:core-indexes: critical index availability/options.

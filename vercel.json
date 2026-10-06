@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/payments/*.ts": {
+      "maxDuration": 30
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/status-sync",

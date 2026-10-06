@@ -24,9 +24,11 @@ interface SettlementInput {
   transactionId: string;
   sender?: string;
   source: "manual_identifier_verify" | "railway_imap_worker";
+  /** Manual website verification may recover a recently expired request only after exact receipt checks. */
+  allowExpiredWithinHours?: number;
 }
 
-/** Atomically claims one exact, unexpired pending Direct UPI deposit and credits it once. */
+/** Atomically claims one exact Direct UPI deposit and credits it once. */
 export async function settleDirectUpiPayment(input: SettlementInput): Promise<{ newBalance: number }> {
   const expectedMemo = input.expectedMemo.trim().toUpperCase();
   const receiptMemo = input.receiptMemo?.trim().toUpperCase();
@@ -39,17 +41,25 @@ export async function settleDirectUpiPayment(input: SettlementInput): Promise<{ 
 
   const settlementKey = `direct_upi:${input.pendingId.toString()}`;
   const session = input.client.startSession();
+  const now = new Date();
+  const lateHours = input.source === "manual_identifier_verify"
+    ? Math.max(0, Math.min(Number(input.allowExpiredWithinHours || 0), 72))
+    : 0;
+  const eligibleStatus = lateHours > 0 ? { $in: ["pending", "expired"] } : "pending";
+  const eligibleTime = lateHours > 0
+    ? { created_at: { $gt: new Date(now.getTime() - lateHours * 60 * 60_000) } }
+    : { expires_at: { $gt: now } };
   let newBalance = 0;
   try {
     await session.withTransaction(async () => {
-      const pending = await input.db.collection("transactions").findOne({
+      const pending: any = await input.db.collection("transactions").findOne({
         _id: input.pendingId,
         user_id: input.userId,
         method: "FAMPAY_UPI",
         amount: input.expectedAmount,
         memo: expectedMemo,
-        status: "pending",
-        expires_at: { $gt: new Date() },
+        status: eligibleStatus,
+        ...eligibleTime,
       }, { session });
       if (!pending) {
         throw new DirectUpiSettlementError("PENDING_DEPOSIT_STALE", "Pending deposit is missing, expired, or already settled.");
@@ -69,7 +79,7 @@ export async function settleDirectUpiPayment(input: SettlementInput): Promise<{ 
       }, { session });
 
       const claimed = await input.db.collection("transactions").updateOne(
-        { _id: input.pendingId, status: "pending" },
+        { _id: input.pendingId, status: pending.status },
         {
           $set: {
             status: "paid",

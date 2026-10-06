@@ -114,9 +114,13 @@ Prefer synthetic accounts, deposits and orders. If production-shaped records are
 | `UPI_MERCHANT_NAME` | Merchant display name |
 | `DIRECT_UPI_PENDING_TTL_MINUTES` | Optional; defaults to 30, bounded 5–180 |
 | `DIRECT_UPI_MAX_AMOUNT_INR` | Optional; defaults to ₹100,000 and is server bounded |
-| `FAMPAY_EMAIL` | Mailbox identity when website-side receipt verification is used |
+| `DIRECT_UPI_LATE_VERIFICATION_HOURS` | Optional 1–72-hour exact-manual-verification recovery window; defaults to 24 |
+| `FAMPAY_EMAIL` | Mailbox identity used directly by website-side receipt verification |
 | `FAMPAY_APP_PASSWORD` | App password; never normal mailbox password |
-| `FAMPAY_SENDER_FILTER` | Expected receipt sender filter |
+| `FAMPAY_SENDER_FILTER` | One exact trusted receipt sender address |
+| `DIRECT_UPI_IMAP_SCAN_LIMIT` | Bounded 10–100 recent-receipt fallback scan; defaults to 40 |
+
+A submitted UTR is checked by the Vercel API itself. Railway worker or Telegram long-polling availability must not affect this manual path. Validate plain, quoted-printable and base64 receipt fixtures; exact sender, identifier, amount, time and memo matching; temporary mailbox failure signaling; duplicate rejection; and recently expired-request recovery before release.
 
 ### Razorpay
 
@@ -193,6 +197,7 @@ npm run test:recovery
 npm run test:support-access
 npm run test:rate-limit
 npm run test:direct-upi
+npm run test:imap-receipts
 npm run test:email-delivery
 npm run test:email-auth
 npm run test:core-indexes
@@ -325,6 +330,11 @@ Create exact pending deposits and test:
 - wrong amount;
 - missing/wrong memo;
 - duplicate UTR/transaction/memo;
+- plain-text, quoted-printable and base64 trusted-sender receipts;
+- Gmail BODY-search miss followed by bounded recent-receipt fallback;
+- manual website verification while the Railway bot/worker is stopped;
+- distinct mailbox-unavailable response rather than a false UTR-not-found response;
+- recently expired request inside and outside the bounded manual recovery window;
 - concurrent website/worker settlement;
 - account payment hold;
 - transaction rollback on induced failure;

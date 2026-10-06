@@ -28,6 +28,11 @@ function maxDirectUpiAmountInr(): number {
   );
 }
 
+function lateVerificationHours(): number {
+  const configured = Number.parseInt(String(process.env.DIRECT_UPI_LATE_VERIFICATION_HOURS || "24"), 10);
+  return Number.isFinite(configured) ? Math.max(1, Math.min(configured, 72)) : 24;
+}
+
 function generateDynamicMemo(): string {
   const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   let suffix = "";
@@ -289,17 +294,32 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
 
     try {
       const pendingId = new ObjectId(pendingTransactionId);
-      const pendingDeposit = await db.collection("transactions").findOne({
+      const pendingDeposit: any = await db.collection("transactions").findOne({
         _id: pendingId,
         user_id: userObjectId,
         method: "FAMPAY_UPI",
-        amount: requestedAmount,
-        status: "pending",
-        expires_at: { $gt: new Date() },
       });
-      if (!pendingDeposit) {
+      if (!pendingDeposit || Math.round(Number(pendingDeposit.amount) * 100) !== Math.round(requestedAmount * 100)) {
         return res.status(400).json({
-          error: "This exact pending Direct UPI deposit is missing, expired, or already settled. Please generate a fresh QR.",
+          error: "This payment request does not match your account and amount. Do not pay again; contact support with the receipt.",
+        });
+      }
+      if (pendingDeposit.status === "paid") {
+        const currentUser = await db.collection("users").findOne({ _id: userObjectId }, { projection: { balance: 1 } });
+        return res.status(200).json({
+          success: true,
+          alreadyCredited: true,
+          amount: Number(pendingDeposit.amount),
+          utr: pendingDeposit.utr,
+          transactionId: pendingDeposit.transaction_id,
+          newBalance: Number(currentUser?.balance || 0),
+          message: "This payment was already verified and credited to your wallet.",
+        });
+      }
+      const verificationCutoff = new Date(Date.now() - lateVerificationHours() * 60 * 60_000);
+      if (!["pending", "expired"].includes(String(pendingDeposit.status)) || new Date(pendingDeposit.created_at) <= verificationCutoff) {
+        return res.status(409).json({
+          error: "This paid request is outside automatic verification time. Do not pay again; contact support with this UTR and receipt for reconciliation.",
         });
       }
       const storedMemo = String(pendingDeposit.memo || "").trim().toUpperCase();
@@ -309,12 +329,13 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
 
       const parsedPayment = await searchFamPayPayment({
         identifier: cleanInput,
+        memo: storedMemo,
         expectedAmount: requestedAmount,
         minDate: new Date(pendingDeposit.created_at),
       });
       if (!parsedPayment) {
         return res.status(404).json({
-          error: "Record not found in bank records yet. If you just paid, wait 15–30 seconds and retry.",
+          error: "No exact matching bank receipt is available yet. Do not pay again. Wait briefly and retry this same UTR, or contact support with the payment receipt.",
         });
       }
       if (Math.round(parsedPayment.amount * 100) !== Math.round(requestedAmount * 100)) {
@@ -332,11 +353,26 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
           },
           { upsert: true },
         );
-        return res.status(409).json({ error: "The bank receipt did not include the exact payment memo, so it was not credited automatically. Support has been notified for reconciliation." });
+        return res.status(409).json({ error: "The trusted bank receipt was found, but it did not contain the exact payment reference. The payment has been flagged for reconciliation; do not pay again and contact support with this receipt." });
       }
       const receiptMemo = String(parsedPayment.purpose).trim().toUpperCase();
       if (receiptMemo !== storedMemo) {
-        return res.status(400).json({ error: "The bank receipt memo does not match this pending deposit." });
+        await db.collection("payment_reconciliation").updateOne(
+          { memo: storedMemo, status: "open", reason: "receipt_memo_mismatch" },
+          {
+            $set: {
+              pending_transaction_id: pendingId,
+              user_id: userObjectId,
+              identifier: cleanInput,
+              observed_memo: receiptMemo,
+              last_seen_at: new Date(),
+            },
+            $inc: { attempts: 1 },
+            $setOnInsert: { created_at: new Date(), status: "open" },
+          },
+          { upsert: true },
+        );
+        return res.status(409).json({ error: "The trusted receipt was found, but its payment reference does not match this deposit. It has been flagged for reconciliation; do not pay again and contact support." });
       }
 
       const finalUtr = String(parsedPayment.utr || rawInput).replace(/[^A-Za-z0-9]/g, "");
@@ -356,6 +392,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         transactionId: finalTxId,
         sender: parsedPayment.sender,
         source: "manual_identifier_verify",
+        allowExpiredWithinHours: lateVerificationHours(),
       });
 
       sendPaymentSuccessAlert({
@@ -377,6 +414,11 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         message: `Payment verified! ₹${parsedPayment.amount.toFixed(2)} added to your wallet balance.`,
       });
     } catch (err: any) {
+      if (err?.code === "PAYMENT_MAILBOX_UNAVAILABLE") {
+        return res.status(503).json({
+          error: "Bank verification is temporarily unavailable. Your payment is not lost—do not pay again. Retry the same UTR shortly or contact support.",
+        });
+      }
       if (err?.code === 11000) {
         return res.status(409).json({ error: "This payment has already been claimed or settled." });
       }

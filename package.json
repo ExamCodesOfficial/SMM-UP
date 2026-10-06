@@ -13,6 +13,7 @@
     "test:support-access": "tsx tests/supportAccess.integration.ts",
     "test:rate-limit": "tsx tests/rateLimit.integration.ts",
     "test:direct-upi": "tsx tests/directUpiSettlement.integration.ts",
+    "test:imap-receipts": "tsx tests/imapReceiptParsing.ts",
     "test:email-delivery": "tsx tests/emailDelivery.integration.ts",
     "test:email-auth": "tsx tests/emailAuthFlows.integration.ts",
     "test:core-indexes": "tsx tests/coreIndexes.integration.ts",

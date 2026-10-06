@@ -840,15 +840,18 @@ export default function AddFundsPage({
                 {/* Dynamic Memo Badge */}
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-none bg-white/[0.04] border border-white/10 text-xs text-zinc-300">
                   <Lock className="w-3 h-3 text-[#E4E4E7]" />
-                  <span>Dynamic Memo: <code className="text-[#FAF9F7] font-mono font-bold">{qrData.memo}</code></span>
+                  <span>Payment Reference: <code className="text-[#FAF9F7] font-mono font-bold">{qrData.memo}</code></span>
                   <button
                     onClick={copyMemo}
                     className="text-zinc-400 hover:text-white transition-colors ml-1 cursor-pointer"
-                    title="Copy Memo"
+                    title="Copy payment reference"
                   >
                     {copiedMemo ? <Check className="w-3 h-3 text-zinc-100" /> : <Copy className="w-3 h-3" />}
                   </button>
                 </div>
+                <p className="mt-2 max-w-md text-[11px] leading-relaxed text-zinc-500">
+                  This exact reference binds the incoming bank receipt to your pending deposit. Keep it unchanged in the UPI app.
+                </p>
               </div>
             )}
 
@@ -922,8 +925,8 @@ export default function AddFundsPage({
                   disabled={verifying || Boolean(verifySuccess)}
                   className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white px-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500 tracking-wider text-center font-semibold uppercase"
                 />
-                <p className="text-[11px] text-zinc-400 mt-2 text-center">
-                  Accepts 12-digit UPI UTR, FamPay Transaction ID (FMPIB...), or Paytm / Bank Reference ID.
+                <p className="text-[11px] text-zinc-400 mt-2 text-center leading-relaxed">
+                  The website checks the trusted bank receipt directly using the exact identifier, amount, time and payment reference. Telegram bot availability is not required.
                 </p>
               </div>
 

@@ -75,6 +75,23 @@ async function run() {
       expectedMemo: "SUPEXPR1", receiptMemo: "SUPEXPR1", utr: "123456789014", transactionId: "FMPIBEXPR1",
     }), (error: any) => error?.code === "PENDING_DEPOSIT_STALE");
 
+    // Website-side exact receipt verification may safely recover a recently
+    // expired request; the background worker never receives this exception.
+    await db.collection("users").updateOne({ _id: userId }, { $unset: { payment_hold: "" } });
+    const latePendingId = new ObjectId();
+    await db.collection("transactions").insertOne({
+      _id: latePendingId, user_id: userId, method: "FAMPAY_UPI", amount: 20,
+      memo: "SUPLATE1", status: "expired", created_at: new Date(Date.now() - 60 * 60_000),
+      expires_at: new Date(Date.now() - 30 * 60_000),
+    });
+    const lateResult = await settleDirectUpiPayment({
+      ...exact, pendingId: latePendingId, expectedAmount: 20, receivedAmount: 20,
+      expectedMemo: "SUPLATE1", receiptMemo: "SUPLATE1", utr: "123456789018", transactionId: "FMPIBLATE1",
+      allowExpiredWithinHours: 24,
+    });
+    assert.equal(lateResult.newBalance, 120);
+    assert.equal((await db.collection("transactions").findOne({ _id: latePendingId }))?.status, "paid");
+
     await assert.rejects(() => settleDirectUpiPayment({
       ...exact, pendingId, userId: otherUserId,
       utr: "123456789015", transactionId: "FMPIBWRONG1",

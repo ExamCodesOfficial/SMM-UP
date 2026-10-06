@@ -137,7 +137,7 @@ Those are explicit operational gates in the deployment runbook.
 ### Payments and wallet
 
 - Never request or store a UPI PIN, OTP, CVV or banking password.
-- Direct UPI settlement must bind to one exact user-owned, unexpired pending transaction.
+- Direct UPI settlement must bind to one exact user-owned pending transaction; only exact website verification may recover a recently expired request inside the bounded window.
 - Pending ID, amount in paise and receipt memo must match.
 - UTR, transaction ID and memo anti-replay identities are uniquely indexed.
 - Wallet mutation, pending claim, anti-replay record and ledger entry commit together.
@@ -177,6 +177,7 @@ flowchart LR
   Vercel --> Supplier[Supplier API]
   Vercel --> Razorpay[Razorpay]
   Vercel --> Resend[Resend]
+  Vercel --> Mailbox[Payment mailbox: direct manual UTR verification]
   Railway[Railway Telegram bot + IMAP worker] --> DB
   Railway --> Telegram[Telegram Bot API]
   Railway --> Mailbox[Payment mailbox]
@@ -195,7 +196,7 @@ flowchart LR
 
 - Account, email, session, Support Access and API-key actions under `/api/auth/[action]`.
 - Website order actions under `/api/orders/[action]`.
-- Direct UPI actions under `/api/payments/[action]`.
+- Direct UPI actions under `/api/payments/[action]`, including website-side trusted-mailbox verification independent of Railway.
 - Razorpay actions and raw webhook endpoint.
 - Standard reseller API at `/api/v2`.
 - Fail-closed status cron.
@@ -260,6 +261,7 @@ npm run test:recovery
 npm run test:support-access
 npm run test:rate-limit
 npm run test:direct-upi
+npm run test:imap-receipts
 npm run test:email-delivery
 npm run test:email-auth
 npm run test:core-indexes
@@ -290,7 +292,7 @@ If `node_modules` is absent, run `npm ci` first. Do not allow `npx` to download 
 5. Verify Resend sender/domain and all one-time email flows.
 6. Verify cron missing/bad/good-secret behavior.
 7. Verify public catalog and owner-only refresh.
-8. Verify Direct UPI wrong user/ID/amount/memo/expiry/concurrency failures.
+8. Verify Direct UPI wrong user/ID/amount/memo/expiry/concurrency failures, bounded late recovery, MIME variants and mailbox-outage signaling.
 9. Verify Razorpay test callback/webhook ordering and duplicate delivery.
 10. Run two Railway replicas and prove one lease and one settlement.
 11. Verify Telegram stale/replay buttons and forbidden-data boundaries.

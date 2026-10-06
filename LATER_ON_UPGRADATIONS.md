@@ -180,6 +180,9 @@ Never translate a GitHub push into a production-complete claim. GitHub, Vercel, 
 - [x] Exact user/method/status/expiry checks.
 - [x] Exact integer-paise amount check.
 - [x] Exact receipt-memo check.
+- [x] Website-side UTR/TxID mailbox verification independent of Railway bot/worker uptime.
+- [x] Plain/quoted-printable/base64 MIME receipt decoding with bounded Gmail-search fallback.
+- [x] Distinct mailbox-unavailable response and bounded recently-expired manual recovery.
 - [x] UTR/transaction/memo replay prevention.
 - [x] Transactional wallet settlement.
 - [x] Reconciliation when evidence is incomplete.
@@ -220,7 +223,8 @@ The post-implementation suite has passed locally:
 - [x] recovery replica-set test;
 - [x] Support Access replica-set test;
 - [x] persistent limiter test;
-- [x] exact Direct UPI test;
+- [x] exact Direct UPI and bounded late-manual recovery test;
+- [x] receipt MIME parsing test;
 - [x] email-delivery test;
 - [x] email-auth lifecycle test;
 - [x] critical-index test;

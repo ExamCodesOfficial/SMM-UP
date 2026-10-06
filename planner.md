@@ -32,7 +32,7 @@ SMM UP is a responsive SMM ordering and reseller platform with:
 - Direct UPI and Razorpay funding rails;
 - standard SMM v2 reseller API;
 - multiple scoped named API keys;
-- verified-email account lifecycle;
+- immediate signup/session plus requested email recovery and confirmed email changes;
 - revocable MongoDB sessions;
 - owner-only Telegram administration;
 - Railway payment settlement/reconciliation;
@@ -236,7 +236,11 @@ flowchart LR
 - Compare amount as integer paise.
 - Enforce unique memo, UTR, transaction ID and settlement key.
 - Use MongoDB transactions for claim and wallet settlement.
-- Worker and website verifier use equivalent exactness and idempotency rules.
+- Website manual verification connects to the trusted mailbox directly and never depends on Railway bot/worker availability.
+- Decode plain-text, quoted-printable and base64 MIME receipts; fall back from Gmail BODY search to a bounded recent trusted-sender scan.
+- Distinguish mailbox unavailability from a genuine no-match result.
+- Allow only website manual verification to recover a recently expired request inside the bounded 1–72-hour window after all exact evidence checks.
+- Worker and website verifier retain equivalent exactness, sender allowlisting and idempotency rules.
 - Reconciliation records missing/mismatched evidence.
 
 ### Razorpay
@@ -303,7 +307,8 @@ flowchart LR
 - Temporary-password use and completion.
 - Support Access one-time exchange and read-only enforcement.
 - Persistent rate-limit concurrency.
-- Direct UPI exact settlement and rollback.
+- Direct UPI exact settlement, bounded late-manual recovery and rollback.
+- Receipt parsing across plain, quoted-printable and base64 MIME with fail-closed malformed/outgoing cases.
 - Email token storage/delivery/replay.
 - Immediate registration/session plus password-reset and email-change lifecycles.
 - Critical indexes.

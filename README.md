@@ -16,7 +16,7 @@ SMM UP combines:
 - Vercel account, order, wallet, payment and reseller APIs;
 - MongoDB replica-set transactions, unique indexes and TTL state;
 - Direct UPI and Razorpay funding rails;
-- verified-email account lifecycle and revocable hash-only sessions;
+- immediate username/email/password signup with revocable hash-only sessions, plus requested email recovery/change confirmation;
 - multiple named, scoped API keys with limits and one-time secret reveal;
 - a Railway TypeScript Telegram owner bot using long polling;
 - a lease-protected IMAP settlement and reconciliation worker.
@@ -28,9 +28,10 @@ flowchart LR
   Vercel --> Supplier[Supplier API]
   Vercel --> Razorpay[Razorpay]
   Vercel --> Resend[Resend]
+  Vercel --> Mailbox[Payment mailbox: direct UTR verification]
   Owner[Telegram owner] --> Bot[Railway TypeScript bot]
   Bot --> DB
-  Bot --> Mailbox[Payment mailbox]
+  Bot --> Mailbox[Secondary auto-settlement worker]
 ```
 
 ## Repository map
@@ -93,6 +94,7 @@ npm run test:recovery
 npm run test:support-access
 npm run test:rate-limit
 npm run test:direct-upi
+npm run test:imap-receipts
 npm run test:email-delivery
 npm run test:email-auth
 npm run test:core-indexes

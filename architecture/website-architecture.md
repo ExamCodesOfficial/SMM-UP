@@ -54,10 +54,11 @@ flowchart LR
   V -->|supplier API| P[Upstream SMM provider]
   V -->|Orders / verify / webhook| R[Razorpay]
   V -->|transactional email| E[Resend]
+  V -->|manual exact UTR/TxID receipt lookup| I[Payment mailbox]
   V -->|alerts only| T[Telegram Bot API]
   M --> W[Railway owner bot + IMAP worker]
   W -->|long polling| T
-  W -->|IMAP app password| I[Payment mailbox]
+  W -->|secondary auto-settlement scan| I
 ```
 
 ### Trust boundaries
@@ -1017,7 +1018,7 @@ stateDiagram-v2
 ### Endpoint: POST /api/payments/verify-identifier
 
 - **WEB-0519** — `POST /api/payments/verify-identifier` access boundary: Normal session.
-- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Requires exact pending ID, amount and memo; searches bank email; requires receipt memo; transactionally claims identifiers and credits once.
+- **WEB-0520** — `POST /api/payments/verify-identifier` behavior: Independently of the Railway bot, the Vercel API requires an account-owned payment ID and exact amount/reference, searches the trusted receipt mailbox by UTR/transaction ID plus bounded recent fallback, decodes plain/quoted-printable/base64 MIME, distinguishes mailbox outage from no match, optionally recovers a recently expired request inside the bounded window, and transactionally claims identifiers and credits once.
 - **WEB-0521** — `POST /api/payments/verify-identifier` is covered by the central no-store/noindex API response policy.
 - **WEB-0522** — `POST /api/payments/verify-identifier` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
@@ -1350,7 +1351,7 @@ stateDiagram-v2
 - **WEB-0718** — npm run test:recovery: temporary credential and session concurrency.
 - **WEB-0719** — npm run test:support-access: actor/subject, read-only and one-time exchange.
 - **WEB-0720** — npm run test:rate-limit: shared limiter concurrency and raw-key exclusion.
-- **WEB-0721** — npm run test:direct-upi: exact, held, expired and concurrent settlement.
+- **WEB-0721** — npm run test:direct-upi: exact, held, expired, bounded late-manual recovery and concurrent settlement.
 - **WEB-0722** — npm run test:email-delivery: hash-only token and provider payload.
 - **WEB-0723** — npm run test:email-auth: immediate registration/session with zero email delivery, legacy pending-account recovery, reset/email-change and replay protection.
 - **WEB-0724** — npm run test:core-indexes: critical index availability/options.
@@ -1397,7 +1398,7 @@ stateDiagram-v2
 | `POST /api/orders/cancel` | Normal session | Validates ownership/cancel policy; forwards request and supports safe refund accounting. |
 | `POST /api/payments/create-order` | Normal session | Payment-hold and shared-rate checks; validates bounded two-decimal amount; creates exact expiring Direct UPI pending record and dynamic memo/QR. |
 | `GET /api/payments/check-status` | Authenticated normal session | Exact owned pending-ID polling; returns paid/pending/expired state and triggers bounded delayed alert. |
-| `POST /api/payments/verify-identifier` | Normal session | Requires exact pending ID, amount and memo; searches bank email; requires receipt memo; transactionally claims identifiers and credits once. |
+| `POST /api/payments/verify-identifier` | Normal session | Vercel independently checks exact UTR/TxID, owned request, amount, time and receipt reference across supported MIME forms; it distinguishes mailbox outage, allows bounded late recovery and credits transactionally once. |
 | `POST /api/payments/verify-utr` | Normal session | Compatibility alias for exact identifier verification with identical safeguards. |
 | `GET /api/payments/history` | Authenticated/read-only support | Returns bounded owned transaction history. |
 | `GET /api/razorpay/config` | Authenticated/read-only support | Returns safe enabled/mode/test-credit configuration without provider secrets. |
@@ -1575,6 +1576,7 @@ erDiagram
 | `UPI_VPA / UPI_MERCHANT_NAME` | Vercel | Direct UPI destination and display name. |
 | `DIRECT_UPI_PENDING_TTL_MINUTES` | Vercel | Bounded pending QR lifetime. |
 | `DIRECT_UPI_MAX_AMOUNT_INR` | Vercel | Bounded Direct UPI amount ceiling. |
+| `DIRECT_UPI_LATE_VERIFICATION_HOURS` | Vercel | Bounded 1–72-hour manual exact-receipt recovery window; default 24. |
 | `RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET` | Vercel | Razorpay API credentials. |
 | `RAZORPAY_WEBHOOK_SECRET` | Vercel | Webhook HMAC secret. |
 | `RAZORPAY_MODE / RAZORPAY_ALLOW_TEST_WALLET_CREDIT` | Vercel | Explicit test/live safeguards. |
@@ -1593,7 +1595,8 @@ erDiagram
 | `TELEGRAM_ADMIN_CHAT_ID` | Vercel | Payment/security alert destination. |
 | `IMAP_USER / IMAP_PASSWORD` | Railway | Worker mailbox credentials; app password only. |
 | `FAMPAY_EMAIL / FAMPAY_APP_PASSWORD` | Vercel | Website-side manual receipt-verifier mailbox configuration. |
-| `FAMPAY_SENDER_FILTER` | Vercel + Railway | Expected payment-email sender. |
+| `FAMPAY_SENDER_FILTER` | Vercel + Railway | One exact expected payment-email sender. |
+| `DIRECT_UPI_IMAP_SCAN_LIMIT` | Vercel | Bounded 10–100 recent trusted-receipt fallback scan; default 40. |
 | `ENABLE_IMAP_WORKER` | Railway | Worker is active unless explicitly set to `false`; set intended service role deliberately. |
 | `ADMIN_BOT_DISABLE_AUTOSTART` | Railway/tests | Controlled-import/integration-test switch; never a production authorization bypass. |
 | `TEMP_PASSWORD_TTL_MINUTES / TEMP_PASSWORD_MAX_USES` | Both | Bounded temporary-credential policy. |
@@ -1611,7 +1614,8 @@ erDiagram
 | `npm run test:recovery` | temporary credential and session concurrency |
 | `npm run test:support-access` | actor/subject, read-only and one-time exchange |
 | `npm run test:rate-limit` | shared limiter concurrency and raw-key exclusion |
-| `npm run test:direct-upi` | exact, held, expired and concurrent settlement |
+| `npm run test:direct-upi` | exact, held, expired, bounded late-manual recovery and concurrent settlement |
+| `npm run test:imap-receipts` | plain, quoted-printable, base64, alternate-reference and fail-closed receipt parsing |
 | `npm run test:email-delivery` | hash-only token and provider payload |
 | `npm run test:email-auth` | immediate signup/session, zero signup delivery, legacy pending login, reset/email-change/replay |
 | `npm run test:core-indexes` | critical index availability/options |

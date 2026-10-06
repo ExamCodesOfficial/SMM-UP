@@ -426,7 +426,9 @@ Website order creation validates the service and price on the server. A `Submitt
 
 `create-order` returns `transactionId`, amount, memo, VPA and UPI URI. The browser generates its QR locally with `qrcode`; the payment URI is not transmitted to a public QR-image service.
 
-Settlement requires one user-owned unexpired pending transaction, exact paise amount, exact receipt memo and unique anti-replay identifiers. Missing/mismatched evidence creates or preserves reconciliation state; it never produces a guessed credit.
+Manual UTR/transaction-ID submission is verified directly by the Vercel payment API against the trusted receipt mailbox; it does not depend on the Railway Telegram bot or background worker being online. The verifier handles plain-text, quoted-printable and base64 MIME receipts, uses an exact sender allowlist, checks receipt time and exact paise amount, and requires the receipt reference to match the account-owned pending deposit. Gmail BODY-search misses fall back to a bounded recent trusted-sender scan.
+
+Settlement requires one user-owned pending transaction, exact paise amount, exact receipt reference and unique anti-replay identifiers. Exact website verification may recover a recently expired request within the configured 1–72-hour window (24 hours by default), but the worker cannot use that exception. Missing/mismatched evidence creates or preserves reconciliation state; it never produces a guessed credit. Mailbox unavailability returns a distinct temporary-service error instead of falsely reporting that the UTR does not exist.
 
 ### Razorpay
 
@@ -548,6 +550,7 @@ npm run test:recovery
 npm run test:support-access
 npm run test:rate-limit
 npm run test:direct-upi
+npm run test:imap-receipts
 npm run test:email-delivery
 npm run test:email-auth
 npm run test:core-indexes
