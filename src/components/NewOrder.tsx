@@ -25,11 +25,34 @@ import {
   Heart,
   BookmarkPlus,
   Trash2,
+  Layers,
+  CornerDownRight,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { SkeletonOrderForm } from "./Skeleton";
-import { formatINR, formatNumber, cleanServiceDescription, sanitizeBrandText, parseRefillPolicy } from "../lib/utils";
+import { formatINR, formatNumber, cleanServiceDescription, sanitizeBrandText, parseRefillPolicy, matchesServiceSearch, formatAverageTime } from "../lib/utils";
 import { pathFor } from "../lib/routes";
+
+function highlightMatch(text: string, query: string): React.ReactNode {
+  if (!query || !query.trim()) return text;
+  const tokens = query
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  if (tokens.length === 0) return text;
+  const regex = new RegExp(`(${tokens.join("|")})`, "gi");
+  const parts = text.split(regex);
+  return parts.map((part, i) =>
+    regex.test(part) ? (
+      <span key={i} className="text-white font-semibold bg-white/20 px-0.5 rounded-xs">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+}
 import {
   ExecutiveOrderIcon,
   ExecutiveWalletIcon,
@@ -104,11 +127,20 @@ export default function NewOrder({
   const [selectedCategory, setSelectedCategory] = React.useState("");
   const [selectedServiceId, setSelectedServiceId] = React.useState<number | string>("");
 
+  // Universal Omni-Search State (Global search across all 2000+ services)
+  const [omniSearch, setOmniSearch] = React.useState("");
+  const [omniOpen, setOmniOpen] = React.useState(false);
+  const omniRef = React.useRef<HTMLDivElement>(null);
+  const omniInputRef = React.useRef<HTMLInputElement>(null);
+  const omniListRef = React.useRef<HTMLDivElement>(null);
+  const targetLinkInputRef = React.useRef<HTMLInputElement>(null);
+
   // Custom Popover States (Replacing clunky native HTML selects)
   const [catPickerOpen, setCatPickerOpen] = React.useState(false);
   const [catSearch, setCatSearch] = React.useState("");
   const [servicePickerOpen, setServicePickerOpen] = React.useState(false);
   const [serviceSearch, setServiceSearch] = React.useState("");
+  const [pickerSearchAll, setPickerSearchAll] = React.useState(false);
 
   const catPickerRef = React.useRef<HTMLDivElement>(null);
   const servicePickerRef = React.useRef<HTMLDivElement>(null);
@@ -180,18 +212,35 @@ export default function NewOrder({
       if (servicePickerRef.current && !servicePickerRef.current.contains(e.target as Node)) {
         setServicePickerOpen(false);
       }
+      if (omniRef.current && !omniRef.current.contains(e.target as Node)) {
+        setOmniOpen(false);
+      }
     };
-    const handleEscapeKey = (e: KeyboardEvent) => {
+    const handleKeydown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setCatPickerOpen(false);
         setServicePickerOpen(false);
+        setOmniOpen(false);
+      }
+      // Global shortcut for omni search (/ or ⌘K / Ctrl+K)
+      const target = e.target as HTMLElement | null;
+      const isInputFocused =
+        target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setOmniOpen(true);
+        omniInputRef.current?.focus();
+      } else if (e.key === "/" && !isInputFocused) {
+        e.preventDefault();
+        setOmniOpen(true);
+        omniInputRef.current?.focus();
       }
     };
     document.addEventListener("mousedown", handleOutsideClick);
-    document.addEventListener("keydown", handleEscapeKey);
+    document.addEventListener("keydown", handleKeydown);
     return () => {
       document.removeEventListener("mousedown", handleOutsideClick);
-      document.removeEventListener("keydown", handleEscapeKey);
+      document.removeEventListener("keydown", handleKeydown);
     };
   }, []);
 
@@ -222,6 +271,16 @@ export default function NewOrder({
     const set = new Set<string>();
     platformFiltered.forEach((s) => set.add(sanitizeBrandText(s.category)));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [platformFiltered]);
+
+  // Category service counts
+  const categoryCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    platformFiltered.forEach((s) => {
+      const cat = sanitizeBrandText(s.category);
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
   }, [platformFiltered]);
 
   // Keep category in sync
@@ -280,23 +339,77 @@ export default function NewOrder({
     return services.find((s) => Number(s.service) === Number(selectedServiceId)) || null;
   }, [services, selectedServiceId]);
 
+  // Global Omni-Search across all 2000+ services
+  const omniResults = React.useMemo(() => {
+    if (!omniSearch.trim()) return [];
+    const query = omniSearch.trim();
+    const results: typeof services = [];
+    for (const s of services) {
+      if (matchesServiceSearch(s, query)) {
+        results.push(s);
+        if (results.length >= 60) break;
+      }
+    }
+    return results;
+  }, [services, omniSearch]);
+
+  const handleSelectOmniService = (service: (typeof services)[0]) => {
+    setSelectedPlatform("All");
+    setSelectedCategory(sanitizeBrandText(service.category));
+    setSelectedServiceId(service.service);
+    setOmniOpen(false);
+    setOmniSearch("");
+    setTimeout(() => {
+      targetLinkInputRef.current?.focus();
+    }, 50);
+  };
+
   // Filtered categories for picker search
   const filteredCategoriesForPicker = React.useMemo(() => {
     if (!catSearch.trim()) return categories;
-    return categories.filter((c) => c.toLowerCase().includes(catSearch.toLowerCase()));
+    const term = catSearch.toLowerCase();
+    return categories.filter((c) => c.toLowerCase().includes(term));
   }, [categories, catSearch]);
+
+  // Direct services matching category search term (for instant 1-click select inside category picker)
+  const directServicesInCategorySearch = React.useMemo(() => {
+    if (!catSearch.trim() || catSearch.trim().length < 2) return [];
+    const term = catSearch.trim();
+    const list: typeof services = [];
+    for (const s of platformFiltered) {
+      if (matchesServiceSearch(s, term)) {
+        list.push(s);
+        if (list.length >= 8) break;
+      }
+    }
+    return list;
+  }, [platformFiltered, catSearch]);
 
   // Filtered services for package picker search
   const filteredServicesForPicker = React.useMemo(() => {
     if (!serviceSearch.trim()) return servicesInCategory;
-    const term = serviceSearch.toLowerCase();
-    return servicesInCategory.filter(
-      (s) =>
-        s.name.toLowerCase().includes(term) ||
-        String(s.service).includes(term) ||
-        s.category.toLowerCase().includes(term)
-    );
+    return servicesInCategory.filter((s) => matchesServiceSearch(s, serviceSearch));
   }, [servicesInCategory, serviceSearch]);
+
+  // Count matching services across ALL categories when current category returns 0
+  const matchingAllCategoriesCount = React.useMemo(() => {
+    if (!serviceSearch.trim() || filteredServicesForPicker.length > 0) return 0;
+    let count = 0;
+    for (const s of platformFiltered) {
+      if (matchesServiceSearch(s, serviceSearch)) {
+        count++;
+      }
+    }
+    return count;
+  }, [platformFiltered, serviceSearch, filteredServicesForPicker.length]);
+
+  const handleSearchAcrossAllCategories = () => {
+    const match = platformFiltered.find((s) => matchesServiceSearch(s, serviceSearch));
+    if (match) {
+      setSelectedCategory(sanitizeBrandText(match.category));
+      setSelectedServiceId(match.service);
+    }
+  };
 
   // Calculation of charge
   const calculatedCharge = React.useMemo(() => {
@@ -533,6 +646,131 @@ export default function NewOrder({
               </span>
             </h3>
 
+            {/* UNIVERSAL OMNI-SEARCH BAR (Global Search Across All 2,000+ Services) */}
+            <div className="relative mb-6" ref={omniRef}>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold uppercase tracking-wider text-white flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#E4E4E7]" />
+                  <span>Universal Quick Search</span>
+                </label>
+                <div className="flex items-center gap-1 text-[11px] text-zinc-400">
+                  <span className="hidden sm:inline">Press</span>
+                  <kbd className="px-1.5 py-0.5 rounded-none bg-white/10 border border-white/20 text-[10px] text-zinc-300 font-mono">
+                    /
+                  </kbd>
+                  <span className="hidden sm:inline">or</span>
+                  <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded-none bg-white/10 border border-white/20 text-[10px] text-zinc-300 font-mono">
+                    ⌘K
+                  </kbd>
+                </div>
+              </div>
+
+              <div className="relative">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <input
+                  ref={omniInputRef}
+                  type="text"
+                  value={omniSearch}
+                  onFocus={() => setOmniOpen(true)}
+                  onChange={(e) => {
+                    setOmniSearch(e.target.value);
+                    if (!omniOpen) setOmniOpen(true);
+                  }}
+                  placeholder="Instant search 2,000+ services (e.g. 'Telegram members non drop', '2664', 'Instagram reels')..."
+                  className="w-full bg-black/60 border border-white/20 focus:border-[#E4E4E7] focus:ring-1 focus:ring-[#E4E4E7]/30 text-white pl-11 pr-10 py-3 text-xs sm:text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
+                />
+                {omniSearch && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOmniSearch("");
+                      setOmniOpen(false);
+                    }}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs px-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Omni-Search Results Floating Flyout */}
+              {omniOpen && omniSearch.trim().length > 0 && (
+                <div
+                  ref={omniListRef}
+                  className="absolute top-full left-0 right-0 mt-2 z-40 rounded-none border border-white/20 bg-zinc-950/98 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.95)] p-2 space-y-1 max-h-96 overflow-y-auto"
+                >
+                  <div className="px-3 py-1.5 flex items-center justify-between text-[11px] text-zinc-400 border-b border-white/[0.08]">
+                    <span>Found {omniResults.length} matching service{omniResults.length === 1 ? "" : "s"} across catalog</span>
+                    <span className="text-[10px] text-zinc-500">1-click auto-selects &amp; focuses target link</span>
+                  </div>
+
+                  {omniResults.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-zinc-400">
+                      No services match &ldquo;{omniSearch}&rdquo; across the entire catalog.
+                    </div>
+                  ) : (
+                    omniResults.map((s) => {
+                      const isSelected = Number(s.service) === Number(selectedServiceId);
+                      const sInfo = getPlatformInfo(s.category, s.name);
+                      const SIcon = sInfo.icon;
+                      const policy = parseRefillPolicy(s);
+
+                      return (
+                        <button
+                          key={s.service}
+                          type="button"
+                          onClick={() => handleSelectOmniService(s)}
+                          className={`w-full p-2.5 rounded-none text-left transition-all cursor-pointer border flex flex-col gap-1 ${
+                            isSelected
+                              ? "bg-white/10 border-[#E4E4E7]/50 shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                              : "bg-black/40 border-white/[0.06] hover:border-white/30 hover:bg-white/[0.04]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 truncate">
+                              <div className="w-5 h-5 rounded-xs flex items-center justify-center bg-white/[0.05] border border-white/10 shrink-0">
+                                <SIcon size={12} />
+                              </div>
+                              <span className="px-1.5 py-0.2 rounded-xs bg-white/[0.08] text-[10px] font-mono text-zinc-300">
+                                #{s.service}
+                              </span>
+                              <span className="text-[11px] text-zinc-400 truncate">
+                                {sanitizeBrandText(s.category)}
+                              </span>
+                            </div>
+                            <span className="text-xs font-semibold text-white shrink-0">
+                              {formatINR(s.rate)} <span className="text-[10px] text-[#E4E4E7] font-normal">/ 1K</span>
+                            </span>
+                          </div>
+
+                          <div className="text-xs font-medium text-white truncate pl-7">
+                            {highlightMatch(sanitizeBrandText(s.name), omniSearch)}
+                          </div>
+
+                          <div className="flex items-center gap-3 pl-7 text-[10px] text-zinc-400">
+                            <span>Min: {formatNumber(s.min)} &bull; Max: {formatNumber(s.max)}</span>
+                            {policy.hasRefill ? (
+                              <span className="text-[#E4E4E7] font-medium flex items-center gap-0.5">
+                                <RotateCcw className="w-2.5 h-2.5" /> {policy.shortLabel}
+                              </span>
+                            ) : (
+                              <span className="text-zinc-500">No Refill</span>
+                            )}
+                            {s.average_time && (
+                              <span className="text-zinc-400 flex items-center gap-1">
+                                <Clock className="w-2.5 h-2.5 text-zinc-500" />
+                                {formatAverageTime(s.average_time)}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* 1. CUSTOM CATEGORY PICKER (No native select boxes!) */}
               <div className="relative" ref={catPickerRef}>
@@ -566,18 +804,52 @@ export default function NewOrder({
 
                 {/* Floating Command Popover */}
                 {catPickerOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-none border border-white/15 bg-zinc-950/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.9)] p-3 space-y-2 max-h-80 flex flex-col">
+                  <div className="absolute top-full left-0 right-0 mt-2 z-30 rounded-none border border-white/15 bg-zinc-950/95 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.9)] p-3 space-y-2 max-h-96 flex flex-col">
                     <div className="relative">
                       <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         value={catSearch}
                         onChange={(e) => setCatSearch(e.target.value)}
-                        placeholder="Search category (e.g. Followers, Views, Reels)..."
+                        placeholder="Search category or service keyword (e.g. Followers, Views, 2664)..."
                         autoFocus
                         className="w-full bg-black/60 border border-white/10 focus:border-white/40 text-white pl-9 pr-3 py-2 text-xs rounded-none outline-none"
                       />
                     </div>
+
+                    {/* Direct Services Matching Category Query */}
+                    {directServicesInCategorySearch.length > 0 && (
+                      <div className="p-2 border border-[#E4E4E7]/20 bg-white/[0.02] space-y-1">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-[#E4E4E7] flex items-center gap-1 px-1 mb-1">
+                          <CornerDownRight className="w-3 h-3" />
+                          <span>Direct Services Matching &ldquo;{catSearch}&rdquo;</span>
+                        </div>
+                        <div className="max-h-36 overflow-y-auto space-y-1">
+                          {directServicesInCategorySearch.map((srv) => (
+                            <button
+                              key={srv.service}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCategory(sanitizeBrandText(srv.category));
+                                setSelectedServiceId(srv.service);
+                                setCatPickerOpen(false);
+                                setCatSearch("");
+                                setTimeout(() => targetLinkInputRef.current?.focus(), 50);
+                              }}
+                              className="w-full text-left p-1.5 rounded-none bg-black/60 hover:bg-white/[0.08] border border-white/[0.06] hover:border-white/20 transition-all flex items-center justify-between gap-2 cursor-pointer"
+                            >
+                              <div className="truncate">
+                                <span className="text-[10px] text-zinc-400 font-mono mr-1">#{srv.service}</span>
+                                <span className="text-xs text-white">{highlightMatch(srv.name, catSearch)}</span>
+                              </div>
+                              <span className="text-[11px] font-semibold text-[#FFFFFF] shrink-0">
+                                {formatINR(srv.rate)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div ref={catListRef} className="overflow-y-auto space-y-1 pr-1 flex-1">
                       {filteredCategoriesForPicker.length === 0 ? (
@@ -587,6 +859,7 @@ export default function NewOrder({
                           const isSelected = selectedCategory === cat;
                           const catInfo = getPlatformInfo(cat, cat);
                           const CatIcon = catInfo.icon;
+                          const count = categoryCounts[cat] || 0;
                           return (
                             <button
                               key={cat}
@@ -613,9 +886,20 @@ export default function NewOrder({
                                 >
                                   <CatIcon size={14} />
                                 </div>
-                                <span className="truncate">{cat}</span>
+                                <span className="truncate">{highlightMatch(cat, catSearch)}</span>
                               </div>
-                              {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-black" />}
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span
+                                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded-none border ${
+                                    isSelected
+                                      ? "bg-black/10 border-black/20 text-black"
+                                      : "bg-white/[0.04] border-white/10 text-zinc-400"
+                                  }`}
+                                >
+                                  {count}
+                                </span>
+                                {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-black" />}
+                              </div>
                             </button>
                           );
                         })
@@ -681,7 +965,23 @@ export default function NewOrder({
 
                     <div ref={serviceListRef} className="overflow-y-auto space-y-2 pr-1 flex-1">
                       {filteredServicesForPicker.length === 0 ? (
-                        <div className="text-xs text-zinc-500 text-center py-4">No services match your search in this category.</div>
+                        <div className="text-xs text-zinc-400 text-center py-6 space-y-3">
+                          <div>No services match &ldquo;{serviceSearch}&rdquo; in this category.</div>
+                          {matchingAllCategoriesCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleSearchAcrossAllCategories();
+                                setServicePickerOpen(false);
+                                setServiceSearch("");
+                              }}
+                              className="px-3.5 py-2 bg-white text-black font-semibold text-xs tracking-wider rounded-none hover:bg-zinc-200 transition-all cursor-pointer inline-flex items-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]"
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                              <span>Search Across All Categories ({matchingAllCategoriesCount} found)</span>
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         filteredServicesForPicker.map((s) => {
                           const isSelected = Number(s.service) === Number(selectedServiceId);
@@ -703,7 +1003,7 @@ export default function NewOrder({
                             >
                               <div className="flex items-start justify-between gap-2 mb-1.5">
                                 <span className="text-xs font-semibold text-white leading-snug line-clamp-2">
-                                  #{s.service} — {s.name}
+                                  #{highlightMatch(String(s.service), serviceSearch)} — {highlightMatch(s.name, serviceSearch)}
                                 </span>
                                 <span className="text-xs font-semibold text-[#FFFFFF] drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] shrink-0">
                                   {formatINR(s.rate)} <span className="text-[10px] text-[#E4E4E7] font-normal">/ 1K</span>
@@ -721,6 +1021,12 @@ export default function NewOrder({
                                     <span className="text-zinc-600 font-normal">No Refill</span>
                                   );
                                 })()}
+                                {s.average_time && (
+                                  <span className="text-zinc-400 flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5 text-zinc-500" />
+                                    {formatAverageTime(s.average_time)}
+                                  </span>
+                                )}
                               </div>
                             </button>
                           );
@@ -780,6 +1086,7 @@ export default function NewOrder({
                 <div className="relative">
                   <Link2 className="w-4 h-4 text-zinc-400 absolute left-4 top-1/2 -translate-y-1/2" />
                   <input
+                    ref={targetLinkInputRef}
                     type="text"
                     value={link}
                     onChange={(e) => setLink(e.target.value)}
@@ -976,10 +1283,10 @@ export default function NewOrder({
                 </div>
 
                 <div className="p-3.5 rounded-none border border-white/[0.06] bg-black/40">
-                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Start Speed</span>
+                  <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-1">Average Time</span>
                   <span className="text-sm font-semibold text-white flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-zinc-400" />
-                    {currentService.average_time || "Instant"}
+                    {formatAverageTime(currentService.average_time)}
                   </span>
                 </div>
 

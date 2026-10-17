@@ -265,6 +265,38 @@ export function sanitizeProviderError(raw: string): string {
   return msg.slice(0, 300);
 }
 
+export function formatAverageTime(raw: any): string {
+  if (raw === undefined || raw === null || raw === "") {
+    return "Instant";
+  }
+
+  const str = String(raw).trim();
+  if (/[a-zA-Z]/.test(str)) {
+    return str;
+  }
+
+  const num = parseInt(str, 10);
+  if (isNaN(num) || num <= 0) {
+    return "Instant";
+  }
+
+  // Provider returns average_time in MINUTES
+  const hours = Math.floor(num / 60);
+  const minutes = num % 60;
+
+  if (hours === 0) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  const hourStr = `${hours} hour${hours === 1 ? "" : "s"}`;
+  if (minutes === 0) {
+    return hourStr;
+  }
+
+  const minStr = `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  return `${hourStr} and ${minStr}`;
+}
+
 export async function fetchAllServices(forceRefresh = false): Promise<SMMService[]> {
   const now = Date.now();
   if (!forceRefresh && cachedServices && now - lastCacheTime < CACHE_TTL_MS) {
@@ -312,7 +344,7 @@ export async function fetchAllServices(forceRefresh = false): Promise<SMMService
         refill_label: refillPolicy.label,
         refill_short: refillPolicy.shortLabel,
         cancel: Boolean(service.cancel === true || service.cancel === "true" || service.cancel === 1),
-        average_time: String(service.average_time || "Timing varies by service and supplier capacity").slice(0, 200),
+        average_time: formatAverageTime(service.average_time),
         description,
       };
     });

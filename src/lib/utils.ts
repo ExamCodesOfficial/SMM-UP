@@ -179,3 +179,87 @@ export function parseRefillPolicy(service: any): ServiceRefillPolicy {
   return { hasRefill: false, days: 0, label: "No Refill", shortLabel: "No Refill" };
 }
 
+/**
+ * Tokenizes a search query into distinct lowercase search terms.
+ */
+export function tokenizeSearchQuery(query: string): string[] {
+  if (!query) return [];
+  return query
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+/**
+ * Checks if a service matches a search query using multi-token matching across:
+ * - Service ID (numeric match, e.g. "6475" or "#6475" or prefix "647")
+ * - Service Name (all words)
+ * - Category Name
+ * - Platform
+ * - Refill Guarantee terms (e.g. "30d", "lifetime", "refill", "non drop")
+ */
+export function matchesServiceSearch(service: any, query: string): boolean {
+  if (!query || !query.trim()) return true;
+  const raw = query.trim();
+  const idQuery = raw.replace(/^#/, "").trim();
+
+  // Exact ID match is instant true
+  if (idQuery && String(service.service) === idQuery) return true;
+
+  const tokens = tokenizeSearchQuery(raw);
+  if (tokens.length === 0) return true;
+
+  const serviceIdStr = String(service.service || "");
+  const cat = sanitizeBrandText(service.category || "").toLowerCase();
+  const name = sanitizeBrandText(service.name || "").toLowerCase();
+  const desc = String(service.description || "").toLowerCase();
+  const platform = String(service.platform || "").toLowerCase();
+  const refill = `${service.refill_label || ""} ${service.refill_short || ""}`.toLowerCase();
+
+  const combined = `${serviceIdStr} ${name} ${cat} ${platform} ${refill} ${desc}`;
+
+  return tokens.every((token) => {
+    const cleanToken = token.replace(/^#/, "");
+    if (cleanToken && serviceIdStr.includes(cleanToken)) return true;
+    return combined.includes(token);
+  });
+}
+
+/**
+ * Formats raw average_time from provider (which is in minutes)
+ * into human-readable string: e.g. "918 hours and 33 minutes", "1 hour and 15 minutes", "15 minutes".
+ */
+export function formatAverageTime(raw: any): string {
+  if (raw === undefined || raw === null || raw === "") {
+    return "Instant";
+  }
+
+  const str = String(raw).trim();
+  // If already a descriptive string (e.g. "0-15 minutes", "Instant")
+  if (/[a-zA-Z]/.test(str)) {
+    return str;
+  }
+
+  const num = parseInt(str, 10);
+  if (isNaN(num) || num <= 0) {
+    return "Instant";
+  }
+
+  // Upstream SMM provider measures average_time in minutes
+  const hours = Math.floor(num / 60);
+  const minutes = num % 60;
+
+  if (hours === 0) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  const hourStr = `${hours} hour${hours === 1 ? "" : "s"}`;
+  if (minutes === 0) {
+    return hourStr;
+  }
+
+  const minStr = `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  return `${hourStr} and ${minStr}`;
+}
+

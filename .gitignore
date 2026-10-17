@@ -9,6 +9,7 @@ coverage/
 .env
 .env.*
 !.env.example
+env.txt
 .vercel/
 
 # Test/browser artifacts
