@@ -357,6 +357,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           error: row.last_error || null,
           createdAt: row.created_at || null,
           sentAt: row.sent_at || null,
+          pinned: Boolean(row.pinned_message_id),
+          pinnedMessageId: row.pinned_message_id || null,
+          pinError: row.pin_error || null,
         })),
       });
     }
