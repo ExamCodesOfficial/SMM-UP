@@ -342,6 +342,18 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
       if (fresh?.status === "expired") {
         return res.status(200).json({ success: true, status: "expired", message: "This payment request expired. Please generate a new QR." });
       }
+
+      // The provider told us why it could not answer. That is worth saying
+      // out loud — a customer staring at a pending QR deserves to know the
+      // difference between "not paid yet" and "we cannot check right now".
+      if (fresh?.provider_last_error) {
+        return res.status(200).json({
+          success: true,
+          status: fresh.status || "pending",
+          providerIssue: true,
+          message: "We are checking your payment with the bank. It is safe to wait — your wallet is credited automatically once the bank confirms.",
+        });
+      }
       if (fresh?.payment_review_required) {
         return res.status(200).json({
           success: true,

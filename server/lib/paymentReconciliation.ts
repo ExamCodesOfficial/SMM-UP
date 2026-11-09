@@ -126,6 +126,22 @@ export async function reconcileFamGatewayTransaction(tx: any): Promise<Reconcile
     };
   } catch (error: any) {
     console.error("FamGateway reconciliation error:", error?.message || error);
+    // The provider's own words are recorded on the row. A merchant whose
+    // Gmail IMAP link is down sees "Gmail IMAP session disconnected" here
+    // instead of a payment that silently stays pending forever.
+    try {
+      const db = await getDb();
+      await db.collection("transactions").updateOne(
+        { _id: tx._id },
+        {
+          $set: {
+            provider_last_error: String(error?.message || "provider_unavailable").slice(0, 240),
+            provider_last_error_at: new Date(),
+            updated_at: new Date(),
+          },
+        },
+      );
+    } catch { /* the original error is what matters */ }
     return { outcome: "error", transactionId, detail: "provider_unavailable" };
   }
 }

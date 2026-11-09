@@ -20,16 +20,42 @@ in a URL and never reaches the browser.
 
 ---
 
-## 2. What FamGateway needs from you
+## 2. What FamGateway needs from you — DO THIS FIRST
 
-FamGateway watches **your connected Gmail** for the bank credit alert and
-extracts the NPCI UTR, then calls our webhook. So the merchant side needs:
+> **Without this, no payment will ever be detected.** FamGateway finds the
+> money by reading the bank credit alert out of **your Gmail inbox**. If the
+> Gmail link is missing or IMAP is switched off, the provider never sees the
+> payment: the order stays `pending` forever, no webhook fires, and no code
+> on our side can fix it. This is the single most common reason a UPI
+> Automatic payment does not credit.
 
-1. A Gmail account that receives the UPI credit alerts for `aryanok@fam`.
-2. That Gmail account connected to FamGateway (IMAP enabled).
-3. A Gmail **App Password** — 16 characters, generated in
-   Google Account → Security → 2-Step Verification → App passwords.
-   FamGateway asks for the Gmail address and that app password.
+Do all three, in this order:
+
+**Step 1 — turn IMAP on in Gmail (the one people miss).**
+Open Gmail on a desktop → ⚙ Settings → *See all settings* → **Forwarding and
+POP/IMAP** → tick **Enable IMAP** → **Save Changes**.
+Direct link: `https://mail.google.com/mail/u/0/#settings/fwdandpop`
+Google rejects IMAP logins when this is off, even with a perfectly valid
+app password.
+
+**Step 2 — make a 16-character App Password.**
+Google Account → Security → 2-Step Verification → **App passwords** → make one
+named "FamGateway". Copy it without the spaces.
+
+**Step 3 — connect the Gmail to FamGateway.**
+`https://famgateway.in/integrations.php` → *Connect FamPay Gmail* →
+- Gmail address: the one that receives the `aryanok@fam` credit alerts
+- App Password: the 16 characters from Step 2 (no spaces)
+- FamPay UPI ID: `aryanok@fam`
+
+→ **Save Settings**. FamGateway verifies the connection and activates the API
+key immediately. If it does not verify, the order will never be confirmed.
+
+**Step 4 — add a fallback webhook (recommended).**
+`https://famgateway.in/webhooks.php` → add
+`https://smmup.co.in/api/famgateway/webhook`.
+We also send a per-order webhook URL on every order, so this is a belt-and-braces
+second delivery route, not a replacement.
 
 We keep the same Gmail details on our side so the website can independently
 verify receipts (`FAMPAY_EMAIL`, `FAMPAY_APP_PASSWORD`, `FAMPAY_SENDER_FILTER`).
@@ -59,13 +85,21 @@ The customer pays exactly ₹500 and receives exactly ₹500.
 
 ## 4. Order lifetime
 
-Default **5 minutes** (`FAMGATEWAY_ORDER_LIFETIME_MINUTES`, adjustable 5–30
+Default **10 minutes** (`FAMGATEWAY_ORDER_LIFETIME_MINUTES`, adjustable 5–30
 and live-editable from the bot). The customer sees a live countdown on the
 payment screen, and a "wrong amount? cancel this request" link.
 
+Ten minutes, not five, because the provider itself keeps the order open for
+ten minutes and a UPI payment is not instant — the customer has to open an
+app, pick the bank and type a UPI PIN. Five minutes expired the QR while
+they were still typing.
+
 If a customer's webhook is ever lost, the reconciliation sweep (the bot,
 every 5 minutes, plus a Vercel cron every 30 minutes) re-checks the order
-against FamGateway and settles it through exactly the same code path.
+against FamGateway and settles it through exactly the same code path. The
+customer's own open page also polls the provider directly every few seconds,
+so a payment is normally credited within a couple of seconds of the bank
+confirming it.
 
 ---
 
