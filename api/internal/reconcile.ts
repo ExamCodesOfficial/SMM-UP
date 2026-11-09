@@ -204,7 +204,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     // Counts only. No amounts, references, identifiers or provider payloads.
-    return res.status(200).json({ reconciled: summary.scanned, settled: summary.settled, stillPending: summary.stillPending });
+    // The full breakdown matters: a sweep that scans rows and settles none of
+    // them is the difference between "nothing to do" and "money is stuck",
+    // and only the owner can tell the two apart without this.
+    return res.status(200).json({
+      reconciled: summary.scanned,
+      settled: summary.settled,
+      expired: summary.expired,
+      review: summary.review,
+      stillPending: summary.stillPending,
+      errors: summary.errors,
+    });
   } catch (error: any) {
     console.error("internal/reconcile error:", error?.message || error);
     return res.status(500).json({ error: "Reconciliation failed." });
