@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -184,6 +184,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // The owner needs an answer to "I paid but my wallet did not change".
     // This answers it from our own record: what state the request is in,
     // what was credited, and whether the wallet was actually updated.
+    if (action === "notification_status") {
+      // The owner-notification queue: what the website has asked the bot to
+      // deliver, and what the bot has actually delivered.
+      const now = new Date();
+      const [pending, delivered, failed, givingUp] = await Promise.all([
+        db.collection("owner_notification_queue").countDocuments({ sent_at: null }),
+        db.collection("owner_notification_queue").countDocuments({ sent_at: { $ne: null } }),
+        db.collection("owner_notification_queue").countDocuments({ sent_at: null, last_error: { $ne: null } }),
+        db.collection("owner_notification_queue").countDocuments({ sent_at: null, attempts: { $gte: 8 } }),
+      ]);
+      const recent = await db.collection("owner_notification_queue")
+        .find({})
+        .sort({ created_at: -1 })
+        .limit(10)
+        .toArray();
+      return res.status(200).json({
+        pending,
+        delivered,
+        failed,
+        givingUp,
+        botHeartbeat: now.toISOString(),
+        recent: recent.map((row: any) => ({
+          event: row.event,
+          dedupeKey: row.dedupe_key,
+          amount: row.amount ?? null,
+          userEmail: row.user_email ?? null,
+          method: row.method ?? null,
+          sent: Boolean(row.sent_at),
+          attempts: Number(row.attempts || 0),
+          error: row.last_error || null,
+          createdAt: row.created_at || null,
+          sentAt: row.sent_at || null,
+        })),
+      });
+    }
+
     if (action === "payment_lookup") {
       const provider = String(body?.provider || "famgateway");
       const orderId = String(body?.orderId || "").trim();
