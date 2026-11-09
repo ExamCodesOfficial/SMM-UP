@@ -345,6 +345,87 @@ async function run() {
       else process.env.FAMGATEWAY_SECRET_KEY = originalAlias;
     }
 
+    // ── 3e. A locally expired request is still settled if the provider says paid
+    // Our own lifetime is not the truth about money. The provider holds an
+    // order open longer than we do, so a request whose local clock ran out
+    // may still have been paid inside that window. If the provider confirms
+    // it, the money is credited.
+    const expiredUserId = new (await import("mongodb")).ObjectId();
+    await db.collection("users").insertOne({
+      _id: expiredUserId,
+      email: "expired@example.com",
+      username: "expired",
+      balance: 0,
+      created_at: new Date(),
+    });
+    const expiredTx = await db.collection("transactions").insertOne({
+      user_id: expiredUserId,
+      user_email: "expired@example.com",
+      amount: 250,
+      amount_paise: 25000,
+      currency: "INR",
+      method: "FAMGATEWAY_UPI",
+      provider: "famgateway",
+      environment: "live",
+      status: "expired",
+      wallet_credited: false,
+      famgateway_order_id: "fg_expired123456",
+      created_at: new Date(Date.now() - 20 * 60_000),
+      updated_at: new Date(),
+      expires_at: new Date(Date.now() - 15 * 60_000),
+    });
+    const expiredResult = await wallet.settleFamGatewayDeposit({
+      internalTransactionId: expiredTx.insertedId.toString(),
+      famgatewayOrderId: "fg_expired123456",
+      expectedUserId: expiredUserId.toString(),
+      expectedAmountPaise: 25000,
+      paidAmountPaise: 25000,
+      utr: "627636256497",
+      eventId: "famgateway_test_event_expired",
+      eventType: "payment.success",
+    });
+    assert.equal(expiredResult.walletCredited, true, "an expired request that was paid must still credit");
+    const expiredUser = await db.collection("users").findOne({ _id: expiredUserId });
+    assert.equal(Number(expiredUser.balance), 250, "the money must reach the wallet");
+
+    // ── 3f. A cancelled request that was paid is still credited ────────────
+    const cancelledUserId = new (await import("mongodb")).ObjectId();
+    await db.collection("users").insertOne({
+      _id: cancelledUserId,
+      email: "cancelled@example.com",
+      username: "cancelled",
+      balance: 0,
+      created_at: new Date(),
+    });
+    const cancelledTx = await db.collection("transactions").insertOne({
+      user_id: cancelledUserId,
+      user_email: "cancelled@example.com",
+      amount: 250,
+      amount_paise: 25000,
+      currency: "INR",
+      method: "FAMGATEWAY_UPI",
+      provider: "famgateway",
+      environment: "live",
+      status: "cancelled",
+      wallet_credited: false,
+      famgateway_order_id: "fg_cancelled1234",
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    const cancelledResult = await wallet.settleFamGatewayDeposit({
+      internalTransactionId: cancelledTx.insertedId.toString(),
+      famgatewayOrderId: "fg_cancelled1234",
+      expectedUserId: cancelledUserId.toString(),
+      expectedAmountPaise: 25000,
+      paidAmountPaise: 25000,
+      utr: "627636256498",
+      eventId: "famgateway_test_event_cancelled",
+      eventType: "payment.success",
+    });
+    assert.equal(cancelledResult.walletCredited, true, "a cancelled request that was paid must still credit");
+    const cancelledUser = await db.collection("users").findOne({ _id: cancelledUserId });
+    assert.equal(Number(cancelledUser.balance), 250, "a late payment is never dropped");
+
     // ── 4. Crypto settlement ─────────────────────────────────────────────────
     const cryptoTx = await db.collection("transactions").insertOne({
       user_id: userId,

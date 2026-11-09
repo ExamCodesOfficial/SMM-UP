@@ -285,13 +285,11 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
         });
       }
 
-      if (tx.status === "pending" && tx.expires_at && new Date(tx.expires_at) <= new Date()) {
-        await db.collection("transactions").updateOne(
-          { _id: tx._id, status: "pending" },
-          { $set: { status: "expired", expired_at: new Date(), updated_at: new Date() } },
-        );
-        return res.status(200).json({ success: true, status: "expired", message: "This payment request expired. Please generate a new QR." });
-      }
+      // Our own clock never decides whether money arrived. The provider
+      // holds an order open for longer than we used to, so a request whose
+      // local lifetime has passed may still have been paid in that window.
+      // The provider is asked FIRST; only its answer can expire the request.
+      const locallyExpired = Boolean(tx.expires_at) && new Date(tx.expires_at).getTime() <= Date.now();
 
       // ── The customer's own polling approves the payment ────────────────
       // A webhook that is late, lost or filtered must never leave a paid
@@ -340,6 +338,16 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
       }
 
       if (fresh?.status === "expired") {
+        return res.status(200).json({ success: true, status: "expired", message: "This payment request expired. Please generate a new QR." });
+      }
+
+      // The provider says the order was never paid and our own lifetime has
+      // passed. Now it is safe to call it expired.
+      if (locallyExpired && fresh?.status === "pending") {
+        await db.collection("transactions").updateOne(
+          { _id: tx._id, status: "pending" },
+          { $set: { status: "expired", expired_at: new Date(), updated_at: new Date() } },
+        );
         return res.status(200).json({ success: true, status: "expired", message: "This payment request expired. Please generate a new QR." });
       }
 

@@ -243,7 +243,12 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
       // A cancelled request is still settleable: the customer may have paid it
       // just before cancelling. Real money is never silently dropped — the
       // caller flags it for owner review instead.
-      if (!["pending", "processing", "authorized", "cancelled"].includes(String(tx.status))) {
+      //
+      // So is a locally EXPIRED request. Our own clock is not the truth
+      // about money: the provider holds an order open for longer than we do,
+      // and a customer who pays in that window has paid. If the provider
+      // confirms the payment, it is settled.
+      if (!["pending", "processing", "authorized", "cancelled", "expired"].includes(String(tx.status))) {
         throw new WalletSettlementError("This deposit cannot be settled in its current state.", 409);
       }
 
@@ -270,7 +275,7 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
       const txUpdate = await db.collection("transactions").updateOne(
         {
           _id: tx._id,
-          status: { $in: ["pending", "processing", "authorized"] },
+          status: { $in: ["pending", "processing", "authorized", "cancelled", "expired"] },
           ...(input.bindingFilter || {}),
         },
         {

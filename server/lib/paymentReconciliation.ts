@@ -236,9 +236,13 @@ export async function reconcilePendingDeposits(input: {
   const limit = Math.max(1, Math.min(input.limit ?? 25, 100));
   const minAgeSeconds = Math.max(0, Math.min(input.minAgeSeconds ?? 30, 86_400));
 
+  // EXPIRED rows are swept too. A request can pass its local lifetime and
+  // still have been paid in the window the provider kept it open, and a row
+  // that is only ever swept while "pending" would silently strand that
+  // money forever.
   const query = input.provider === "famgateway"
-    ? { method: "FAMGATEWAY_UPI", status: "pending", famgateway_order_id: { $exists: true } }
-    : { method: "OXAPAY_CRYPTO", status: "pending", oxapay_track_id: { $exists: true } };
+    ? { method: "FAMGATEWAY_UPI", status: { $in: ["pending", "expired", "cancelled"] }, famgateway_order_id: { $exists: true } }
+    : { method: "OXAPAY_CRYPTO", status: { $in: ["pending", "expired", "cancelled"] }, oxapay_track_id: { $exists: true } };
 
   const cutoff = new Date(Date.now() - minAgeSeconds * 1000);
   const candidates = await db
