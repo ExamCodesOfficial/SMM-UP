@@ -224,12 +224,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .sort({ created_at: -1 })
         .limit(10)
         .toArray();
+      // The bot writes a heartbeat on every pass. If this is missing or old,
+      // the Railway instance is not running the new code (or is down).
+      const health = await db.collection<any>("system_health").findOne({ _id: "owner_notification_worker" });
       return res.status(200).json({
         pending,
         delivered,
         failed,
         givingUp,
-        botHeartbeat: now.toISOString(),
+        requestedAt: now.toISOString(),
+        botHeartbeat: health?.heartbeat_at || null,
+        botStatus: health?.status || null,
+        botLastError: health?.last_error || null,
+        botLastSuccessAt: health?.last_success_at || null,
         recent: recent.map((row: any) => ({
           event: row.event,
           dedupeKey: row.dedupe_key,
