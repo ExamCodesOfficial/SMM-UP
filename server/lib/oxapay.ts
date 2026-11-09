@@ -155,6 +155,8 @@ export async function createOxaPayInvoice(input: {
   feePaidByPayer: 0 | 1;
   underPaidCoverage: number;
   sandbox: boolean;
+  description?: string;
+  thanksMessage?: string;
 }): Promise<OxaPayInvoice> {
   const { merchantApiKey } = getOxaPayConfig();
 
@@ -176,8 +178,8 @@ export async function createOxaPayInvoice(input: {
       callback_url: input.callbackUrl,
       return_url: input.returnUrl,
       order_id: input.orderId,
-      description: `SMM UP wallet top-up ${input.orderId}`,
-      thanks_message: "Thank you. Your SMM UP wallet is credited automatically.",
+      description: input.description || "SMM UP wallet top-up",
+      thanks_message: input.thanksMessage || "Payment received. Your SMM UP wallet has been credited automatically.",
       ...(input.email ? { email: input.email } : {}),
       sandbox: input.sandbox,
     }),

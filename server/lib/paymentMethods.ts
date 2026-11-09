@@ -61,6 +61,10 @@ export interface PaymentMethodSettings {
   underPaidCoverage: number;
   /** Crypto only: invoice lifetime in minutes (15-2880). */
   invoiceLifetimeMinutes: number;
+  /** Crypto only: the description shown on the provider's hosted checkout. */
+  invoiceDescription: string;
+  /** Crypto only: the message shown on the provider's hosted checkout. */
+  thanksMessage: string;
   /** UPI Automatic only: order lifetime in minutes (5-30). */
   orderLifetimeMinutes: number;
 }
@@ -83,7 +87,7 @@ export interface PaymentMethodState extends PaymentMethodSettings {
 /** Public shape consumed by the website deposit UI. */
 export type PaymentMethodDescriptor = Omit<
   PaymentMethodState,
-  "configured" | "source" | "reason" | "toggleEnabled" | "feePaidByPayer" | "underPaidCoverage" | "invoiceLifetimeMinutes" | "orderLifetimeMinutes"
+  "configured" | "source" | "reason" | "toggleEnabled" | "feePaidByPayer" | "underPaidCoverage" | "invoiceLifetimeMinutes" | "orderLifetimeMinutes" | "invoiceDescription" | "thanksMessage"
 >;
 
 const CONFIG_COLLECTION = "payment_method_config";
@@ -150,6 +154,8 @@ export interface RuntimeMethodConfig {
   usd_to_inr_rate?: number;
   fee_paid_by_payer?: 0 | 1;
   under_paid_coverage?: number;
+  invoice_description?: string;
+  thanks_message?: string;
   invoice_lifetime_minutes?: number;
   order_lifetime_minutes?: number;
   updated_at?: Date;
@@ -197,6 +203,19 @@ export function oxapayUnderPaidCoverage(): number {
   return Math.round(envNumber("OXAPAY_UNDER_PAID_COVERAGE", 5, 0, 60));
 }
 
+/** The text shown on the provider's hosted checkout. Adjustable, never hardcoded. */
+export function oxapayInvoiceDescription(): string {
+  return String(process.env.OXAPAY_INVOICE_DESCRIPTION || "SMM UP wallet top-up").trim().slice(0, 240) || "SMM UP wallet top-up";
+}
+
+export function oxapayThanksMessage(): string {
+  return String(
+    process.env.OXAPAY_THANKS_MESSAGE
+    || "Payment received. Your SMM UP wallet has been credited automatically — you can close this page.",
+  ).trim().slice(0, 480)
+    || "Payment received. Your SMM UP wallet has been credited automatically — you can close this page.";
+}
+
 export function oxapayInvoiceLifetimeMinutes(): number {
   return envInt("OXAPAY_INVOICE_LIFETIME_MINUTES", 60, 15, 2880);
 }
@@ -210,6 +229,8 @@ function envBaseline(id: PaymentMethodId): PaymentMethodSettings {
     feePayer: "merchant" as const,
     feePaidByPayer: 1 as 0 | 1,
     underPaidCoverage: 5,
+    invoiceDescription: oxapayInvoiceDescription(),
+    thanksMessage: oxapayThanksMessage(),
     invoiceLifetimeMinutes: oxapayInvoiceLifetimeMinutes(),
     orderLifetimeMinutes: famgatewayOrderLifetimeMinutes(),
     presets: INR_PRESETS,
@@ -350,6 +371,14 @@ export function resolveMethodSettings(
       hasRuntimeOverride = true;
     }
   }
+  if (typeof runtime.invoice_description === "string" && runtime.invoice_description.trim()) {
+    settings.invoiceDescription = runtime.invoice_description.trim().slice(0, 240);
+    hasRuntimeOverride = true;
+  }
+  if (typeof runtime.thanks_message === "string" && runtime.thanks_message.trim()) {
+    settings.thanksMessage = runtime.thanks_message.trim().slice(0, 480);
+    hasRuntimeOverride = true;
+  }
   if (runtime.invoice_lifetime_minutes !== undefined) {
     settings.invoiceLifetimeMinutes = Math.max(15, Math.min(Math.round(Number(runtime.invoice_lifetime_minutes) || 60), 2880));
     hasRuntimeOverride = true;
@@ -420,6 +449,8 @@ export async function getEnabledPaymentMethods(db: Db): Promise<PaymentMethodDes
         underPaidCoverage: _underPaidCoverage,
         invoiceLifetimeMinutes: _invoiceLifetimeMinutes,
         orderLifetimeMinutes: _orderLifetimeMinutes,
+        invoiceDescription: _invoiceDescription,
+        thanksMessage: _thanksMessage,
         ...descriptor
       } = state;
       return descriptor;

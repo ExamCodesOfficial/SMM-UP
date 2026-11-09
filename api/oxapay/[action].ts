@@ -249,6 +249,8 @@ async function handleOxaPayRequest(req: VercelRequest, res: VercelResponse) {
         feePaidByPayer: settings.feePaidByPayer,
         underPaidCoverage: settings.underPaidCoverage,
         sandbox: config.sandbox,
+        description: settings.invoiceDescription,
+        thanksMessage: settings.thanksMessage,
       });
 
       await db.collection("transactions").updateOne(
