@@ -1471,6 +1471,52 @@ A completed payment is the one thing the owner must be able to glance at without
 
 Verified live: 8 consecutive completed payments, all 8 pinned, `pinErr=None` on every row, `pending=0 delivered=15 failed=0`.
 
-### 15.7 Open
+### 15.7 The Railway bot had never actually run its workers
+
+The gasprop Railway service (`web-production-49581.up.railway.app`, project *melodious-optimism*) **was** connected, **was** deploying every push (GitHub commit status: `Success - web-production-49581.up.railway.app`), and the bot itself was healthy and talking to the right database (`smm_up_db`, owner chat `8684160810`).
+
+It was doing nothing, for three stacked reasons:
+
+1. **`await bot.launch()` never resolves.** Telegraf's `startPolling()` returns `this.polling.loop(...)` — an infinite `for await` over `getUpdates`. `launch()` awaits it, so it never returns. Every line after it in `bot.ts` therefore **never ran**: not the settlement worker, not the status worker, not the notification worker. The process was alive, connected and polling, doing nothing at all. This bug was present in every commit of both repositories, including the one deployed on 2026-10-07.
+
+2. **The heartbeat wrote an empty `$inc`.** MongoDB rejects an empty update operator, so `recordWorkerHealth()` failed on every pass — and the `catch` around it swallowed the error. A perfectly healthy worker left no trace, which is exactly how a working bot looks like a dead one.
+
+3. **The bot had no HTTP surface.** Railway's health check had nothing to probe, so the service was unmonitorable and "the bot is down" could not be told apart from "the bot is writing to another database".
+
+The fixes:
+
+- `void bot.launch(...)` instead of `await` — long polling is scheduled, not awaited.
+- The workers start **before** long polling. Delivering a queued notification needs no incoming updates, so there is no reason to make it wait for Telegram.
+- `ensureAdminControlIndexes()` gets a 20-second budget and then gets out of the way: a contended index build must never stop the bot from working.
+- The heartbeat update operator set is always explicit, and a failed heartbeat write is logged instead of swallowed.
+- A health endpoint on the port Railway assigns reports the bot identity, the resolved owner chat ids, the database name, the startup stage and every worker's last tick, last error and delivery counts.
+
+### 15.8 Proof that the bot itself delivers
+
+A notification was queued through a signed internal action that deliberately does **not** deliver it, so only the Railway bot could pick it up:
+
+```
+QUEUED (bot-only): {"queued": true, "duplicate": false, "reference": "botpath_c42108"}
+  [1] sent=True attempts=1 err=None
+✅ DELIVERED BY THE BOT
+
+heartbeat: 2026-11-09T10:25:21.935Z
+botStatus: healthy
+queue: pending=0 delivered=16 failed=0
+```
+
+Bot health at that moment:
+
+```json
+{
+  "ok": true, "botUsername": "SmmPup_bot",
+  "ownerChatIds": ["8684160810"], "databaseName": "smm_up_db",
+  "stage": "running", "longPollingStarted": true,
+  "workers": { "owner_notification_worker": {
+      "started": true, "lastError": null, "lastDelivered": 0, "lastFailed": 0 } }
+}
+```
+
+### 15.9 Open
 
 - Railway must be pointed at a repository that contains the notification worker. The work is committed on `gasprop/SMMUP_BOT` `master` (`11e856b`) and on the branch `branch/railway-deploy-ready` (`663ca51`), which sits directly on top of Railway's current `master` (`fc5cfd0`). Pushing that branch to `TheFinalBtIsHere/SMMUP_BOT` needs write access to that repository, which none of the available PATs has.
