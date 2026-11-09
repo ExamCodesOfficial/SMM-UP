@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test", "notification_drain", "bot_inventory", "bot_activity"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test", "notification_drain", "bot_inventory", "bot_activity", "notification_enqueue_only"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -331,6 +331,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       const summary = await drainPendingOwnerNotifications(50);
       return res.status(200).json(summary);
+    }
+
+    if (action === "notification_enqueue_only") {
+      // Queues a notification WITHOUT delivering it.
+      //
+      // This is how the bot's own delivery path is proven: the row sits in
+      // the queue and only the Railway bot can deliver it, because the
+      // website deliberately does not touch it.
+      const { enqueueOwnerNotification } = await import("../../server/lib/ownerNotifications.js");
+      const reference = `botpath_${String(body?.nonce || Date.now().toString(36)).slice(0, 12)}`;
+      const queued = await enqueueOwnerNotification({
+        dedupeKey: `money_added:botpath:${reference}`,
+        event: "money_added",
+        userEmail: "owner-selftest@smmup.co.in",
+        amount: 10,
+        method: "FAMGATEWAY_UPI",
+        provider: "botpath",
+        providerOrderId: reference,
+        transactionId: reference,
+        utr: "000000000000",
+        newBalance: 39195.04,
+      });
+      return res.status(200).json({ queued: queued.queued, duplicate: queued.duplicate, reference });
     }
 
     if (action === "notification_path_test") {
