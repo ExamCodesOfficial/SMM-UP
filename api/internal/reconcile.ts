@@ -227,6 +227,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // The bot writes a heartbeat on every pass. If this is missing or old,
       // the Railway instance is not running the new code (or is down).
       const health = await db.collection<any>("system_health").findOne({ _id: "owner_notification_worker" });
+      // Every health row the bot writes. If the older worker rows are here,
+      // the bot is alive and on this database — it is just running old code.
+      const allHealth = await db.collection<any>("system_health").find({}).sort({ heartbeat_at: -1 }).limit(10).toArray();
       return res.status(200).json({
         pending,
         delivered,
@@ -237,6 +240,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         botStatus: health?.status || null,
         botLastError: health?.last_error || null,
         botLastSuccessAt: health?.last_success_at || null,
+        allHealth: allHealth.map((row: any) => ({
+          id: row._id,
+          status: row.status || null,
+          heartbeatAt: row.heartbeat_at || null,
+          lastSuccessAt: row.last_success_at || null,
+          lastError: row.last_error || null,
+        })),
         recent: recent.map((row: any) => ({
           event: row.event,
           dedupeKey: row.dedupe_key,
