@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -177,6 +177,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           inrRate: state.inrRate,
           feePayer: state.feePayer,
         })),
+      });
+    }
+
+    // ── Look one order up ────────────────────────────────────────────────
+    // The owner needs an answer to "I paid but my wallet did not change".
+    // This answers it from our own record: what state the request is in,
+    // what was credited, and whether the wallet was actually updated.
+    if (action === "payment_lookup") {
+      const provider = String(body?.provider || "famgateway");
+      const orderId = String(body?.orderId || "").trim();
+      if (!/^[A-Za-z0-9_-]{4,80}$/.test(orderId)) {
+        return res.status(400).json({ error: "Invalid order reference." });
+      }
+      const field = provider === "oxapay" ? "oxapay_track_id" : "famgateway_order_id";
+      const method = provider === "oxapay" ? "OXAPAY_CRYPTO" : "FAMGATEWAY_UPI";
+      const tx: any = await db.collection("transactions").findOne({ [field]: orderId });
+      if (!tx) {
+        return res.status(200).json({ found: false, orderId, provider });
+      }
+      const user: any = tx.user_id
+        ? await db.collection("users").findOne({ _id: tx.user_id }, { projection: { balance: 1 } })
+        : null;
+      return res.status(200).json({
+        found: true,
+        orderId,
+        provider,
+        method: tx.method,
+        status: tx.status,
+        walletCredited: tx.wallet_credited === true,
+        requestedAmount: Number(tx.amount || 0),
+        creditedAmount: tx.credited_amount !== undefined ? Number(tx.credited_amount) : Number(tx.amount || 0),
+        paidAmount: tx.paid_amount !== undefined ? Number(tx.paid_amount) : null,
+        utr: tx.famgateway_utr || tx.oxapay_utr || null,
+        settledBy: tx.famgateway_settled_by || tx.oxapay_settled_by || null,
+        reviewRequired: tx.payment_review_required === true,
+        reviewReason: tx.payment_review_reason || null,
+        providerError: tx.provider_last_error || null,
+        createdAt: tx.created_at ? new Date(tx.created_at).toISOString() : null,
+        expiresAt: tx.expires_at ? new Date(tx.expires_at).toISOString() : null,
+        walletBalance: user ? Number(user.balance || 0) : null,
       });
     }
 
