@@ -25,7 +25,7 @@
  */
 
 import { getDb } from "./db.js";
-import { sendTelegramMessageDetailed } from "./telegram.js";
+import { pinTelegramMessage, sendTelegramMessageDetailed, unpinTelegramMessage } from "./telegram.js";
 import {
   renderOwnerNotification,
   type OwnerNotificationEvent,
@@ -218,13 +218,45 @@ export async function deliverOwnerNotificationByKey(
 
   const result = await sendTelegramMessageDetailed(text);
 
+  // A completed payment is pinned in the admin chat: it is the one thing
+  // the owner must be able to see without scrolling.
+  let pinnedMessageId: number | null = null;
+  let pinError: string | null = null;
+  if (result.ok && row.event === "money_added" && result.messageId) {
+    const pin = await pinTelegramMessage(result.messageId);
+    if (pin.ok) {
+      pinnedMessageId = result.messageId;
+    } else {
+      pinError = pin.error || "unknown";
+      // Telegram keeps only a limited number of pinned messages. When the
+      // chat is full, the oldest pinned payment is released so the newest
+      // one can take its place. The owner always ends up with the most
+      // recent successful payments in view.
+      if (pin.limited) {
+        const released = await releaseOldestPinnedPayment();
+        if (released) {
+          const retry = await pinTelegramMessage(result.messageId);
+          if (retry.ok) pinnedMessageId = result.messageId;
+          else pinError = retry.error || pinError;
+        }
+      }
+      console.error("[OwnerNotification] could not pin the payment message:", pinError);
+    }
+  }
+
   try {
     const db = await getDb();
     if (result.ok) {
       await db.collection(OWNER_NOTIFICATION_COLLECTION).updateOne(
         { dedupe_key: dedupeKey, claim_id: claimId },
         {
-          $set: { sent_at: new Date(), last_error: null, delivered_by: "website" },
+          $set: {
+            sent_at: new Date(),
+            last_error: null,
+            delivered_by: "website",
+            ...(pinnedMessageId ? { pinned_message_id: pinnedMessageId } : {}),
+            ...(pinError ? { pin_error: pinError } : {}),
+          },
           $unset: { claimed_at: "", claim_id: "" },
         },
       );
@@ -245,6 +277,37 @@ export async function deliverOwnerNotificationByKey(
     console.error("[OwnerNotification] telegram delivery failed:", result.error);
   }
   return { delivered: result.ok, skipped: false, error: result.ok ? null : result.error };
+}
+
+/**
+ * Releases the oldest pinned payment message in the admin chat.
+ *
+ * Telegram allows only a handful of pinned messages per chat. Rather than
+ * let the pinning fail, the oldest completed payment is unpinned so the
+ * newest one can be pinned in its place.
+ */
+async function releaseOldestPinnedPayment(): Promise<boolean> {
+  try {
+    const db = await getDb();
+    const oldest = await db
+      .collection(OWNER_NOTIFICATION_COLLECTION)
+      .find({ sent_at: { $ne: null }, pinned_message_id: { $ne: null } })
+      .sort({ created_at: 1 })
+      .limit(1)
+      .toArray();
+    const row = oldest[0];
+    if (!row?.pinned_message_id) return false;
+
+    const released = await unpinTelegramMessage(row.pinned_message_id);
+    await db.collection(OWNER_NOTIFICATION_COLLECTION).updateOne(
+      { _id: row._id },
+      { $unset: { pinned_message_id: "" }, $set: { unpinned_at: new Date() } },
+    );
+    return released.ok;
+  } catch (error: any) {
+    console.error("[OwnerNotification] could not release the oldest pinned payment:", error?.message || error);
+    return false;
+  }
 }
 
 /**

@@ -111,7 +111,15 @@ async function main() {
   assert.ok(!hostile.includes("<tg-spoiler>"), "spoiler tags are escaped");
   assert.match(hostile, /&lt;script&gt;/, "the raw text is shown escaped");
 
-  // ── 9. A review carries its rating ─────────────────────────────────────
+  // ── 9. Pinning never breaks a delivery ────────────────────────────────
+  const { pinTelegramMessage, unpinTelegramMessage } = await import("../server/lib/telegram.js");
+  const pin = await pinTelegramMessage(12345);
+  assert.equal(pin.ok, false, "a failed pin is reported, not thrown");
+  assert.ok(pin.error, "the reason is returned");
+  const unpin = await unpinTelegramMessage(12345);
+  assert.equal(unpin.ok, false, "a failed unpin is reported, not thrown");
+
+  // ── 10. A review carries its rating ────────────────────────────────────
   const review = renderOwnerNotification({
     event: "review_submitted",
     userEmail: "buyer",

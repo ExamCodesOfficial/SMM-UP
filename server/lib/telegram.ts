@@ -70,7 +70,7 @@ export async function sendTelegramMessage(text: string, parseMode: "HTML" | "Mar
 export async function sendTelegramMessageDetailed(
   text: string,
   parseMode: "HTML" | "Markdown" = "HTML",
-): Promise<{ ok: boolean; error?: string | null; status?: number }> {
+): Promise<{ ok: boolean; error?: string | null; status?: number; messageId?: number | null }> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
 
@@ -100,7 +100,74 @@ export async function sendTelegramMessageDetailed(
     if (!data?.ok) {
       return { ok: false, error: String(data?.description || "unknown Telegram error"), status: res.status };
     }
-    return { ok: true, error: null, status: res.status };
+    return { ok: true, error: null, status: res.status, messageId: data?.result?.message_id ?? null };
+  } catch (err: any) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
+/**
+ * Pins a message in the admin chat.
+ *
+ * A completed payment is the one thing the owner must be able to glance at
+ * without scrolling, so it is pinned. Telegram limits how many messages a
+ * chat can keep pinned, so a refusal is reported rather than thrown: the
+ * caller decides whether to unpin an older one and try again.
+ */
+export async function pinTelegramMessage(
+  messageId: number | string,
+): Promise<{ ok: boolean; error?: string | null; limited?: boolean }> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+  if (!token || !chatId || !messageId) {
+    return { ok: false, error: "Missing Telegram token, chat id or message id." };
+  }
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/pinChatMessage`, {
+      method: "POST",
+      signal: AbortSignal.timeout(6000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: Number(messageId),
+        disable_notification: true,
+      }),
+    });
+    const data: any = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) {
+      const description = String(data?.description || `HTTP ${res.status}`);
+      // Telegram says this when the chat already holds as many pinned
+      // messages as it is allowed to keep.
+      const limited = /too many|limit|not enough rights|CHAT_ADMIN_REQUIRED/i.test(description);
+      return { ok: false, error: description, limited };
+    }
+    return { ok: true, error: null };
+  } catch (err: any) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
+/** Removes a pinned message. Used to make room for a newer one. */
+export async function unpinTelegramMessage(
+  messageId: number | string,
+): Promise<{ ok: boolean; error?: string | null }> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+  if (!token || !chatId || !messageId) {
+    return { ok: false, error: "Missing Telegram token, chat id or message id." };
+  }
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/unpinChatMessage`, {
+      method: "POST",
+      signal: AbortSignal.timeout(6000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, message_id: Number(messageId) }),
+    });
+    const data: any = await res.json().catch(() => null);
+    if (!res.ok || !data?.ok) {
+      return { ok: false, error: String(data?.description || `HTTP ${res.status}`) };
+    }
+    return { ok: true, error: null };
   } catch (err: any) {
     return { ok: false, error: String(err?.message || err) };
   }
