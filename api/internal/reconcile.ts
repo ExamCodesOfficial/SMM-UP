@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -206,6 +206,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         queued: queued.queued,
         duplicate: queued.duplicate,
         reference,
+      });
+    }
+
+    if (action === "telegram_probe") {
+      // Checks the website's own Telegram credentials and reports the real
+      // API response. The original sender swallowed every error, which is
+      // why a missing notification could never be diagnosed.
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+      if (!token || !chatId) {
+        return res.status(200).json({
+          configured: false,
+          error: "TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID is not set on the website.",
+        });
+      }
+      const masked = `${token.slice(0, 10)}…${token.slice(-4)}`;
+      const getMe = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
+        signal: AbortSignal.timeout(8000),
+      }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
+        .catch((e) => ({ status: 0, body: { description: String(e?.message || e) } }));
+
+      const send = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: "POST",
+        signal: AbortSignal.timeout(8000),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: "🧪 <b>Notification channel test</b>\nThis message proves the owner receives Telegram alerts from SMM UP.",
+          parse_mode: "HTML",
+        }),
+      }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
+        .catch((e) => ({ status: 0, body: { description: String(e?.message || e) } }));
+
+      return res.status(200).json({
+        configured: true,
+        tokenMasked: masked,
+        chatIdMasked: `${String(chatId).slice(0, 4)}…${String(chatId).slice(-3)}`,
+        getMe,
+        send,
       });
     }
 
