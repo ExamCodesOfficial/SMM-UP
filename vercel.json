@@ -29,7 +29,7 @@
     },
     {
       "path": "/api/cron/payment-reconcile",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 5 * * *"
     }
   ],
   "redirects": [
