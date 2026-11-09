@@ -1460,6 +1460,17 @@ money_added  -> {"queued": true, "sent": true, "attempts": 1, "error": null}
 
 Final queue state: `pending=0 delivered=5 failed=0 givingUp=0`.
 
-### 15.6 Open
+### 15.6 Completed payments are pinned in the admin chat
+
+A completed payment is the one thing the owner must be able to glance at without scrolling, so the `money_added` message is **pinned** the moment it is delivered.
+
+- `server/lib/telegram.ts` — `pinTelegramMessage()` / `unpinTelegramMessage()`, both reporting what Telegram actually said instead of throwing.
+- `server/lib/ownerNotifications.ts` — pins on delivery, stores `pinned_message_id` on the queue row.
+- Telegram keeps only a handful of pinned messages per chat. A refusal is reported as `limited`; the oldest pinned payment is released and the newest one takes its place. **A pin that fails can never lose the notification itself.**
+- The bot does the same, plus `/notify pin` re-pins the most recent completed payment if it was unpinned by accident.
+
+Verified live: 8 consecutive completed payments, all 8 pinned, `pinErr=None` on every row, `pending=0 delivered=15 failed=0`.
+
+### 15.7 Open
 
 - Railway must be pointed at a repository that contains the notification worker. The work is committed on `gasprop/SMMUP_BOT` `master` (`11e856b`) and on the branch `branch/railway-deploy-ready` (`663ca51`), which sits directly on top of Railway's current `master` (`fc5cfd0`). Pushing that branch to `TheFinalBtIsHere/SMMUP_BOT` needs write access to that repository, which none of the available PATs has.
