@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -211,6 +211,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         reference,
         delivered: delivery.delivered,
         deliveryError: delivery.error || null,
+      });
+    }
+
+    if (action === "notification_path_test") {
+      // Exercises the REAL notification functions the payment endpoints call,
+      // so the delivery path is proven rather than assumed.
+      const event = String(body?.event || "money_added");
+      const { notifyMoneyAdded, notifyOrderPlaced } = await import(
+        "../../server/lib/paymentNotifications.js"
+      );
+      const reference = `selftest_${String(body?.nonce || Date.now().toString(36)).slice(0, 12)}`;
+
+      if (event === "order_placed") {
+        await notifyOrderPlaced({
+          userEmail: "owner-selftest@smmup.co.in",
+          amount: 10,
+          method: "FAMGATEWAY_UPI",
+          provider: "famgateway",
+          providerOrderId: reference,
+          transactionId: reference,
+        });
+      } else {
+        await notifyMoneyAdded({
+          userEmail: "owner-selftest@smmup.co.in",
+          amount: 10,
+          method: "FAMGATEWAY_UPI",
+          provider: "famgateway",
+          providerOrderId: reference,
+          transactionId: reference,
+          utr: "000000000000",
+          newBalance: 39195.04,
+        });
+      }
+
+      const status = await db.collection<any>("owner_notification_queue").findOne({
+        dedupe_key: `${event}:famgateway:${reference}`,
+      });
+      return res.status(200).json({
+        event,
+        reference,
+        queued: Boolean(status),
+        sent: Boolean(status?.sent_at),
+        attempts: Number(status?.attempts || 0),
+        error: status?.last_error || null,
+        sentAt: status?.sent_at || null,
       });
     }
 
