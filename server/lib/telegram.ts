@@ -59,6 +59,53 @@ export async function sendTelegramMessage(text: string, parseMode: "HTML" | "Mar
   }
 }
 
+/**
+ * Sends a message and reports what actually happened.
+ *
+ * `sendTelegramMessage` returns a boolean and throws the reason away,
+ * which is why a missing notification could never be diagnosed. This one
+ * keeps the error so the caller can store it on the queue row and the
+ * owner can see that a delivery failed instead of believing it worked.
+ */
+export async function sendTelegramMessageDetailed(
+  text: string,
+  parseMode: "HTML" | "Markdown" = "HTML",
+): Promise<{ ok: boolean; error?: string | null; status?: number }> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+  if (!token || !chatId) {
+    return { ok: false, error: "TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID is not set." };
+  }
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      signal: AbortSignal.timeout(6000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: parseMode,
+        disable_web_page_preview: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { ok: false, error: `HTTP ${res.status}: ${body.slice(0, 200)}`, status: res.status };
+    }
+
+    const data: any = await res.json().catch(() => null);
+    if (!data?.ok) {
+      return { ok: false, error: String(data?.description || "unknown Telegram error"), status: res.status };
+    }
+    return { ok: true, error: null, status: res.status };
+  } catch (err: any) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
 export async function editTelegramMessage(
   chatId: string | number,
   messageId: string | number,

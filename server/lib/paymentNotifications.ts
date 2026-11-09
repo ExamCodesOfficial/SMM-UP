@@ -4,26 +4,31 @@
  * These are the alerts the owner sees in Telegram. They used to be sent
  * directly from the website to Telegram, which was fragile in three ways:
  *
- *   1. The chat id on the website and the chat id the bot uses are not
- *      guaranteed to be the same conversation, so an alert could land in a
- *      chat the owner never opens.
- *   2. A failed send was swallowed: the error only reached a serverless log,
+ *   1. A failed send was swallowed: the error only reached a serverless log,
  *      so the owner was told nothing while the alert silently vanished.
- *   3. There was no retry and no record, so a transient network blip meant
+ *   2. There was no retry and no record, so a transient network blip meant
  *      the alert was gone for good.
+ *   3. Nothing proved the alert had actually arrived.
  *
- * Every alert is now written to a durable queue. The Telegram bot on Railway
- * delivers it, retries on failure, and keeps the audit trail. The website
- * holds no Telegram credential for this path at all.
+ * Every alert is now written to a durable queue first, and then delivered
+ * twice over:
  *
- * The direct Telegram sender stays available for the two cases that must
- * happen inside a live request (the temporary-password and support-access
- * messages, which EDIT an existing message) and for the delay alert, which
- * is worthless if it arrives late.
+ *   - the website delivers it right away, inside the request that caused
+ *     it, so the owner sees it within a second;
+ *   - the Telegram bot on Railway picks up whatever is still pending,
+ *     retries it and keeps the audit trail.
+ *
+ * Both sides claim a row with the same lease, so a notification is sent
+ * exactly once even when both are running.
  */
 
-import { enqueueOwnerNotification, describePaymentMethod, type OwnerNotificationEvent } from "./ownerNotifications.js";
-import { sendTelegramMessage } from "./telegram.js";
+import {
+  enqueueOwnerNotification,
+  deliverOwnerNotificationByKey,
+  describePaymentMethod,
+  type OwnerNotificationEvent,
+} from "./ownerNotifications.js";
+import { sendTelegramMessageDetailed } from "./telegram.js";
 
 export interface PaymentEventInput {
   userEmail: string;
@@ -38,6 +43,22 @@ export interface PaymentEventInput {
 }
 
 /**
+ * Queues an event and then delivers it immediately.
+ *
+ * If the immediate send fails the row stays pending, so the bot on
+ * Railway picks it up and retries. Nothing is lost either way.
+ */
+async function queueAndDeliver(
+  input: Parameters<typeof enqueueOwnerNotification>[0],
+): Promise<void> {
+  const result = await enqueueOwnerNotification(input);
+  if (!result.queued) return;
+  await deliverOwnerNotificationByKey(input.dedupeKey).catch((error: any) =>
+    console.error("[OwnerNotification] immediate delivery error:", error?.message || error),
+  );
+}
+
+/**
  * Queues the "money arrived" notification.
  *
  * The dedupe key is derived from the provider's own order reference, so the
@@ -47,7 +68,7 @@ export interface PaymentEventInput {
 export async function notifyMoneyAdded(input: PaymentEventInput): Promise<void> {
   const reference = String(input.providerOrderId || input.transactionId || "").trim();
   if (!reference) return;
-  await enqueueOwnerNotification({
+  await queueAndDeliver({
     dedupeKey: `money_added:${input.provider || "unknown"}:${reference}`,
     event: "money_added",
     userEmail: input.userEmail,
@@ -65,7 +86,7 @@ export async function notifyMoneyAdded(input: PaymentEventInput): Promise<void> 
 export async function notifyOrderPlaced(input: PaymentEventInput): Promise<void> {
   const reference = String(input.providerOrderId || input.transactionId || "").trim();
   if (!reference) return;
-  await enqueueOwnerNotification({
+  await queueAndDeliver({
     dedupeKey: `order_placed:${input.provider || "unknown"}:${reference}`,
     event: "order_placed",
     userEmail: input.userEmail,
@@ -81,7 +102,7 @@ export async function notifyOrderPlaced(input: PaymentEventInput): Promise<void>
 export async function notifyReviewRequired(input: PaymentEventInput): Promise<void> {
   const reference = String(input.providerOrderId || input.transactionId || "").trim();
   if (!reference) return;
-  await enqueueOwnerNotification({
+  await queueAndDeliver({
     dedupeKey: `review_required:${input.provider || "unknown"}:${reference}`,
     event: "review_required",
     userEmail: input.userEmail,
@@ -105,7 +126,7 @@ export async function notifyOrderFailed(input: {
 }): Promise<void> {
   const reference = String(input.orderId || "").trim();
   if (!reference) return;
-  await enqueueOwnerNotification({
+  await queueAndDeliver({
     dedupeKey: `order_failed:${reference}`,
     event: "order_failed",
     userEmail: input.userEmail,
@@ -125,11 +146,12 @@ export async function notifyReviewSubmitted(input: {
 }): Promise<void> {
   const reference = String(input.reviewId || "").trim();
   if (!reference) return;
-  await enqueueOwnerNotification({
+  await queueAndDeliver({
     dedupeKey: `review_submitted:${reference}`,
     event: "review_submitted",
     userEmail: input.username,
     providerOrderId: reference,
+    rating: input.rating,
     detail: input.text.slice(0, 700),
   });
 }
@@ -147,7 +169,7 @@ export async function notifyPaymentDelayed(input: {
   elapsedSeconds: number;
   upiVpa?: string;
 }): Promise<boolean> {
-  const sent = await sendTelegramMessage(
+  const direct = await sendTelegramMessageDetailed(
     [
       `⚠️ <b>DEPOSIT DELAY ALERT (&gt; ${Math.round(input.elapsedSeconds)}s)</b>`,
       `━━━━━━━━━━━━━━━━━━━━`,
@@ -161,9 +183,10 @@ export async function notifyPaymentDelayed(input: {
     ].filter(Boolean).join("\n"),
     "HTML",
   );
+  const sent = direct.ok;
   if (!sent) {
     // Queue it as a fallback so the alert is not lost entirely.
-    await enqueueOwnerNotification({
+    await queueAndDeliver({
       dedupeKey: `delay_alert:${input.memo}`,
       event: "review_required",
       userEmail: input.userEmail,
