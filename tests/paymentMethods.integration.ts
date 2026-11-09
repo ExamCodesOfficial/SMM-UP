@@ -426,6 +426,65 @@ async function run() {
     const cancelledUser = await db.collection("users").findOne({ _id: cancelledUserId });
     assert.equal(Number(cancelledUser.balance), 250, "a late payment is never dropped");
 
+    // ── 3g. A stale AUDIT row must never strand a real payment ─────────────
+    //
+    // This reproduces the production failure exactly: the provider webhook
+    // recorded a "payment.pending" audit row using the BARE order id, and the
+    // settlement guard then read that audit row as "this payment was already
+    // settled" and returned without crediting the wallet. Real money was
+    // captured by the provider and never reached the customer.
+    const auditUserId = new (await import("mongodb")).ObjectId();
+    await db.collection("users").insertOne({
+      _id: auditUserId,
+      email: "audit@example.com",
+      username: "audit",
+      balance: 0,
+      created_at: new Date(),
+    });
+    const auditTx = await db.collection("transactions").insertOne({
+      user_id: auditUserId,
+      user_email: "audit@example.com",
+      amount: 10,
+      amount_paise: 1000,
+      currency: "INR",
+      method: "FAMGATEWAY_UPI",
+      provider: "famgateway",
+      environment: "live",
+      status: "pending",
+      wallet_credited: false,
+      famgateway_order_id: "fg_auditrow12345",
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    // The audit row the webhook left behind, keyed on the BARE order id.
+    await db.collection("payment_events").insertOne({
+      provider: "famgateway",
+      event_id: "fg_auditrow12345",
+      event_type: "payment.pending",
+      provider_order_id: "fg_auditrow12345",
+      status: "recorded",
+      payload_summary: { outcome: "not_paid", provider_status: "pending" },
+      received_at: new Date(),
+    });
+    const auditResult = await wallet.settleFamGatewayDeposit({
+      internalTransactionId: auditTx.insertedId.toString(),
+      famgatewayOrderId: "fg_auditrow12345",
+      expectedUserId: auditUserId.toString(),
+      expectedAmountPaise: 1000,
+      paidAmountPaise: 1000,
+      utr: "617819355801",
+      eventId: "fg_auditrow12345",
+      eventType: "payment.success",
+    });
+    assert.equal(
+      auditResult.walletCredited,
+      true,
+      "a stale audit row must never stop a captured payment from being credited",
+    );
+    assert.equal(auditResult.alreadySettled, false, "the payment was not settled before");
+    const auditUser = await db.collection("users").findOne({ _id: auditUserId });
+    assert.equal(Number(auditUser.balance), 10, "the captured money must reach the wallet");
+
     // ── 4. Crypto settlement ─────────────────────────────────────────────────
     const cryptoTx = await db.collection("transactions").insertOne({
       user_id: userId,

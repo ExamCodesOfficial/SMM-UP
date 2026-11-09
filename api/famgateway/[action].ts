@@ -524,7 +524,7 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
       if (!tx || tx._id.toString() !== expectedTx) {
         await recordProviderEvent({
           provider: "famgateway",
-          eventId: orderId,
+          eventId: `audit:${orderId}:binding_mismatch`,
           eventType: cleanText(event?.event, 64) || "payment.success",
           providerOrderId: orderId,
           payload: { outcome: "binding_mismatch" },
@@ -538,7 +538,7 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
       // never create a transaction from a webhook alone.
       await recordProviderEvent({
         provider: "famgateway",
-        eventId: orderId,
+        eventId: `audit:${orderId}:orphan`,
         eventType: cleanText(event?.event, 64) || "payment.success",
         providerOrderId: orderId,
         payload: { outcome: "orphan" },
@@ -563,7 +563,7 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
       }
       await recordProviderEvent({
         provider: "famgateway",
-        eventId: orderId,
+        eventId: `audit:${orderId}:not_paid`,
         eventType: cleanText(event?.event, 64) || "payment.pending",
         providerOrderId: orderId,
         payload: { outcome: "not_paid", provider_status: order.status },
@@ -614,7 +614,7 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
       );
       await recordProviderEvent({
         provider: "famgateway",
-        eventId: orderId,
+        eventId: `audit:${orderId}:amount_adjusted`,
         eventType: cleanText(event?.event, 64) || "payment.success",
         providerOrderId: orderId,
         payload: { outcome: "amount_adjusted", expected_amount_paise: expectedAmountPaise, settled_amount_paise: settledAmountPaise, credited_amount_paise: creditedPaise },

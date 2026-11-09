@@ -121,9 +121,16 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
 
   try {
     await session.withTransaction(async () => {
-      if (input.eventId) {
+      // The settlement event id is derived from the settlement key, so it can
+      // never be confused with an AUDIT row (an earlier "payment.pending"
+      // observation, an orphan webhook, a rejected event). Conflating the two
+      // is what stranded real money: a stale audit row made this guard
+      // believe the payment had already been credited, so it returned
+      // "already settled" without ever touching the wallet.
+      const settlementEventId = input.settlementKey;
+      {
         const duplicate = await db.collection("payment_events").findOne(
-          { provider: input.provider, event_id: input.eventId },
+          { provider: input.provider, event_id: settlementEventId },
           { session },
         );
         if (duplicate) {
@@ -136,24 +143,32 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
           const duplicateUser = duplicateTx?.user_id
             ? await db.collection("users").findOne({ _id: duplicateTx.user_id }, { session })
             : null;
-          result = {
-            provider: input.provider,
-            transactionId: duplicateTx?._id?.toString() || "",
-            userId: duplicateTx?.user_id?.toString() || "",
-            amount: Number(duplicateTx?.credited_amount ?? duplicateTx?.amount ?? 0),
-            requestedAmount: Number(duplicateTx?.amount || 0),
-            paidAmount: Number(duplicateTx?.paid_amount ?? duplicateTx?.amount ?? 0),
-            partial: duplicateTx?.credited_amount_paise !== undefined
-              && Number(duplicateTx.credited_amount_paise) < Number(duplicateTx.amount_paise),
-            overpaid: duplicateTx?.paid_amount_paise !== undefined
-              && Number(duplicateTx.paid_amount_paise) > Number(duplicateTx.amount_paise),
-            newBalance: Number(duplicateUser?.balance || 0),
-            walletCredited: duplicateTx?.wallet_credited !== false,
-            alreadySettled: true,
-            duplicateEvent: true,
-            testMode: input.environment === "test" || input.environment === "sandbox",
-          };
-          return;
+          // ONLY a settled transaction may short-circuit the settlement.
+          // If the event row says the money moved but the transaction says
+          // otherwise, the transaction wins: the payment is settled now.
+          // A stale audit row must never be able to strand real money.
+          const duplicateStatus = String(duplicateTx?.status || "");
+          const duplicateSettled = duplicateStatus === "paid" || duplicateStatus === "test_paid";
+          if (duplicateSettled) {
+            result = {
+              provider: input.provider,
+              transactionId: duplicateTx?._id?.toString() || "",
+              userId: duplicateTx?.user_id?.toString() || "",
+              amount: Number(duplicateTx?.credited_amount ?? duplicateTx?.amount ?? 0),
+              requestedAmount: Number(duplicateTx?.amount || 0),
+              paidAmount: Number(duplicateTx?.paid_amount ?? duplicateTx?.amount ?? 0),
+              partial: duplicateTx?.credited_amount_paise !== undefined
+                && Number(duplicateTx.credited_amount_paise) < Number(duplicateTx.amount_paise),
+              overpaid: duplicateTx?.paid_amount_paise !== undefined
+                && Number(duplicateTx.paid_amount_paise) > Number(duplicateTx.amount_paise),
+              newBalance: Number(duplicateUser?.balance || 0),
+              walletCredited: duplicateTx?.wallet_credited !== false,
+              alreadySettled: true,
+              duplicateEvent: true,
+              testMode: input.environment === "test" || input.environment === "sandbox",
+            };
+            return;
+          }
         }
       }
 
@@ -206,19 +221,21 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
       const finalStatus = shouldCreditWallet ? "paid" : "test_paid";
 
       if (tx.status === "paid" || tx.status === "test_paid") {
-        if (input.eventId) {
-          await db.collection("payment_events").insertOne(
-            {
+        await db.collection("payment_events").updateOne(
+          { provider: input.provider, event_id: settlementEventId },
+          {
+            $set: {
               provider: input.provider,
-              event_id: input.eventId,
+              event_id: settlementEventId,
               event_type: input.eventType || "payment.settled",
               transaction_id: tx._id,
               status: "already_settled",
               received_at: new Date(),
             },
-            { session },
-          );
-        }
+            $setOnInsert: { created_at: new Date() },
+          },
+          { upsert: true, session },
+        );
         const currentUser = await db.collection("users").findOne({ _id: txUserId }, { session });
         result = {
           provider: input.provider,
@@ -317,19 +334,24 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
         currentUser = await db.collection("users").findOne({ _id: txUserId }, { session });
       }
 
-      if (input.eventId) {
-        await db.collection("payment_events").insertOne(
-          {
+      // Written as an upsert against the settlement event id: it can never
+      // collide with an audit row and it can never throw a duplicate-key
+      // error that would roll back a legitimate credit.
+      await db.collection("payment_events").updateOne(
+        { provider: input.provider, event_id: settlementEventId },
+        {
+          $set: {
             provider: input.provider,
-            event_id: input.eventId,
+            event_id: settlementEventId,
             event_type: input.eventType || "payment.settled",
             transaction_id: tx._id,
             status: finalStatus,
             received_at: new Date(),
           },
-          { session },
-        );
-      }
+          $setOnInsert: { created_at: new Date() },
+        },
+        { upsert: true, session },
+      );
 
       result = {
         provider: input.provider,
