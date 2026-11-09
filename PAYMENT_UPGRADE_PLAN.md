@@ -1188,3 +1188,93 @@ for is what the customer sees.
 /api/cron/status-sync        0 4 * * *
 /api/cron/payment-reconcile   0 5 * * *
 ```
+
+---
+
+## §13 — The latency fix, the auto-accept fix, and the UI rebuild (2026-11-09)
+
+### 13.1 Why "Pay" felt slow — measured, not guessed
+
+| Call | 1st | 2nd | 3rd | 4th |
+|---|---|---|---|---|
+| `/api/payments/methods` | **4251 ms** | 152 ms | 142 ms | 170 ms |
+| `/api/oxapay/config` | **4123 ms** | 252 ms | 208 ms | 140 ms |
+| `/api/famgateway/config` | 157 ms | 158 ms | 143 ms | 132 ms |
+
+A **Vercel cold start is ≈ 4.2 s**; a warm lambda is ≈ 150 ms. The provider
+itself is fast — FamGateway create-order **~725 ms**, OxaPay invoice
+**~250–530 ms**. The React render was never the problem.
+
+### 13.2 What changed
+
+| Change | File |
+|---|---|
+| Enter the pay step **before** the network call; the QR resolves into it | `src/components/AddFundsPage.tsx` |
+| Skeleton ("Creating your secure QR…") with the amount already known | `src/components/AddFundsPage.tsx` |
+| Pre-warm both provider config routes on idle after page load | `src/components/AddFundsPage.tsx` |
+| `status` asks the **provider** and settles through the webhook's code path | `api/famgateway/[action].ts`, `api/oxapay/[action].ts` |
+| 2.5 s per-transaction provider gate (`provider_checked_at`) | same |
+| `min(paid, requested)` credit rule | `server/lib/wallet.ts` |
+| Key accepted under 4 env aliases | `server/lib/famgateway.ts` |
+| Webhook signature: bare hex / `sha256=<hex>` / any `=` prefix / any case | `server/lib/famgateway.ts` |
+| OxaPay webhook: deposit event allow-list | `api/oxapay/[action].ts` |
+
+### 13.3 Why a ₹10 payment did not credit — four separate causes
+
+1. **The page never asked the provider.** `status` read Mongo only. The
+   provider's answer is now fetched and settled directly — a webhook is a
+   convenience, not the mechanism of record.
+2. **The provider words a paid order in more than one way.** `verify-order.php`
+   says `success`; the public endpoint can say `paid` or set `paid: true`; the
+   amount is `amount` / `paid_amount` / `payable_amount` and the reference is
+   `utr` / `txn_id` / `ref_id`. Only `success` was understood. A paid order
+   could be read as unpaid. **All spellings now mean paid** — extracted into
+   `parseFamGatewayOrderPayload` and covered by tests.
+3. **`verify-order.php` 404s on orders it does not know**, and that was treated
+   as a hard failure. The public `checkout-status.php` is now the fallback.
+4. **The webhook only read `order_id`.** Every other spelling the provider has
+   used is read now.
+
+**And one account-level cause that no code can fix:** FamGateway detects the
+payment by reading the bank credit alert out of the merchant's **Gmail inbox**
+over IMAP. If that link is missing or IMAP is off in Gmail settings, the
+provider never sees the money — the order stays `pending` forever, no webhook
+fires, and the API key alone is not enough. `FAMGATEWAY_SETUP.md` §2 now
+leads with this.
+
+### 13.4 Order lifetime: 5 → 10 minutes
+
+The provider's live `expires_at_ist` is **created + 10 minutes**
+(observed `11:07:23 → 11:17:23`), and ACCM_SRC uses `LIFETIME_FAM_MINUTES = 10`.
+We were cutting the QR off at 5 minutes while the customer was still typing a
+UPI PIN. `FAMGATEWAY_ORDER_LIFETIME_MINUTES` now defaults to **10** and is set
+to `10` in Vercel. The post-refresh countdown uses the lifetime the provider
+actually returned, not a hardcoded number.
+
+### 13.5 No "I have paid — check now" button
+
+Both rails. Everything is automatic: the page asks the provider every few
+seconds and credits the wallet the moment the transfer is confirmed. A button
+that asks the customer to request their own money is the wrong signal.
+
+### 13.6 The UI: action on top, reading below
+
+The page was a wall of text around a small payment box. Now:
+
+- the header is one line — title plus balance;
+- the **payment box is the first and loudest thing** on the screen, centred;
+- method cards are one line each;
+- the reading material — *How adding funds works*, *Good to know*, *Payment
+  security*, *Recent deposits* — sits **below** the box;
+- plus a Max button, a summary rail (you will pay / credited / fee / validity
+  / limits) and a payment timeline (created → paid → credited).
+
+### 13.7 Deployments
+
+| When | Deployment | Commit | State |
+|---|---|---|---|
+| 1 | `dpl_2frv45eghHbGzgb69dakwrMuj6zS` | `3d11e6d` | READY / PROMOTED |
+| 2 | `dpl_HAXqfLN9KiR2P7BRWPKfqAKZw199` | `c388e86` | READY / PROMOTED |
+| 3 | `dpl_85jPCuf4oViyxGBMfTu5isfMzUoB` | `2fa408c` | READY / PROMOTED |
+
+All three carry the alias `smmup.co.in` + `www.smmup.co.in`.
