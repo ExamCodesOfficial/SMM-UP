@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -184,6 +184,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // The owner needs an answer to "I paid but my wallet did not change".
     // This answers it from our own record: what state the request is in,
     // what was credited, and whether the wallet was actually updated.
+    if (action === "notification_test") {
+      // Queue a test notification so the owner can prove the whole loop —
+      // website -> queue -> Railway bot -> Telegram — actually works.
+      const { enqueueOwnerNotification } = await import("../../server/lib/ownerNotifications.js");
+      const nonce = String(body?.nonce || "").trim().slice(0, 40);
+      const reference = `test_${nonce || Date.now().toString(36)}`;
+      const queued = await enqueueOwnerNotification({
+        dedupeKey: `money_added:test:${reference}`,
+        event: "money_added",
+        userEmail: "test@notification.local",
+        amount: 1,
+        method: "TEST",
+        provider: "test",
+        providerOrderId: reference,
+        utr: "000000000000",
+        newBalance: 0,
+        detail: "This is a test notification. If you can read this, the delivery pipeline is working.",
+      });
+      return res.status(200).json({
+        queued: queued.queued,
+        duplicate: queued.duplicate,
+        reference,
+      });
+    }
+
     if (action === "notification_status") {
       // The owner-notification queue: what the website has asked the bot to
       // deliver, and what the bot has actually delivered.
