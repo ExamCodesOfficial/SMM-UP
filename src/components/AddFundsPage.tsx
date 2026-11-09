@@ -135,6 +135,58 @@ interface PendingDeposit {
   trackId?: string;
 }
 
+/**
+ * The three states a deposit moves through, shown as a timeline so the
+ * customer can tell "the provider has not told us yet" apart from "the
+ * provider confirmed it and we credited it". The last step is the only one
+ * that means money is in the wallet.
+ */
+function PaymentTimeline({ stage }: { stage: "created" | "paid" | "credited" }) {
+  const steps = [
+    { id: "created", label: "Order created", hint: "We opened the order with our payment partner" },
+    { id: "paid", label: "Payment received", hint: "Your bank or wallet confirmed the transfer" },
+    { id: "credited", label: "Credited to wallet", hint: "Your SMM UP balance is updated" },
+  ];
+  const reached = steps.findIndex((step) => step.id === stage);
+  return (
+    <ol className="border border-white/[0.08] bg-black/30 px-4 py-3.5">
+      {steps.map((step, index) => {
+        const done = index <= reached;
+        const current = index === reached;
+        return (
+          <li key={step.id} className="flex items-start gap-3">
+            <div className="flex flex-col items-center shrink-0">
+              <span
+                className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                  done
+                    ? "border-emerald-400/60 bg-emerald-400/15"
+                    : "border-white/15 bg-transparent"
+                }`}
+              >
+                {done ? (
+                  <Check className="w-3 h-3 text-emerald-300" />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                )}
+              </span>
+              {index < steps.length - 1 && (
+                <span className={`w-px flex-1 min-h-5 ${index < reached ? "bg-emerald-400/40" : "bg-white/10"}`} />
+              )}
+            </div>
+            <div className="pb-3 last:pb-0 min-w-0">
+              <p className={`text-[11px] font-semibold ${done ? "text-white" : "text-zinc-500"}`}>
+                {step.label}
+                {current && !done ? "…" : ""}
+              </p>
+              <p className="text-[10px] text-zinc-600 mt-0.5 leading-relaxed">{step.hint}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function readPendingDeposit(): PendingDeposit | null {
   try {
     const raw = window.localStorage.getItem(PENDING_STORAGE_KEY);
@@ -247,6 +299,18 @@ export default function AddFundsPage({
   const [restoring, setRestoring] = React.useState(false);
   const [cancelConfirmOpen, setCancelConfirmOpen] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
+  /**
+   * True while the provider is building the order/invoice.
+   *
+   * The step changes to "pay" the instant the button is pressed, so the
+   * customer never stares at a frozen amount screen. The screen that appears
+   * is the real one, with the amount already known, and it fills in the QR or
+   * the checkout link the moment the provider answers.
+   */
+  const [creatingOrder, setCreatingOrder] = React.useState(false);
+  // "created" → "paid" → "credited". The customer can see exactly where
+  // their payment is, instead of guessing from a spinner.
+  const [timelineStage, setTimelineStage] = React.useState<"created" | "paid" | "credited">("created");
 
   // ── Live status ───────────────────────────────────────────────────────────
   const [elapsedSeconds, setElapsedSeconds] = React.useState(0);
@@ -260,7 +324,29 @@ export default function AddFundsPage({
   React.useEffect(() => {
     loadHistory();
     loadPaymentMethods();
-    return () => stopPolling();
+    // Warm the provider routes while the customer is still reading the page.
+    //
+    // A serverless function that has been idle has to boot before it can
+    // answer, and that boot is what makes a "Pay" button feel slow. Asking
+    // each provider's config route in the background, in parallel with the
+    // method list, means the route is already warm by the time the customer
+    // has picked an amount. It costs nothing the customer can see.
+    const warm = () => {
+      fetch("/api/famgateway/config", { cache: "no-store" }).catch(() => undefined);
+      fetch("/api/oxapay/config", { cache: "no-store" }).catch(() => undefined);
+    };
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const handle = (window as any).requestIdleCallback(warm, { timeout: 2500 });
+      return () => {
+        (window as any).cancelIdleCallback?.(handle);
+        stopPolling();
+      };
+    }
+    const timer = setTimeout(warm, 600);
+    return () => {
+      clearTimeout(timer);
+      stopPolling();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -397,6 +483,7 @@ export default function AddFundsPage({
           forgetPending();
           setSelectedMethodId("famgateway_upi");
           setPageSuccess(data.message || "Your payment was already confirmed and credited.");
+      setTimelineStage("credited");
           if (data.newBalance !== undefined) onDepositSuccess(data.newBalance);
           loadHistory();
           setActiveStep("pay");
@@ -459,6 +546,7 @@ export default function AddFundsPage({
           forgetPending();
           setSelectedMethodId("oxapay_crypto");
           setPageSuccess(data.message || "Your payment was already confirmed and credited.");
+      setTimelineStage("credited");
           if (data.newBalance !== undefined) onDepositSuccess(data.newBalance);
           loadHistory();
           setActiveStep("pay");
@@ -530,6 +618,7 @@ export default function AddFundsPage({
     setAmountError("");
     setPageError("");
     setPageSuccess("");
+    setTimelineStage("created");
     // Preset the amount so the customer only has to adjust if they want to.
     const presets = method.presets.length ? method.presets : [method.minAmount];
     const preferred = method.currency === "INR" ? 500 : 10;
@@ -661,6 +750,7 @@ export default function AddFundsPage({
         stopPolling();
         forgetPending();
         setVerifySuccess(data.message || "Payment verified and credited!");
+      setTimelineStage("credited");
         confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
         onDepositSuccess(data.newBalance);
         loadHistory();
@@ -721,6 +811,10 @@ export default function AddFundsPage({
     setAmountError("");
     setPageError("");
     setPageSuccess("");
+    // Move first, ask second. The screen changes instantly; the QR arrives
+    // a moment later. A cold provider call is a slow network, not a slow UI.
+    setCreatingOrder(true);
+    setActiveStep("pay");
     try {
       const res = await fetch("/api/famgateway/create-order", {
         method: "POST",
@@ -747,6 +841,7 @@ export default function AddFundsPage({
         checkoutUrl: typeof data.checkoutUrl === "string" ? data.checkoutUrl : undefined,
       });
       setExpiresInSeconds(Number(data.expiresInSeconds || 0));
+      setCreatingOrder(false);
       rememberPending({
         method: "famgateway_upi",
         transactionId: String(data.transactionId || ""),
@@ -758,8 +853,8 @@ export default function AddFundsPage({
         upiVpa: String(data.upiId || ""),
         checkoutUrl: typeof data.checkoutUrl === "string" ? data.checkoutUrl : undefined,
       });
-      setActiveStep("pay");
     } catch (error: any) {
+      setCreatingOrder(false);
       setPageError(error?.message || "Unable to start a UPI Automatic payment. Please try again.");
       setActiveStep("amount");
     }
@@ -781,6 +876,9 @@ export default function AddFundsPage({
     setAmountError("");
     setPageError("");
     setPageSuccess("");
+    // Move first, ask second.
+    setCreatingOrder(true);
+    setActiveStep("pay");
     try {
       const res = await fetch("/api/oxapay/create-invoice", {
         method: "POST",
@@ -798,6 +896,7 @@ export default function AddFundsPage({
         transactionId: String(data.transactionId || ""),
       });
       setExpiresInSeconds(Number(data.expiresInSeconds || 0));
+      setCreatingOrder(false);
       rememberPending({
         method: "oxapay_crypto",
         transactionId: String(data.transactionId || ""),
@@ -808,8 +907,8 @@ export default function AddFundsPage({
         paymentUrl: data.paymentUrl,
         trackId: String(data.trackId || ""),
       });
-      setActiveStep("pay");
     } catch (error: any) {
+      setCreatingOrder(false);
       setPageError(error?.message || "Unable to start a crypto payment. Please try again.");
       setActiveStep("amount");
     }
@@ -827,6 +926,7 @@ export default function AddFundsPage({
     if (data.status === "paid" || data.status === "test_paid") {
       forgetPending();
       setPageSuccess(data.message || "Payment confirmed and credited to your wallet.");
+      setTimelineStage("credited");
       confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
       if (data.walletCredited && data.newBalance !== undefined) onDepositSuccess(data.newBalance);
       loadHistory();
@@ -847,6 +947,7 @@ export default function AddFundsPage({
     forgetPending();
     setPageError("");
     setPageSuccess(data.message || "Razorpay payment verified successfully.");
+    setTimelineStage("credited");
     confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
     if (data.walletCredited && data.newBalance !== undefined) {
       onDepositSuccess(data.newBalance);
@@ -982,6 +1083,7 @@ export default function AddFundsPage({
     if (!selectedMethod) return;
     setPageError("");
     setPageSuccess("");
+    setTimelineStage("created");
     if (selectedMethod.id === "direct_upi") return handleGenerateQR();
     if (selectedMethod.id === "famgateway_upi") return handleFamGatewayPayment();
     if (selectedMethod.id === "oxapay_crypto") return handleCryptoPayment();
@@ -1071,6 +1173,7 @@ export default function AddFundsPage({
         if (data.status === "paid" || data.status === "test_paid") {
           stopPolling();
           setPageSuccess(data.message || "Payment confirmed and credited to your wallet.");
+      setTimelineStage("credited");
           confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
           if (data.newBalance !== undefined) onDepositSuccess(data.newBalance);
           loadHistory();
@@ -1096,6 +1199,7 @@ export default function AddFundsPage({
           stopPolling();
           forgetPending();
           setPageSuccess(data.message || "Payment confirmed and credited to your wallet.");
+      setTimelineStage("credited");
           confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
           if (data.newBalance !== undefined) onDepositSuccess(data.newBalance);
           loadHistory();
@@ -1192,6 +1296,7 @@ export default function AddFundsPage({
         setActiveStep("pay");
         if (data.status === "paid" || data.status === "test_paid") {
           setPageSuccess(data.message || "Payment confirmed and credited to your wallet.");
+      setTimelineStage("credited");
           if (data.newBalance !== undefined) onDepositSuccess(data.newBalance);
           loadHistory();
         }
@@ -1437,6 +1542,17 @@ export default function AddFundsPage({
                       placeholder={`${selectedMethod.minAmount}–${selectedMethod.maxAmount}`}
                       className="w-full bg-black/60 border border-white/15 focus:border-white focus:ring-1 focus:ring-white/20 text-white pl-9 pr-4 py-3 text-sm rounded-none outline-none transition-all placeholder:text-zinc-500"
                     />
+                    {/* Max — the ceiling this method allows, in one tap. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAmount(String(selectedMethod.maxAmount));
+                        setAmountError("");
+                      }}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-300 border border-white/15 hover:border-white/40 hover:text-white transition-colors cursor-pointer"
+                    >
+                      Max
+                    </button>
                   </div>
 
                   <p className="text-[11px] text-zinc-500 mt-2">
@@ -1476,6 +1592,49 @@ export default function AddFundsPage({
                     <span>{pageError}</span>
                   </div>
                 )}
+
+                {/* ── Summary rail ───────────────────────────────────────────
+                    Everything the customer is agreeing to, in one place, so
+                    nobody has to guess what will be charged or what will
+                    land in the wallet. */}
+                <div className="border border-white/[0.08] bg-black/30 divide-y divide-white/[0.07]">
+                  <div className="flex items-center justify-between gap-4 px-4 py-3">
+                    <span className="text-[11px] uppercase tracking-wider text-zinc-500">You will pay</span>
+                    <span className="text-sm font-bold text-white">
+                      {isEligible(selectedMethod) ? formatMoney(selectedAmount, selectedMethod.currency) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 px-4 py-3">
+                    <span className="text-[11px] uppercase tracking-wider text-zinc-500">Credited to wallet</span>
+                    <span className="text-sm font-bold text-emerald-400">
+                      {isEligible(selectedMethod)
+                        ? formatINR(selectedMethod.currency === "INR"
+                          ? selectedAmount
+                          : selectedAmount * selectedMethod.inrRate)
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 px-4 py-3">
+                    <span className="text-[11px] uppercase tracking-wider text-zinc-500">Network fee</span>
+                    <span className="text-xs font-semibold text-zinc-300">
+                      {selectedMethod.feePayer === "customer"
+                        ? "Paid by you on top"
+                        : "Included — 0%"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 px-4 py-3">
+                    <span className="text-[11px] uppercase tracking-wider text-zinc-500">Order valid for</span>
+                    <span className="text-xs font-semibold text-zinc-300">
+                      {selectedMethod.id === "oxapay_crypto" ? "60 minutes" : "5 minutes"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4 px-4 py-3">
+                    <span className="text-[11px] uppercase tracking-wider text-zinc-500">Allowed range</span>
+                    <span className="text-xs font-semibold text-zinc-300">
+                      {formatMoney(selectedMethod.minAmount, selectedMethod.currency)} – {formatMoney(selectedMethod.maxAmount, selectedMethod.currency)}
+                    </span>
+                  </div>
+                </div>
 
                 <button
                   type="button"
@@ -1520,6 +1679,38 @@ export default function AddFundsPage({
                   <div role="status" aria-live="polite" className="p-3.5 border border-white/15 bg-white/[0.06] text-xs text-zinc-100 flex items-start gap-2.5">
                     <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{pageSuccess}</span>
+                  </div>
+                )}
+
+                {/* Where the payment is right now. */}
+                <PaymentTimeline stage={timelineStage} />
+
+                {/* The order is being built. The customer already knows the
+                    amount and the method, so the screen is never blank and
+                    never appears to hang — the QR simply resolves into it. */}
+                {creatingOrder && (
+                  <div role="status" aria-live="polite" className="p-6 border border-white/12 bg-white/[0.03] flex flex-col items-center gap-4 text-center">
+                    <div className="w-40 h-40 border border-white/10 bg-black/40 flex items-center justify-center">
+                      <Loader2 className="w-7 h-7 animate-spin text-zinc-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        {selectedMethodId === "oxapay_crypto" ? "Opening your secure checkout…" : "Creating your secure QR…"}
+                      </p>
+                      <p className="text-[11px] text-zinc-500 mt-1.5 leading-relaxed max-w-sm">
+                        {selectedMethodId === "oxapay_crypto"
+                          ? "We are asking OxaPay for a one-time payment link. This takes a second or two — do not close the page."
+                          : "We are opening one order with our payment partner. This takes a second or two — do not close the page."}
+                      </p>
+                    </div>
+                    {selectedMethod && (
+                      <p className="text-[11px] text-zinc-400 font-mono">
+                        {formatMoney(Number(amount), selectedMethod.currency)}
+                        {selectedMethod.currency !== "INR" && selectedMethod.inrRate > 0
+                          ? ` · credited as ${formatINR(Number(amount) * selectedMethod.inrRate)}`
+                          : ""}
+                      </p>
+                    )}
                   </div>
                 )}
                 {pageError && (
@@ -1647,6 +1838,7 @@ export default function AddFundsPage({
                               if (data.status === "paid" || data.status === "test_paid") {
                                 forgetPending();
                                 setPageSuccess(data.message || "Payment confirmed and credited to your wallet.");
+      setTimelineStage("credited");
                                 if (data.newBalance !== undefined) onDepositSuccess(data.newBalance);
                                 loadHistory();
                               } else if (data.status === "expired") {

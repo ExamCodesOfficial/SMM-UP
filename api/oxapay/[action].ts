@@ -20,6 +20,7 @@ import { getPaymentMethodSettings, isPaymentMethodEnabled } from "../../server/l
 import { sendPaymentSuccessAlert } from "../../server/lib/telegram.js";
 import { recordProviderEvent } from "../../server/lib/wallet.js";
 import { flagCryptoPaymentForReview, settleCryptoDeposit } from "../../server/lib/cryptoSettlement.js";
+import { reconcileOxaPayTransaction } from "../../server/lib/paymentReconciliation.js";
 
 /**
  * Crypto (OxaPay).
@@ -35,6 +36,17 @@ import { flagCryptoPaymentForReview, settleCryptoDeposit } from "../../server/li
  */
 
 const METHOD_ID = "oxapay_crypto" as const;
+
+/** Minimum gap between two provider checks of the same transaction. */
+const PROVIDER_POLL_MIN_INTERVAL_MS = 2_500;
+
+/**
+ * The OxaPay delivery kinds that can ever fund a wallet.
+ *
+ * Payouts and donations are signed with the same merchant key, so the type is
+ * checked before anything is read from the payload.
+ */
+const DEPOSIT_TYPES = new Set(["invoice", "payment", "white_label", "payment_link"]);
 
 /**
  * The body parser is off for this file because the provider webhook signs the
@@ -352,13 +364,57 @@ async function handleOxaPayRequest(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ success: true, status: "expired", message: "This payment request expired. Please start a new one." });
       }
 
+      // ── The customer's own polling approves the payment ────────────────
+      // The webhook is the fast path, not the only path. Reading the status
+      // asks OxaPay directly and settles through exactly the same code the
+      // webhook uses, so a late or lost callback never leaves a paid crypto
+      // deposit uncredited while the buyer is watching it.
+      //
+      // The provider is not hammered: one check per transaction every
+      // PROVIDER_POLL_MIN_INTERVAL_MS, cached on the row.
+      const now = Date.now();
+      const lastCheckedAt = tx.provider_checked_at ? new Date(tx.provider_checked_at).getTime() : 0;
+      const dueForCheck = !Number.isFinite(lastCheckedAt) || now - lastCheckedAt >= PROVIDER_POLL_MIN_INTERVAL_MS;
+
+      if (dueForCheck) {
+        await db.collection("transactions").updateOne(
+          { _id: tx._id },
+          { $set: { provider_checked_at: new Date() } },
+        );
+        await reconcileOxaPayTransaction(tx);
+      }
+
+      const fresh: any = await db.collection("transactions").findOne({ _id: tx._id });
+
+      if (fresh?.status === "paid" || fresh?.status === "test_paid") {
+        const user = await db.collection("users").findOne({ _id: new ObjectId(authUser.userId) });
+        return res.status(200).json({
+          success: true,
+          status: fresh.status,
+          amount: fresh.amount,
+          newBalance: Number(user?.balance || 0),
+          walletCredited: fresh.wallet_credited !== false,
+          message: fresh.wallet_credited === false
+            ? "Crypto payment verified in sandbox mode. No live wallet balance was added."
+            : "Payment confirmed and credited to your wallet.",
+        });
+      }
+
+      if (fresh?.payment_review_required) {
+        return res.status(200).json({
+          success: true,
+          status: "review",
+          message: "Your payment needs a quick review by our team. It is safe — please do not pay again.",
+        });
+      }
+
       return res.status(200).json({
         success: true,
-        status: tx.status || "pending",
-        amount: tx.amount,
+        status: fresh?.status || "pending",
+        amount: fresh?.amount ?? tx.amount,
         // The hosted checkout link, so a restored session can resume paying.
-        paymentUrl: tx.oxapay_payment_url || null,
-        trackId: tx.oxapay_track_id || null,
+        paymentUrl: fresh?.oxapay_payment_url || tx.oxapay_payment_url || null,
+        trackId: fresh?.oxapay_track_id || tx.oxapay_track_id || null,
       });
     } catch (error: any) {
       console.error("OxaPay status error:", error?.message || error);
@@ -477,6 +533,22 @@ async function handleOxaPayWebhook(req: VercelRequest, res: VercelResponse) {
 
   const trackId = cleanText(event?.track_id, 64);
   if (!trackId || !isOxaPayTrackId(trackId)) {
+    return res.status(200).json({ received: true, ignored: true });
+  }
+
+  // ── Only a deposit may credit a wallet ──────────────────────────────────
+  // OxaPay signs payouts, donations and white-label deliveries with the SAME
+  // merchant key. Without this check a money-out event could be read as a
+  // money-in event. The type is checked before any amount is read.
+  const eventType = String(event?.type || "").trim().toLowerCase();
+  if (eventType && !DEPOSIT_TYPES.has(eventType)) {
+    await recordProviderEvent({
+      provider: "oxapay",
+      eventId: `oxapay:${createHash("sha256").update(rawBody).digest("hex")}`,
+      eventType: `ignored.${eventType}`,
+      providerOrderId: trackId,
+      payload: { outcome: "not_a_deposit", type: eventType },
+    });
     return res.status(200).json({ received: true, ignored: true });
   }
 

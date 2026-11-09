@@ -26,6 +26,14 @@ export interface RazorpaySettlementResult {
 /** Shared shape for every hosted provider (Razorpay, FamGateway). */
 export interface ProviderSettlementResult extends RazorpaySettlementResult {
   provider: string;
+  /** The amount the customer was quoted. */
+  requestedAmount?: number;
+  /** The amount the provider confirmed actually arrived. */
+  paidAmount?: number;
+  /** True when less was credited than was quoted (a short payment). */
+  partial?: boolean;
+  /** True when the customer paid more than was quoted. */
+  overpaid?: boolean;
 }
 
 interface SettleRazorpayInput {
@@ -56,6 +64,19 @@ interface SettleProviderInput {
   expectedProviderOrderId: string;
   expectedUserId?: string;
   expectedAmountPaise: number;
+  /**
+   * Amount the provider confirmed actually arrived, in paise.
+   *
+   * When the customer pays more than the order asked for, only the ordered
+   * amount is credited — the surplus stays with the customer. When the
+   * provider confirms less, only what arrived is credited. The credited
+   * amount is therefore always `min(paid, requested)`, which is the only
+   * combination that can never hand out money that did not arrive and never
+   * rounds a partial payment up to the full quote.
+   *
+   * Omit it to require an exact match (the previous behaviour).
+   */
+  paidAmountPaise?: number;
   expectedCurrency: string;
   settlementKey: string;
   environment: string;
@@ -119,7 +140,13 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
             provider: input.provider,
             transactionId: duplicateTx?._id?.toString() || "",
             userId: duplicateTx?.user_id?.toString() || "",
-            amount: Number(duplicateTx?.amount || 0),
+            amount: Number(duplicateTx?.credited_amount ?? duplicateTx?.amount ?? 0),
+            requestedAmount: Number(duplicateTx?.amount || 0),
+            paidAmount: Number(duplicateTx?.paid_amount ?? duplicateTx?.amount ?? 0),
+            partial: duplicateTx?.credited_amount_paise !== undefined
+              && Number(duplicateTx.credited_amount_paise) < Number(duplicateTx.amount_paise),
+            overpaid: duplicateTx?.paid_amount_paise !== undefined
+              && Number(duplicateTx.paid_amount_paise) > Number(duplicateTx.amount_paise),
             newBalance: Number(duplicateUser?.balance || 0),
             walletCredited: duplicateTx?.wallet_credited !== false,
             alreadySettled: true,
@@ -156,6 +183,23 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
         );
       }
 
+      // How much actually arrives, and how much we therefore credit.
+      //
+      // `creditedPaise` is `min(paid, requested)`. A customer who pays more
+      // than the order asked for is credited only the ordered amount, and a
+      // customer whose payment landed short is credited only what arrived.
+      // Neither direction can mint money, and a slightly wrong UPI transfer
+      // no longer has to wait for a human to look at it.
+      const requestedPaise = Math.round(Number(tx.amount_paise));
+      const paidPaise = input.paidAmountPaise === undefined
+        ? requestedPaise
+        : Math.round(Number(input.paidAmountPaise));
+      if (!Number.isFinite(paidPaise) || paidPaise < 0) {
+        throw new WalletSettlementError("Provider reported an invalid settled amount.", 400);
+      }
+      const creditedPaise = Math.min(paidPaise, requestedPaise);
+      const creditedAmount = creditedPaise / 100;
+
       const shouldCreditWallet = input.environment !== "test" && input.environment !== "sandbox"
         ? true
         : input.allowTestWalletCredit;
@@ -180,7 +224,13 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
           provider: input.provider,
           transactionId: tx._id.toString(),
           userId: txUserId.toString(),
-          amount: Number(tx.amount),
+          amount: Number(tx.credited_amount ?? tx.amount ?? 0),
+          requestedAmount: Number(tx.amount || 0),
+          paidAmount: Number(tx.paid_amount ?? tx.amount ?? 0),
+          partial: tx.credited_amount_paise !== undefined
+            && Number(tx.credited_amount_paise) < Number(tx.amount_paise),
+          overpaid: tx.paid_amount_paise !== undefined
+            && Number(tx.paid_amount_paise) > Number(tx.amount_paise),
           newBalance: Number(currentUser?.balance || 0),
           walletCredited: tx.wallet_credited !== false,
           alreadySettled: true,
@@ -205,10 +255,10 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
           environment: input.environment,
           transaction_id: tx._id,
           user_id: txUserId,
-          amount: shouldCreditWallet ? Number(tx.amount) : 0,
-          amount_paise: shouldCreditWallet ? Number(tx.amount_paise) : 0,
+          amount: shouldCreditWallet ? creditedAmount : 0,
+          amount_paise: shouldCreditWallet ? creditedPaise : 0,
           source_amount: Number(tx.amount),
-          source_amount_paise: Number(tx.amount_paise),
+          source_amount_paise: requestedPaise,
           currency: "INR",
           spendable: shouldCreditWallet,
           ...(input.ledgerFields || {}),
@@ -229,6 +279,13 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
             wallet_credited: shouldCreditWallet,
             paid_at: new Date(),
             updated_at: new Date(),
+            // What was quoted, what actually arrived, and what was credited.
+            // A difference is always visible here even when it was settled
+            // automatically.
+            credited_amount: shouldCreditWallet ? creditedAmount : 0,
+            credited_amount_paise: shouldCreditWallet ? creditedPaise : 0,
+            paid_amount: paidPaise / 100,
+            paid_amount_paise: paidPaise,
             ...(input.transactionFields || {}),
           },
         },
@@ -242,7 +299,7 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
       if (shouldCreditWallet) {
         currentUser = await db.collection("users").findOneAndUpdate(
           { _id: txUserId, payment_hold: { $ne: true } },
-          { $inc: { balance: Number(tx.amount) }, $set: { updated_at: new Date() } },
+          { $inc: { balance: creditedAmount }, $set: { updated_at: new Date() } },
           { returnDocument: "after", session },
         );
         if (!currentUser) {
@@ -273,7 +330,11 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
         provider: input.provider,
         transactionId: tx._id.toString(),
         userId: txUserId.toString(),
-        amount: Number(tx.amount),
+        amount: shouldCreditWallet ? creditedAmount : 0,
+        requestedAmount: Number(tx.amount),
+        paidAmount: paidPaise / 100,
+        partial: creditedPaise < requestedPaise,
+        overpaid: paidPaise > requestedPaise,
         newBalance: Number(currentUser?.balance || 0),
         walletCredited: shouldCreditWallet,
         alreadySettled: false,
@@ -304,7 +365,13 @@ export async function settleProviderDeposit(input: SettleProviderInput): Promise
         provider: input.provider,
         transactionId: tx._id.toString(),
         userId: tx.user_id.toString(),
-        amount: Number(tx.amount),
+        amount: Number(tx.credited_amount ?? tx.amount ?? 0),
+        requestedAmount: Number(tx.amount || 0),
+        paidAmount: Number(tx.paid_amount ?? tx.amount ?? 0),
+        partial: tx.credited_amount_paise !== undefined
+          && Number(tx.credited_amount_paise) < Number(tx.amount_paise),
+        overpaid: tx.paid_amount_paise !== undefined
+          && Number(tx.paid_amount_paise) > Number(tx.amount_paise),
         newBalance: Number(user?.balance || 0),
         walletCredited: tx.wallet_credited !== false,
         alreadySettled: true,
@@ -393,6 +460,12 @@ export async function settleFamGatewayDeposit(input: {
   expectedUserId?: string;
   /** Amount in paise the customer was quoted and must have paid. */
   expectedAmountPaise: number;
+  /**
+   * Amount in paise the provider confirmed actually arrived. When omitted an
+   * exact match is required. When present the credited amount is
+   * `min(paid, requested)`.
+   */
+  paidAmountPaise?: number;
   utr?: string | null;
   transactionId?: string | null;
   senderName?: string | null;
@@ -408,6 +481,7 @@ export async function settleFamGatewayDeposit(input: {
     expectedProviderOrderId: input.famgatewayOrderId,
     expectedUserId: input.expectedUserId,
     expectedAmountPaise: input.expectedAmountPaise,
+    paidAmountPaise: input.paidAmountPaise,
     expectedCurrency: "INR",
     settlementKey: `famgateway:${input.famgatewayOrderId}`,
     environment: "live",

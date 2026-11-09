@@ -47,12 +47,44 @@ export class FamGatewayApiError extends Error {
   }
 }
 
+/**
+ * FamGateway has issued a single `fam_...` key that is used both as the API
+ * key and as the webhook HMAC secret, but the name it is stored under has
+ * changed over time and operators reasonably reach for any of these. Rather
+ * than fail on a rename, every known alias is accepted. The first alias that
+ * holds a plausible key wins, in the order below.
+ */
+const FAMGATEWAY_KEY_ENV_ALIASES = [
+  "FAMGATEWAY_API_KEY",
+  "FAMGATEWAY_SECRET_KEY",
+  "FAMGATEWAY_KEY",
+  "FAM_GATEWAY_API_KEY",
+] as const;
+
+/** Returns the first usable FamGateway key from the environment. */
+export function getFamGatewayApiKey(): string {
+  for (const name of FAMGATEWAY_KEY_ENV_ALIASES) {
+    const value = String(process.env[name] || "").trim();
+    if (value.length >= 16) return value;
+  }
+  return "";
+}
+
+/** Returns the environment variable name that supplied the key, for logs. */
+export function getFamGatewayApiKeyEnvName(): string | null {
+  for (const name of FAMGATEWAY_KEY_ENV_ALIASES) {
+    const value = String(process.env[name] || "").trim();
+    if (value.length >= 16) return name;
+  }
+  return null;
+}
+
 export function hasFamGatewayConfig(): boolean {
-  return Boolean(String(process.env.FAMGATEWAY_API_KEY || "").trim());
+  return Boolean(getFamGatewayApiKey());
 }
 
 export function getFamGatewayConfig(): { apiKey: string } {
-  const apiKey = String(process.env.FAMGATEWAY_API_KEY || "").trim();
+  const apiKey = getFamGatewayApiKey();
   if (!apiKey) {
     throw new FamGatewayApiError("UPI Automatic is not configured.", 503);
   }
@@ -248,7 +280,26 @@ export function verifyFamGatewayWebhookSignature(rawBody: Buffer, signature: str
   } catch {
     return false;
   }
-  if (!signature || !/^[a-f0-9]{64}$/i.test(signature)) return false;
+  if (!signature) return false;
+
+  // Providers are not consistent about the header format. The signature may
+  // arrive as bare hex, as `sha256=<hex>`, or in upper case, and it may be
+  // compared as text or as decoded bytes. A real payment must never be
+  // refused over a formatting difference, so every documented spelling is
+  // accepted — and only a genuine mismatch is rejected.
+  const supplied = signature.trim();
+  const clean = supplied.includes("=") ? supplied.slice(supplied.lastIndexOf("=") + 1).trim() : supplied;
+  if (!/^[a-f0-9]{64}$/i.test(clean)) return false;
+
   const expected = crypto.createHmac("sha256", apiKey).update(rawBody).digest("hex");
-  return timingSafeHexEqual(expected, signature);
+  if (timingSafeHexEqual(expected, clean)) return true;
+
+  // Same value, compared as raw bytes rather than as text.
+  try {
+    const a = Buffer.from(clean, "hex");
+    const b = Buffer.from(expected, "hex");
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }

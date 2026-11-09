@@ -201,6 +201,104 @@ async function run() {
     const ledgerRows = await db.collection("wallet_ledger").countDocuments({ user_id: userId });
     assert.equal(ledgerRows, 1, "exactly one ledger row per deposit");
 
+    // ── 3b. Overpayment credits only what was ordered ───────────────────────
+    // A customer who pays more than the order asked for is credited the
+    // ordered amount. The surplus is never minted into the wallet.
+    const overpayUserId = new (await import("mongodb")).ObjectId();
+    await db.collection("users").insertOne({
+      _id: overpayUserId,
+      email: "overpayer@example.com",
+      username: "overpayer",
+      balance: 0,
+      created_at: new Date(),
+    });
+    const overpayTx = await db.collection("transactions").insertOne({
+      user_id: overpayUserId,
+      user_email: "overpayer@example.com",
+      amount: 250,
+      amount_paise: 25000,
+      currency: "INR",
+      method: "FAMGATEWAY_UPI",
+      provider: "famgateway",
+      environment: "live",
+      status: "pending",
+      wallet_credited: false,
+      famgateway_order_id: "fg_overpay123456",
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    const overpayResult = await wallet.settleFamGatewayDeposit({
+      internalTransactionId: overpayTx.insertedId.toString(),
+      famgatewayOrderId: "fg_overpay123456",
+      expectedUserId: overpayUserId.toString(),
+      expectedAmountPaise: 25000,
+      paidAmountPaise: 30000,
+      utr: "627636256498",
+      eventId: "famgateway_test_event_overpay",
+      eventType: "payment.success",
+    });
+    assert.equal(overpayResult.amount, 250, "an overpayment credits only the ordered amount");
+    assert.equal(overpayResult.partial, false, "an overpayment is not a short payment");
+    assert.equal(overpayResult.overpaid, true, "an overpayment is reported as overpaid");
+    const overpayUser = await db.collection("users").findOne({ _id: overpayUserId });
+    assert.equal(Number(overpayUser.balance), 250, "the surplus must never reach the wallet");
+
+    // ── 3c. Underpayment credits only what arrived ──────────────────────────
+    const underpayUserId = new (await import("mongodb")).ObjectId();
+    await db.collection("users").insertOne({
+      _id: underpayUserId,
+      email: "underpayer@example.com",
+      username: "underpayer",
+      balance: 0,
+      created_at: new Date(),
+    });
+    const underpayTx = await db.collection("transactions").insertOne({
+      user_id: underpayUserId,
+      user_email: "underpayer@example.com",
+      amount: 250,
+      amount_paise: 25000,
+      currency: "INR",
+      method: "FAMGATEWAY_UPI",
+      provider: "famgateway",
+      environment: "live",
+      status: "pending",
+      wallet_credited: false,
+      famgateway_order_id: "fg_underpay12345",
+      created_at: new Date(),
+      updated_at: new Date(),
+    });
+    const underpayResult = await wallet.settleFamGatewayDeposit({
+      internalTransactionId: underpayTx.insertedId.toString(),
+      famgatewayOrderId: "fg_underpay12345",
+      expectedUserId: underpayUserId.toString(),
+      expectedAmountPaise: 25000,
+      paidAmountPaise: 12000,
+      utr: "627636256499",
+      eventId: "famgateway_test_event_underpay",
+      eventType: "payment.success",
+    });
+    assert.equal(underpayResult.amount, 120, "an underpayment credits only what arrived");
+    assert.equal(underpayResult.partial, true);
+    const underpayUser = await db.collection("users").findOne({ _id: underpayUserId });
+    assert.equal(Number(underpayUser.balance), 120, "a short payment must not be rounded up");
+
+    // ── 3d. The FamGateway key is accepted under any known alias ────────────
+    const famgatewayLib = await import("../server/lib/famgateway.js");
+    const originalKey = process.env.FAMGATEWAY_API_KEY;
+    const originalAlias = process.env.FAMGATEWAY_SECRET_KEY;
+    try {
+      delete process.env.FAMGATEWAY_API_KEY;
+      process.env.FAMGATEWAY_SECRET_KEY = "fam_alias_key_0123456789";
+      assert.equal(famgatewayLib.hasFamGatewayConfig(), true, "the alias env var must satisfy the credential gate");
+      assert.equal(famgatewayLib.getFamGatewayConfig().apiKey, "fam_alias_key_0123456789");
+      assert.equal(famgatewayLib.getFamGatewayApiKeyEnvName(), "FAMGATEWAY_SECRET_KEY");
+    } finally {
+      if (originalKey === undefined) delete process.env.FAMGATEWAY_API_KEY;
+      else process.env.FAMGATEWAY_API_KEY = originalKey;
+      if (originalAlias === undefined) delete process.env.FAMGATEWAY_SECRET_KEY;
+      else process.env.FAMGATEWAY_SECRET_KEY = originalAlias;
+    }
+
     // ── 4. Crypto settlement ─────────────────────────────────────────────────
     const cryptoTx = await db.collection("transactions").insertOne({
       user_id: userId,

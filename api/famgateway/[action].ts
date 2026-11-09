@@ -20,6 +20,7 @@ import {
 } from "../../server/lib/paymentMethods.js";
 import { sendPaymentSuccessAlert } from "../../server/lib/telegram.js";
 import { recordProviderEvent, settleFamGatewayDeposit } from "../../server/lib/wallet.js";
+import { reconcileFamGatewayTransaction } from "../../server/lib/paymentReconciliation.js";
 
 /**
  * UPI Automatic (FamGateway).
@@ -31,6 +32,9 @@ import { recordProviderEvent, settleFamGatewayDeposit } from "../../server/lib/w
  */
 
 const METHOD_ID = "famgateway_upi" as const;
+
+/** Minimum gap between two provider checks of the same transaction. */
+const PROVIDER_POLL_MIN_INTERVAL_MS = 2_500;
 
 /**
  * The body parser is off for this file because the provider webhook signs the
@@ -266,10 +270,18 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
         return res.status(200).json({
           success: true,
           status: tx.status,
-          amount: tx.amount,
+          amount: tx.credited_amount ?? tx.amount,
+          requestedAmount: tx.amount,
+          partial: tx.credited_amount_paise !== undefined
+            && Number(tx.credited_amount_paise) < Number(tx.amount_paise),
+          overpaid: tx.paid_amount_paise !== undefined
+            && Number(tx.paid_amount_paise) > Number(tx.amount_paise),
           newBalance: Number(user?.balance || 0),
           walletCredited: tx.wallet_credited !== false,
-          message: "Payment confirmed and credited to your wallet.",
+          message: tx.credited_amount_paise !== undefined
+            && Number(tx.credited_amount_paise) < Number(tx.amount_paise)
+            ? `Payment confirmed. ₹${Number(tx.credited_amount).toFixed(2)} was credited (the amount that arrived).`
+            : "Payment confirmed and credited to your wallet.",
         });
       }
 
@@ -281,13 +293,69 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
         return res.status(200).json({ success: true, status: "expired", message: "This payment request expired. Please generate a new QR." });
       }
 
-      const createdAt = new Date(tx.created_at).getTime();
+      // ── The customer's own polling approves the payment ────────────────
+      // A webhook that is late, lost or filtered must never leave a paid
+      // deposit uncredited while the buyer is watching it. So the status
+      // read asks the provider directly and settles through exactly the same
+      // code path the webhook uses. No worker, no Railway, no waiting.
+      //
+      // The provider is not hammered: a transaction is only re-checked once
+      // every PROVIDER_POLL_MIN_INTERVAL_MS and the answer is cached on the
+      // row, so even a fast poll loop costs one provider call per interval.
+      const now = Date.now();
+      const lastCheckedAt = tx.provider_checked_at ? new Date(tx.provider_checked_at).getTime() : 0;
+      const dueForCheck = !Number.isFinite(lastCheckedAt) || now - lastCheckedAt >= PROVIDER_POLL_MIN_INTERVAL_MS;
+
+      if (dueForCheck) {
+        await db.collection("transactions").updateOne(
+          { _id: tx._id },
+          { $set: { provider_checked_at: new Date() } },
+        );
+        await reconcileFamGatewayTransaction(tx);
+      }
+
+      const fresh: any = await db.collection("transactions").findOne({ _id: tx._id });
+      const settled = fresh?.status === "paid" || fresh?.status === "test_paid";
+      const createdAt = new Date(fresh?.created_at || tx.created_at).getTime();
       const elapsedSeconds = Number.isFinite(createdAt) ? Math.max(0, Math.round((Date.now() - createdAt) / 1000)) : 0;
+
+      if (settled) {
+        const user = await db.collection("users").findOne({ _id: new ObjectId(authUser.userId) });
+        const shortBy = fresh?.credited_amount_paise !== undefined
+          && Number(fresh.credited_amount_paise) < Number(fresh.amount_paise);
+        return res.status(200).json({
+          success: true,
+          status: fresh.status,
+          amount: fresh.credited_amount ?? fresh.amount,
+          requestedAmount: fresh.amount,
+          partial: Boolean(shortBy),
+          overpaid: fresh?.paid_amount_paise !== undefined
+            && Number(fresh.paid_amount_paise) > Number(fresh.amount_paise),
+          newBalance: Number(user?.balance || 0),
+          walletCredited: fresh.wallet_credited !== false,
+          message: shortBy
+            ? `Payment confirmed. ₹${Number(fresh.credited_amount).toFixed(2)} was credited (the amount that arrived).`
+            : "Payment confirmed and credited to your wallet.",
+        });
+      }
+
+      if (fresh?.status === "expired") {
+        return res.status(200).json({ success: true, status: "expired", message: "This payment request expired. Please generate a new QR." });
+      }
+      if (fresh?.payment_review_required) {
+        return res.status(200).json({
+          success: true,
+          status: fresh.status || "pending",
+          reviewRequired: true,
+          message: "Your payment arrived but needs a quick check. Our team has been notified.",
+        });
+      }
+
       return res.status(200).json({
         success: true,
-        status: tx.status || "pending",
+        status: fresh?.status || "pending",
         elapsedSeconds,
-        amount: tx.amount,
+        amount: fresh?.amount ?? tx.amount,
       });
     } catch (error: any) {
       console.error("FamGateway status error:", error?.message || error);
@@ -483,14 +551,36 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
         ? Math.round(order.amount * 100)
         : expectedAmountPaise;
 
-    if (settledAmountPaise !== expectedAmountPaise) {
-      // Never credit a mismatched amount. Flag it for the owner instead.
+    // A payment that landed short or long is still a real payment. We credit
+    // `min(paid, requested)`: never more than the customer sent, never more
+    // than they were quoted, and never a manual wait for someone to read a
+    // mismatched UPI transfer. The difference is noted for the owner.
+    const creditedPaise = Math.min(settledAmountPaise, expectedAmountPaise);
+    const isPartial = creditedPaise !== expectedAmountPaise;
+
+    const result = await settleFamGatewayDeposit({
+      internalTransactionId: tx._id.toString(),
+      famgatewayOrderId: orderId,
+      expectedUserId: tx.user_id?.toString(),
+      expectedAmountPaise,
+      paidAmountPaise: settledAmountPaise,
+      utr: order.utr,
+      transactionId: order.transactionId,
+      senderName: order.senderName,
+      eventId: orderId,
+      eventType: cleanText(event?.event, 64) || "payment.success",
+    });
+
+    // The amount that arrived differs from the amount quoted. The customer
+    // is credited `min(paid, requested)` and the difference is recorded for
+    // the owner — it is a note, not a hold.
+    if (isPartial && !result.alreadySettled) {
       await db.collection("transactions").updateOne(
         { _id: tx._id },
         {
           $set: {
             payment_review_required: true,
-            payment_review_reason: `FamGateway settled ${settledAmountPaise} paise but ${expectedAmountPaise} paise was expected.`,
+            payment_review_reason: `FamGateway settled ${settledAmountPaise} paise against ${expectedAmountPaise} paise requested. Credited ${creditedPaise} paise (the lower of the two).`,
             updated_at: new Date(),
           },
         },
@@ -500,22 +590,9 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
         eventId: orderId,
         eventType: cleanText(event?.event, 64) || "payment.success",
         providerOrderId: orderId,
-        payload: { outcome: "amount_mismatch", expected_amount_paise: expectedAmountPaise, settled_amount_paise: settledAmountPaise },
+        payload: { outcome: "amount_adjusted", expected_amount_paise: expectedAmountPaise, settled_amount_paise: settledAmountPaise, credited_amount_paise: creditedPaise },
       });
-      return res.status(200).json({ received: true, settled: false, reviewRequired: true });
     }
-
-    const result = await settleFamGatewayDeposit({
-      internalTransactionId: tx._id.toString(),
-      famgatewayOrderId: orderId,
-      expectedUserId: tx.user_id?.toString(),
-      expectedAmountPaise,
-      utr: order.utr,
-      transactionId: order.transactionId,
-      senderName: order.senderName,
-      eventId: orderId,
-      eventType: cleanText(event?.event, 64) || "payment.success",
-    });
 
     // The customer cancelled this request but the money still arrived. It is
     // credited (never dropped) and flagged so the owner can reconcile.
@@ -548,7 +625,13 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
       }).catch((error) => console.error("FamGateway webhook alert error:", error));
     }
 
-    return res.status(200).json({ received: true, settled: true, duplicate: result.alreadySettled });
+    return res.status(200).json({
+      received: true,
+      settled: true,
+      duplicate: result.alreadySettled,
+      creditedAmount: result.amount,
+      partial: isPartial,
+    });
   } catch (error: any) {
     const known = error instanceof FamGatewayApiError;
     console.error("FamGateway webhook error:", error?.message || error);

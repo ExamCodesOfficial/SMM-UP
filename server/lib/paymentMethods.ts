@@ -1,4 +1,5 @@
 import type { Db, Document } from "mongodb";
+import { getFamGatewayApiKey } from "./famgateway.js";
 
 /**
  * Payment method registry, toggle resolution and live configuration.
@@ -300,7 +301,12 @@ function envBaseline(id: PaymentMethodId): PaymentMethodSettings {
 function credentialsResolve(id: PaymentMethodId): boolean {
   switch (id) {
     case "famgateway_upi":
-      return Boolean(String(process.env.FAMGATEWAY_API_KEY || "").trim());
+      // Every known alias for the FamGateway key counts as configured, so a
+      // rename of the env var never silently switches the method off.
+      return Boolean(
+        getFamGatewayApiKey()
+        || String(process.env.FAMGATEWAY_API_KEY || "").trim(),
+      );
     case "direct_upi":
       return Boolean(String(process.env.UPI_VPA || "").trim())
         && Boolean(String(process.env.FAMPAY_APP_PASSWORD || "").trim());

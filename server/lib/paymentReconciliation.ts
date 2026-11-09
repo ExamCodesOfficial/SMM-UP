@@ -69,26 +69,19 @@ export async function reconcileFamGatewayTransaction(tx: any): Promise<Reconcile
         ? Math.round(order.amount * 100)
         : expectedAmountPaise;
 
-    if (settledAmountPaise !== expectedAmountPaise) {
-      const db = await getDb();
-      await db.collection("transactions").updateOne(
-        { _id: tx._id },
-        {
-          $set: {
-            payment_review_required: true,
-            payment_review_reason: `FamGateway settled ${settledAmountPaise} paise but ${expectedAmountPaise} paise was expected.`,
-            updated_at: new Date(),
-          },
-        },
-      );
-      return { outcome: "review_required", transactionId, detail: "amount_mismatch" };
-    }
+    // A payment that landed short or long is still a real payment. We credit
+    // `min(paid, requested)`: never more than the customer sent, never more
+    // than they were quoted, and never a manual wait for someone to read a
+    // mismatched UPI transfer.
+    const creditedPaise = Math.min(settledAmountPaise, expectedAmountPaise);
+    const isPartial = creditedPaise !== expectedAmountPaise;
 
     const result = await settleFamGatewayDeposit({
       internalTransactionId: transactionId,
       famgatewayOrderId: orderId,
       expectedUserId: tx.user_id?.toString(),
       expectedAmountPaise,
+      paidAmountPaise: settledAmountPaise,
       utr: order.utr,
       transactionId: order.transactionId,
       senderName: order.senderName,
@@ -108,11 +101,28 @@ export async function reconcileFamGatewayTransaction(tx: any): Promise<Reconcile
       }).catch((error) => console.error("FamGateway reconcile alert error:", error));
     }
 
+    // A difference is worth a note to the owner, but it is not a blocker:
+    // the customer is credited what actually arrived.
+    if (isPartial) {
+      const db = await getDb();
+      await db.collection("transactions").updateOne(
+        { _id: tx._id },
+        {
+          $set: {
+            payment_review_required: true,
+            payment_review_reason: `FamGateway settled ${settledAmountPaise} paise against ${expectedAmountPaise} paise requested. Credited ${creditedPaise} paise (the lower of the two).`,
+            updated_at: new Date(),
+          },
+        },
+      );
+    }
+
     return {
       outcome: result.alreadySettled ? "already_settled" : "settled",
       transactionId,
       amount: result.amount,
       newBalance: result.newBalance,
+      detail: isPartial ? `credited_${creditedPaise}_of_${expectedAmountPaise}` : undefined,
     };
   } catch (error: any) {
     console.error("FamGateway reconciliation error:", error?.message || error);
