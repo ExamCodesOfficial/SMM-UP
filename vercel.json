@@ -9,10 +9,7 @@
     "api/oxapay/*.ts": {
       "maxDuration": 30
     },
-    "api/famgateway-webhook.ts": {
-      "maxDuration": 30
-    },
-    "api/oxapay-webhook.ts": {
+    "api/razorpay/*.ts": {
       "maxDuration": 30
     },
     "api/internal/*.ts": {

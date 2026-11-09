@@ -1,10 +1,14 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
+import { headerValue, readJsonBody, readRawBody } from "../../server/lib/http.js";
+import { createHash } from "crypto";
 import { ObjectId } from "mongodb";
 import { ensurePaymentProviderIndexes, getDb } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
 import {
   OxaPayApiError,
+  normalizeOxaPayStatus,
+  verifyOxaPayWebhookSignature,
   createOxaPayInvoice,
   fetchOxaPayPayment,
   fetchOxaPaySupportedFiats,
@@ -14,7 +18,8 @@ import {
 } from "../../server/lib/oxapay.js";
 import { getPaymentMethodSettings, isPaymentMethodEnabled } from "../../server/lib/paymentMethods.js";
 import { sendPaymentSuccessAlert } from "../../server/lib/telegram.js";
-import { settleCryptoDeposit } from "../../server/lib/cryptoSettlement.js";
+import { recordProviderEvent } from "../../server/lib/wallet.js";
+import { flagCryptoPaymentForReview, settleCryptoDeposit } from "../../server/lib/cryptoSettlement.js";
 
 /**
  * Crypto (OxaPay).
@@ -30,6 +35,24 @@ import { settleCryptoDeposit } from "../../server/lib/cryptoSettlement.js";
  */
 
 const METHOD_ID = "oxapay_crypto" as const;
+
+/**
+ * The body parser is off for this file because the provider webhook signs the
+ * exact bytes it sent (HMAC-SHA512). Ordinary JSON actions parse their own
+ * body from the same raw stream, so nothing is ever double-read.
+ */
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+function cleanText(value: unknown, maxLength = 200): string | null {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.slice(0, maxLength);
+}
 
 function sameOriginIfPresent(req: VercelRequest): boolean {
   const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
@@ -89,6 +112,14 @@ function computeInvoice(input: { amount: number; currency: string; inrRate: numb
 
 async function handleOxaPayRequest(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action || "");
+
+  // The provider callback shares this file with the customer-facing actions.
+  if (action === "webhook") {
+    return handleOxaPayWebhook(req, res);
+  }
+
+  // Every other action speaks JSON.
+  await readJsonBody(req);
   const db = await getDb();
   const authUser = await getUserFromRequest(req, db);
   if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
@@ -211,7 +242,7 @@ async function handleOxaPayRequest(req: VercelRequest, res: VercelResponse) {
         amount: invoiceAmount,
         currency,
         orderId: transactionId.toString(),
-        callbackUrl: `${siteUrl()}/api/oxapay-webhook`,
+        callbackUrl: `${siteUrl()}/api/oxapay/webhook`,
         returnUrl: `${siteUrl()}/add-funds?paid=1&tx=${transactionId.toString()}`,
         email: authUser.email,
         lifetimeMinutes: settings.invoiceLifetimeMinutes,
@@ -418,6 +449,167 @@ async function handleOxaPayRequest(req: VercelRequest, res: VercelResponse) {
 
   return res.status(404).json({ error: "Crypto payment action not found." });
 }
+
+async function handleOxaPayWebhook(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  let rawBody: Buffer;
+  try {
+    rawBody = await readRawBody(req);
+  } catch {
+    return res.status(400).json({ error: "Invalid request body." });
+  }
+
+  const signature = headerValue(req, "hmac");
+  if (!signature) return res.status(400).json({ error: "Missing OxaPay signature." });
+  if (!verifyOxaPayWebhookSignature(rawBody, signature)) {
+    return res.status(401).json({ error: "Invalid OxaPay webhook signature." });
+  }
+
+  let event: any;
+  try {
+    event = JSON.parse(rawBody.toString("utf8"));
+  } catch {
+    return res.status(400).json({ error: "Invalid webhook JSON." });
+  }
+
+  const trackId = cleanText(event?.track_id, 64);
+  if (!trackId || !isOxaPayTrackId(trackId)) {
+    return res.status(200).json({ received: true, ignored: true });
+  }
+
+  // OxaPay provides no event identifier and may re-deliver the same logical
+  // event with a different body, so the raw-body fingerprint is the event id.
+  const eventId = `oxapay:${createHash("sha256").update(rawBody).digest("hex")}`;
+  const providerStatus = normalizeOxaPayStatus(event?.status);
+
+  try {
+    await ensurePaymentProviderIndexes();
+    const db = await getDb();
+
+    const tx: any = await db.collection("transactions").findOne({ oxapay_track_id: trackId });
+    if (!tx) {
+      await recordProviderEvent({
+        provider: "oxapay",
+        eventId,
+        eventType: `invoice.${providerStatus}`,
+        providerOrderId: trackId,
+        payload: { outcome: "orphan" },
+      });
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    if (tx.status === "paid" || tx.status === "test_paid") {
+      return res.status(200).json({ received: true, settled: true, duplicate: true });
+    }
+
+    // Authoritative provider state — the body above is never trusted.
+    const payment = await fetchOxaPayPayment(trackId);
+    const status = payment.status;
+
+    if (status === "underpaid") {
+      const observedAmountPaise = payment.amount !== null ? Math.round(payment.amount * 100) : null;
+      await flagCryptoPaymentForReview({
+        trackId,
+        providerStatus: status,
+        observedAmountPaise,
+        reason: `OxaPay reported an underpaid invoice (${observedAmountPaise ?? "unknown"} of ${Math.round(Number(tx.amount_paise))} paise expected).`,
+      });
+      await recordProviderEvent({
+        provider: "oxapay",
+        eventId,
+        eventType: "invoice.underpaid",
+        providerOrderId: trackId,
+        payload: { outcome: "underpaid", observed_amount_paise: observedAmountPaise },
+      });
+      return res.status(200).json({ received: true, settled: false, reviewRequired: true });
+    }
+
+    if (status === "refunding" || status === "refunded") {
+      await flagCryptoPaymentForReview({
+        trackId,
+        providerStatus: status,
+        reason: `OxaPay reported a ${status} crypto invoice. Wallet reconciliation is required.`,
+      });
+      await recordProviderEvent({
+        provider: "oxapay",
+        eventId,
+        eventType: `invoice.${status}`,
+        providerOrderId: trackId,
+        payload: { outcome: status },
+      });
+      return res.status(200).json({ received: true, settled: false, reviewRequired: true });
+    }
+
+    if (status !== "paid" && status !== "manual_accept") {
+      if (status === "expired" && tx.status === "pending") {
+        await db.collection("transactions").updateOne(
+          { _id: tx._id, status: "pending" },
+          { $set: { status: "expired", expired_at: new Date(), oxapay_status: status, updated_at: new Date() } },
+        );
+      }
+      await recordProviderEvent({
+        provider: "oxapay",
+        eventId,
+        eventType: `invoice.${status}`,
+        providerOrderId: trackId,
+        payload: { outcome: "not_paid", provider_status: status },
+      });
+      return res.status(200).json({ received: true, settled: false, providerStatus: status });
+    }
+
+    const result = await settleCryptoDeposit({
+      internalTransactionId: tx._id.toString(),
+      trackId,
+      expectedUserId: tx.user_id?.toString(),
+      expectedAmountPaise: Math.round(Number(tx.amount_paise)),
+      payment,
+      eventId,
+      eventType: `invoice.${status}`,
+      sandbox: tx.environment === "sandbox",
+      allowSandboxCredit: String(process.env.OXAPAY_ALLOW_SANDBOX_CREDIT || "false").trim() === "true",
+    });
+
+    // The customer cancelled this invoice but the money still arrived. It is
+    // credited (never dropped) and flagged so the owner can reconcile.
+    if (tx.status === "cancelled" && !result.alreadySettled && result.walletCredited) {
+      await db.collection("transactions").updateOne(
+        { _id: tx._id },
+        {
+          $set: {
+            payment_review_required: true,
+            payment_review_reason: "A cancelled crypto invoice was paid after cancellation.",
+            updated_at: new Date(),
+          },
+        },
+      );
+    }
+
+    if (!result.alreadySettled && result.walletCredited) {
+      const settledUser = await db.collection("users").findOne(
+        { _id: new ObjectId(result.userId) },
+        { projection: { email: 1 } },
+      );
+      sendPaymentSuccessAlert({
+        userEmail: String(settledUser?.email || tx.user_email || "unknown"),
+        amount: result.amount,
+        method: "Crypto (OxaPay)",
+        transactionId: trackId,
+        memo: trackId,
+        newBalance: result.newBalance,
+      }).catch((error) => console.error("OxaPay webhook alert error:", error));
+    }
+
+    return res.status(200).json({ received: true, settled: true, duplicate: result.alreadySettled });
+  } catch (error: any) {
+    const known = error instanceof OxaPayApiError;
+    console.error("OxaPay webhook error:", error?.message || error);
+    // Acknowledge so OxaPay does not retry-storm; the reconciliation sweep
+    // re-checks this invoice shortly.
+    return res.status(200).json({ received: true, settled: false, deferred: true, error: known ? error.message : "Deferred to reconciliation." });
+  }
+}
+
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {

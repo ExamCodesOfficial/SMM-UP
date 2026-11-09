@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
+import { headerValue, readJsonBody, readRawBody } from "../../server/lib/http.js";
 import { ObjectId } from "mongodb";
 import { ensurePaymentProviderIndexes, getDb } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
@@ -9,6 +10,7 @@ import {
   fetchFamGatewayOrder,
   hasFamGatewayConfig,
   isFamGatewayOrderId,
+  verifyFamGatewayWebhookSignature,
 } from "../../server/lib/famgateway.js";
 import {
   getPaymentMethodSettings,
@@ -17,7 +19,7 @@ import {
   type PaymentMethodState,
 } from "../../server/lib/paymentMethods.js";
 import { sendPaymentSuccessAlert } from "../../server/lib/telegram.js";
-import { settleFamGatewayDeposit } from "../../server/lib/wallet.js";
+import { recordProviderEvent, settleFamGatewayDeposit } from "../../server/lib/wallet.js";
 
 /**
  * UPI Automatic (FamGateway).
@@ -29,6 +31,24 @@ import { settleFamGatewayDeposit } from "../../server/lib/wallet.js";
  */
 
 const METHOD_ID = "famgateway_upi" as const;
+
+/**
+ * The body parser is off for this file because the provider webhook signs the
+ * exact bytes it sent. Ordinary JSON actions parse their own body from the
+ * same raw stream, so nothing is ever double-read.
+ */
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+function cleanText(value: unknown, maxLength = 200): string | null {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.slice(0, maxLength);
+}
 
 function sameOriginIfPresent(req: VercelRequest): boolean {
   const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
@@ -76,6 +96,15 @@ async function resolveFamGatewayState(db: any): Promise<PaymentMethodState | und
 
 async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action || "");
+
+  // The provider callback shares this file with the customer-facing actions.
+  if (action === "webhook") {
+    return handleFamGatewayWebhook(req, res);
+  }
+
+  // Every other action speaks JSON.
+  await readJsonBody(req);
+
   const db = await getDb();
   const authUser = await getUserFromRequest(req, db);
   if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
@@ -160,7 +189,7 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
         redirectUrl: `${siteUrl()}/add-funds?paid=1`,
         // FamGateway has no order-metadata field, so our internal transaction
         // id travels with the per-order webhook override.
-        webhookUrl: `${siteUrl()}/api/famgateway-webhook?tx=${transactionId.toString()}`,
+        webhookUrl: `${siteUrl()}/api/famgateway/webhook?tx=${transactionId.toString()}`,
       });
 
       await db.collection("transactions").updateOne(
@@ -357,6 +386,178 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
 
   return res.status(404).json({ error: "UPI Automatic action not found." });
 }
+
+async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  let rawBody: Buffer;
+  try {
+    rawBody = await readRawBody(req);
+  } catch {
+    return res.status(400).json({ error: "Invalid request body." });
+  }
+
+  const signature = headerValue(req, "x-famgateway-signature");
+  if (!signature) return res.status(400).json({ error: "Missing FamGateway signature." });
+  if (!verifyFamGatewayWebhookSignature(rawBody, signature)) {
+    return res.status(401).json({ error: "Invalid FamGateway webhook signature." });
+  }
+
+  let event: any;
+  try {
+    event = JSON.parse(rawBody.toString("utf8"));
+  } catch {
+    return res.status(400).json({ error: "Invalid webhook JSON." });
+  }
+
+  const orderId = cleanText(event?.order_id, 64);
+  if (!orderId || !isFamGatewayOrderId(orderId)) {
+    return res.status(200).json({ received: true, ignored: true });
+  }
+
+  try {
+    await ensurePaymentProviderIndexes();
+    const db = await getDb();
+
+    const tx: any = await db.collection("transactions").findOne({ famgateway_order_id: orderId });
+
+    // The per-order webhook override carries our internal transaction id.
+    // When present it must match the row we resolved, otherwise the delivery
+    // is bound to a different order and is rejected.
+    const expectedTx = cleanText(req.query?.tx, 64);
+    if (expectedTx) {
+      if (!tx || tx._id.toString() !== expectedTx) {
+        await recordProviderEvent({
+          provider: "famgateway",
+          eventId: orderId,
+          eventType: cleanText(event?.event, 64) || "payment.success",
+          providerOrderId: orderId,
+          payload: { outcome: "binding_mismatch" },
+        });
+        return res.status(200).json({ received: true, ignored: true });
+      }
+    }
+
+    if (!tx) {
+      // An order we do not know about: record it so the owner can see it, but
+      // never create a transaction from a webhook alone.
+      await recordProviderEvent({
+        provider: "famgateway",
+        eventId: orderId,
+        eventType: cleanText(event?.event, 64) || "payment.success",
+        providerOrderId: orderId,
+        payload: { outcome: "orphan" },
+      });
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    if (tx.status === "paid" || tx.status === "test_paid") {
+      return res.status(200).json({ received: true, settled: true, duplicate: true });
+    }
+
+    // Authoritative provider state — the webhook body is never trusted for
+    // the amount, the UTR or the payer.
+    const order = await fetchFamGatewayOrder(orderId);
+
+    if (order.status !== "success") {
+      if (order.status === "expired" && tx.status === "pending") {
+        await db.collection("transactions").updateOne(
+          { _id: tx._id, status: "pending" },
+          { $set: { status: "expired", expired_at: new Date(), updated_at: new Date() } },
+        );
+      }
+      await recordProviderEvent({
+        provider: "famgateway",
+        eventId: orderId,
+        eventType: cleanText(event?.event, 64) || "payment.pending",
+        providerOrderId: orderId,
+        payload: { outcome: "not_paid", provider_status: order.status },
+      });
+      return res.status(200).json({ received: true, settled: false, providerStatus: order.status });
+    }
+
+    const expectedAmountPaise = Math.round(Number(tx.amount_paise));
+    const settledAmountPaise = order.payableAmount !== null
+      ? Math.round(order.payableAmount * 100)
+      : order.amount !== null
+        ? Math.round(order.amount * 100)
+        : expectedAmountPaise;
+
+    if (settledAmountPaise !== expectedAmountPaise) {
+      // Never credit a mismatched amount. Flag it for the owner instead.
+      await db.collection("transactions").updateOne(
+        { _id: tx._id },
+        {
+          $set: {
+            payment_review_required: true,
+            payment_review_reason: `FamGateway settled ${settledAmountPaise} paise but ${expectedAmountPaise} paise was expected.`,
+            updated_at: new Date(),
+          },
+        },
+      );
+      await recordProviderEvent({
+        provider: "famgateway",
+        eventId: orderId,
+        eventType: cleanText(event?.event, 64) || "payment.success",
+        providerOrderId: orderId,
+        payload: { outcome: "amount_mismatch", expected_amount_paise: expectedAmountPaise, settled_amount_paise: settledAmountPaise },
+      });
+      return res.status(200).json({ received: true, settled: false, reviewRequired: true });
+    }
+
+    const result = await settleFamGatewayDeposit({
+      internalTransactionId: tx._id.toString(),
+      famgatewayOrderId: orderId,
+      expectedUserId: tx.user_id?.toString(),
+      expectedAmountPaise,
+      utr: order.utr,
+      transactionId: order.transactionId,
+      senderName: order.senderName,
+      eventId: orderId,
+      eventType: cleanText(event?.event, 64) || "payment.success",
+    });
+
+    // The customer cancelled this request but the money still arrived. It is
+    // credited (never dropped) and flagged so the owner can reconcile.
+    if (tx.status === "cancelled" && !result.alreadySettled && result.walletCredited) {
+      await db.collection("transactions").updateOne(
+        { _id: tx._id },
+        {
+          $set: {
+            payment_review_required: true,
+            payment_review_reason: "A cancelled UPI Automatic order was paid after cancellation.",
+            updated_at: new Date(),
+          },
+        },
+      );
+    }
+
+    if (!result.alreadySettled && result.walletCredited) {
+      const settledUser = await db.collection("users").findOne(
+        { _id: new ObjectId(result.userId) },
+        { projection: { email: 1 } },
+      );
+      sendPaymentSuccessAlert({
+        userEmail: String(settledUser?.email || tx.user_email || "unknown"),
+        amount: result.amount,
+        method: "UPI Automatic (FamGateway)",
+        utr: order.utr || undefined,
+        transactionId: order.transactionId || orderId,
+        memo: orderId,
+        newBalance: result.newBalance,
+      }).catch((error) => console.error("FamGateway webhook alert error:", error));
+    }
+
+    return res.status(200).json({ received: true, settled: true, duplicate: result.alreadySettled });
+  } catch (error: any) {
+    const known = error instanceof FamGatewayApiError;
+    console.error("FamGateway webhook error:", error?.message || error);
+    // Acknowledge so FamGateway does not enter a retry storm; the
+    // reconciliation sweep re-checks this order shortly.
+    return res.status(200).json({ received: true, settled: false, deferred: true, error: known ? error.message : "Deferred to reconciliation." });
+  }
+}
+
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {

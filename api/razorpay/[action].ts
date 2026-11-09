@@ -1,9 +1,13 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
+import { headerValue, readJsonBody, readRawBody } from "../../server/lib/http.js";
+import { sendPaymentSuccessAlert, sendTelegramMessage } from "../../server/lib/telegram.js";
 import { ObjectId } from "mongodb";
 import { ensureRazorpayIndexes, getDb } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
 import {
+  verifyRazorpayWebhookSignature,
+  type RazorpayPayment,
   RazorpayApiError,
   createRazorpayOrder,
   fetchRazorpayOrderPayments,
@@ -11,14 +15,14 @@ import {
   getRazorpayConfig,
   hasRazorpayConfig,
   verifyRazorpayCheckoutSignature,
-  type RazorpayPayment,
 } from "../../server/lib/razorpay.js";
 import {
+  flagRazorpayPaymentForReview,
+  recordRazorpayEvent,
   WalletSettlementError,
   settleRazorpayDeposit,
   type RazorpaySettlementResult,
 } from "../../server/lib/wallet.js";
-import { sendPaymentSuccessAlert } from "../../server/lib/telegram.js";
 
 const MIN_DEPOSIT_INR = 10;
 const DEFAULT_MAX_DEPOSIT_INR = 100_000;
@@ -79,8 +83,34 @@ async function sendSuccessLog(
   }).catch((error) => console.error("Razorpay Telegram log error:", error));
 }
 
+/**
+ * The body parser is off for this file because the provider webhook signs the
+ * exact bytes it sent. Ordinary JSON actions parse their own body from the
+ * same raw stream, so nothing is ever double-read.
+ */
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+function cleanWebhookText(value: unknown, maxLength = 200): string | null {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.slice(0, maxLength);
+}
+
 async function handleRazorpayRequest(req: VercelRequest, res: VercelResponse) {
   const action = String(req.query.action || "");
+
+  // The provider callback shares this file with the customer-facing actions.
+  if (action === "webhook") {
+    return handleRazorpayWebhook(req, res);
+  }
+
+  // Every other action speaks JSON.
+  await readJsonBody(req);
   const db = await getDb();
   const authUser = await getUserFromRequest(req, db);
   if (!authUser) return res.status(401).json({ error: "Unauthorized. Please sign in." });
@@ -417,6 +447,185 @@ async function handleRazorpayRequest(req: VercelRequest, res: VercelResponse) {
 
   return res.status(404).json({ error: "Razorpay action not found." });
 }
+
+function paymentFromPayload(payload: any): RazorpayPayment | null {
+  const payment = payload?.payload?.payment?.entity;
+  return payment && typeof payment === "object" ? payment as RazorpayPayment : null;
+}
+
+function safeTelegramText(value: unknown): string {
+  return String(value || "—")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function notifyPaymentReview(input: {
+  eventType: string;
+  paymentId?: string;
+  transactionFound: boolean;
+}) {
+  const text = [
+    "⚠️ <b>Razorpay payment review</b>",
+    `Event: <code>${safeTelegramText(input.eventType)}</code>`,
+    `Payment: <code>${safeTelegramText(input.paymentId)}</code>`,
+    `SMM UP transaction: ${input.transactionFound ? "matched" : "not found"}`,
+    "Ordering has been held when an account match was found.",
+  ].join("\n");
+  sendTelegramMessage(text).catch((error) =>
+    console.error("Razorpay review alert error:", error),
+  );
+}
+
+async function handleRazorpayWebhook(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  try {
+    const razorpayConfig = getRazorpayConfig(true);
+    const rawBody = await readRawBody(req);
+    const signature = headerValue(req, "x-razorpay-signature");
+    const eventId = headerValue(req, "x-razorpay-event-id");
+
+    if (!signature || !eventId) {
+      return res.status(400).json({ error: "Missing Razorpay webhook headers." });
+    }
+    if (!verifyRazorpayWebhookSignature(rawBody, signature)) {
+      return res.status(401).json({ error: "Invalid Razorpay webhook signature." });
+    }
+
+    let event: any;
+    try {
+      event = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      return res.status(400).json({ error: "Invalid webhook JSON." });
+    }
+
+    const eventType = String(event?.event || "");
+    const payment = paymentFromPayload(event);
+    const db = await getDb();
+
+    if (eventType === "payment.captured") {
+      if (!payment?.id || !payment.order_id) {
+        return res.status(400).json({ error: "Captured payment payload is incomplete." });
+      }
+
+      // Fetch the provider record instead of relying only on payload fields.
+      const authoritativePayment = await fetchRazorpayPayment(payment.id);
+      const result = await settleRazorpayDeposit({
+        razorpayOrderId: authoritativePayment.order_id,
+        payment: authoritativePayment,
+        mode: razorpayConfig.mode,
+        allowTestWalletCredit: razorpayConfig.allowTestWalletCredit,
+        eventId,
+        eventType,
+      });
+
+      if (!result.alreadySettled && result.walletCredited && ObjectId.isValid(result.userId)) {
+        const settledUser = await db.collection("users").findOne(
+          { _id: new ObjectId(result.userId) },
+          { projection: { email: 1 } },
+        );
+        sendPaymentSuccessAlert({
+          userEmail: String(settledUser?.email || "unknown"),
+          amount: result.amount,
+          method: `Razorpay ${authoritativePayment.method || "Checkout"} (webhook)`,
+          transactionId: authoritativePayment.id,
+          memo: authoritativePayment.order_id,
+          newBalance: result.newBalance,
+        }).catch((notifyError) => console.error("Razorpay webhook alert error:", notifyError));
+      }
+
+      return res.status(200).json({
+        received: true,
+        duplicate: result.duplicateEvent,
+        settled: true,
+      });
+    }
+
+    if (eventType === "payment.failed") {
+      const recorded = await recordRazorpayEvent({
+        eventId,
+        eventType,
+        payment: payment || undefined,
+        payload: {
+          error_code: payment?.error_code || null,
+          error_description: payment?.error_description || null,
+        },
+      });
+      if (!recorded.duplicate && payment?.order_id) {
+        // A later retry on the same order may still be captured, so keep it pending.
+        await db.collection("transactions").updateOne(
+          { method: "RAZORPAY", razorpay_order_id: payment.order_id, status: { $nin: ["paid", "test_paid"] } },
+          {
+            $set: {
+              last_payment_failure: {
+                payment_id: payment.id,
+                code: payment.error_code || null,
+                description: payment.error_description || null,
+                at: new Date(),
+              },
+              updated_at: new Date(),
+            },
+          },
+        );
+      }
+      return res.status(200).json({ received: true, duplicate: recorded.duplicate });
+    }
+
+    if (["refund.created", "refund.processed", "refund.failed"].includes(eventType)) {
+      const refund = event?.payload?.refund?.entity;
+      const review = await flagRazorpayPaymentForReview({
+        eventId,
+        eventType,
+        razorpayOrderId: payment?.order_id,
+        razorpayPaymentId: payment?.id || refund?.payment_id,
+        reason: `Razorpay ${eventType.replace(".", " ")}; wallet reconciliation required.`,
+        refundedAmountPaise: Number(refund?.amount || 0),
+      });
+      if (!review.duplicate) {
+        notifyPaymentReview({
+          eventType,
+          paymentId: payment?.id || refund?.payment_id,
+          transactionFound: review.transactionFound,
+        });
+      }
+      return res.status(200).json({ received: true, duplicate: review.duplicate });
+    }
+
+    if (eventType.startsWith("payment.dispute.")) {
+      const dispute = event?.payload?.dispute?.entity;
+      const review = await flagRazorpayPaymentForReview({
+        eventId,
+        eventType,
+        razorpayOrderId: payment?.order_id,
+        razorpayPaymentId: payment?.id || dispute?.payment_id,
+        reason: `Razorpay dispute requires review${dispute?.id ? ` (${dispute.id})` : ""}.`,
+      });
+      if (!review.duplicate) {
+        notifyPaymentReview({
+          eventType,
+          paymentId: payment?.id || dispute?.payment_id,
+          transactionFound: review.transactionFound,
+        });
+      }
+      return res.status(200).json({ received: true, duplicate: review.duplicate });
+    }
+
+    const recorded = await recordRazorpayEvent({
+      eventId,
+      eventType: eventType || "unknown",
+      payment: payment || undefined,
+    });
+    return res.status(200).json({ received: true, ignored: true, duplicate: recorded.duplicate });
+  } catch (error: any) {
+    const known = error instanceof RazorpayApiError || error instanceof WalletSettlementError;
+    console.error("Razorpay webhook error:", error?.message || error);
+    return res.status(known ? error.status : 500).json({
+      error: known ? error.message : "Webhook processing failed.",
+    });
+  }
+}
+
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {

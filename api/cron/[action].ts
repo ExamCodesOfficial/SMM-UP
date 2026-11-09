@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { getDb } from "../../server/lib/db.js";
+import { reconcilePendingDeposits } from "../../server/lib/paymentReconciliation.js";
 import { checkOrderStatusMulti, normalizeProviderOrderStatus } from "../../server/lib/smm.js";
 
 /**
@@ -16,7 +17,7 @@ import { checkOrderStatusMulti, normalizeProviderOrderStatus } from "../../serve
 
 const TERMINAL_STATES = new Set(["Completed", "Partial", "Canceled", "Cancelled", "Failed", "Refunded"]);
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function handleStatusSyncCron(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
   const expected = process.env.CRON_SECRET;
   if (!expected || expected.length < 32) {
@@ -96,5 +97,70 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (err: any) {
     console.error("status-sync cron error:", err);
     return res.status(500).json({ error: "Status sync failed" });
+  }
+}
+
+async function handlePaymentReconcileCron(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+
+  const expected = process.env.CRON_SECRET;
+  if (!expected || expected.length < 32) {
+    console.error("payment-reconcile cron refused: CRON_SECRET is missing or too short");
+    return res.status(503).json({ error: "Internal authentication is not configured" });
+  }
+
+  const got = String(req.headers.authorization || "");
+  const wanted = `Bearer ${expected}`;
+  const valid = got.length === wanted.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(wanted));
+  if (!valid) return res.status(401).json({ error: "Unauthorised" });
+
+  try {
+    const db = await getDb();
+
+    const famgateway = await reconcilePendingDeposits({
+      provider: "famgateway",
+      limit: 50,
+      minAgeSeconds: 60,
+    });
+    const oxapay = await reconcilePendingDeposits({
+      provider: "oxapay",
+      limit: 50,
+      minAgeSeconds: 60,
+    });
+
+    return res.status(200).json({
+      famgateway,
+      oxapay,
+      reconciled: famgateway.scanned + oxapay.scanned,
+      settled: famgateway.settled + oxapay.settled,
+    });
+  } catch (error: any) {
+    console.error("payment-reconcile cron error:", error?.message || error);
+    return res.status(500).json({ error: "Payment reconciliation failed" });
+  }
+}
+
+
+/**
+ * Cron dispatcher.
+ *
+ * Both scheduled jobs live in this one file because the Vercel Hobby plan
+ * allows at most 12 serverless functions per deployment, and the payment
+ * rails added enough routes to reach that ceiling.
+ */
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const action = String(req.query.action || "");
+  try {
+    if (action === "payment-reconcile") {
+      return await handlePaymentReconcileCron(req, res);
+    }
+    if (action === "status-sync" || action === "") {
+      return await handleStatusSyncCron(req, res);
+    }
+    return res.status(404).json({ error: "Cron action not found." });
+  } catch (error: any) {
+    console.error("Cron handler uncaught error:", error?.message || error);
+    if (res.headersSent) return;
+    return res.status(500).json({ error: "Cron job failed." });
   }
 }

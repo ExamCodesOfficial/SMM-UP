@@ -11,6 +11,7 @@ import {
 } from "../../server/lib/directUpiQuote.js";
 import { searchFamPayPaymentDetailed } from "../../server/lib/imap.js";
 import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../../server/lib/telegram.js";
+import { getEnabledPaymentMethods } from "../../server/lib/paymentMethods.js";
 
 /**
  * Generates SUP + 5-character uppercase alphanumeric memo
@@ -57,7 +58,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
   if (!authUser) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  const readOnlyAction = ["history", "config"].includes(String(action)) && req.method === "GET";
+  const readOnlyAction = ["history", "config", "methods"].includes(String(action)) && req.method === "GET";
   if (denySupportMutation(authUser, res, readOnlyAction)) return;
 
   if (action === "config") {
@@ -66,6 +67,102 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       minAmount: MIN_DIRECT_UPI_AMOUNT_INR,
       maxAmount: maxDirectUpiAmountInr(),
+    });
+  }
+
+  // ── Payment method catalogue ──────────────────────────────────────────────
+  // The single source of truth for which methods a customer may use. Only
+  // ENABLED and CONFIGURED methods are returned, so a disabled method is
+  // absent from the list entirely: the website never renders it, never
+  // includes it in the amount maths, and never names it in an error.
+  if (action === "methods") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    try {
+      const methods = await getEnabledPaymentMethods(db);
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      return res.status(200).json({ success: true, methods });
+    } catch (error: any) {
+      console.error("Payment methods error:", error?.message || error);
+      return res.status(503).json({ error: "Payment methods are temporarily unavailable." });
+    }
+  }
+
+  // ── Cancel a pending request (wrong amount, customer changed their mind) ──
+  // Cancelling only closes OUR record. The provider order is left alone,
+  // because the money may still arrive and must never be silently dropped:
+  // if a payment lands on a cancelled order the webhook still settles it and
+  // flags it for owner review. A credited deposit can never be cancelled.
+  if (action === "cancel") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+    const rate = await checkRateLimit(`payment_cancel_${authUser.userId}`, 20, 300, db);
+    if (!rate.allowed) {
+      return res.status(429).json({ error: `Too many cancellation attempts. Please wait ${rate.remainingSec} seconds.` });
+    }
+
+    const transactionId = String(req.body?.transactionId || "").trim();
+    if (!ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ error: "Invalid transaction ID." });
+    }
+
+    const tx: any = await db.collection("transactions").findOne({
+      _id: new ObjectId(transactionId),
+      user_id: new ObjectId(authUser.userId),
+    });
+
+    if (!tx) return res.status(404).json({ error: "Payment request not found." });
+
+    if (tx.status === "paid" || tx.status === "test_paid") {
+      return res.status(409).json({
+        error: "This deposit is already credited, so it cannot be cancelled. If the amount is wrong, contact support.",
+      });
+    }
+    if (tx.status === "cancelled") {
+      return res.status(200).json({ success: true, alreadyCancelled: true, message: "This payment request was already cancelled." });
+    }
+    if (!["FAMPAY_UPI", "FAMGATEWAY_UPI", "OXAPAY_CRYPTO"].includes(String(tx.method))) {
+      return res.status(409).json({ error: "This payment request cannot be cancelled." });
+    }
+    if (!["pending", "creating", "expired"].includes(String(tx.status))) {
+      return res.status(409).json({ error: "This payment request is not in a cancellable state." });
+    }
+
+    const updated = await db.collection("transactions").updateOne(
+      { _id: tx._id, status: tx.status, wallet_credited: { $ne: true } },
+      {
+        $set: {
+          status: "cancelled",
+          cancelled_at: new Date(),
+          cancelled_by: "customer",
+          updated_at: new Date(),
+        },
+      },
+    );
+
+    if (updated.modifiedCount !== 1) {
+      return res.status(409).json({ error: "This payment request changed while cancelling. Please refresh and try again." });
+    }
+
+    // Release the unique direct-UPI amount reservation so the money is free again.
+    if (tx.method === "FAMPAY_UPI" && tx.memo) {
+      await db.collection("direct_upi_amount_reservations").updateMany(
+        { memo: tx.memo, status: "reserved" },
+        { $set: { status: "released", released_at: new Date() } },
+      ).catch(() => {});
+    }
+
+    await db.collection("payment_events").insertOne({
+      provider: "site",
+      event_id: `cancel:${transactionId}`,
+      event_type: "payment.cancelled",
+      transaction_id: tx._id,
+      status: "cancelled",
+      received_at: new Date(),
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment request cancelled. You can create a new one with the correct amount.",
     });
   }
 
