@@ -1158,7 +1158,31 @@ API_ACTIVITY_HASH_SECRET=<generated>
 `OXAPAY_MERCHANT_API_KEY`. The credential gate keeps both rails hidden until
 those exist — a method without working credentials must never be shown.
 
-### 12.4 Crons
+### 12.4 Live verification (2026-11-09, after the provider keys landed)
+
+Both keys were validated against the provider APIs before the deploy:
+
+| Check | Result |
+|---|---|
+| OxaPay `GET /v1/common/fiats` | 200 — **INR and USD both invoiceable** on this merchant account |
+| OxaPay sandbox $1 invoice | `track_id` issued, `payment_url` on `pay.oxapay.com` over https |
+| FamGateway `GET /api/verify-order.php` | `not_found` for a bogus id (auth passed); a wrong key returns `unauthorized` |
+| FamGateway real ₹10 order | `fg_QMG3SG7M` — `upi_id = aryanok@fam` ✅, `payable_amount = 10` ✅ (exact, no fee), `upi_intent` and `checkout_url` present |
+
+Live method state reported by the signed internal channel:
+
+| Method | State | Range |
+|---|---|---|
+| UPI Automatic (FamGateway) | **LIVE** | INR 10 – 100,000 |
+| Crypto (OxaPay) | **LIVE** | USD 1 – 500, rate 98, fee payer = customer |
+| Direct UPI | OFF (toggle) | — |
+| Razorpay | OFF + no credentials | — |
+
+Because **INR is invoiceable**, `OXAPAY_INVOICE_CURRENCY=INR` would remove the FX
+step entirely. USD stays the default so the $1 – $500 quote the owner asked
+for is what the customer sees.
+
+### 12.5 Crons
 
 ```
 /api/cron/status-sync        0 4 * * *
