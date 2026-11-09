@@ -111,6 +111,13 @@ Prefer synthetic accounts, deposits and orders. If production-shaped records are
 | Variable | Requirement |
 |---|---|
 | `UPI_VPA` | Merchant VPA displayed in server responses |
+| `PAYMENT_METHOD_*_ENABLED` | Per-method on/off switch: `DIRECT_UPI`, `RAZORPAY`, `FAMGATEWAY_UPI`, `OXAPAY_CRYPTO`. A disabled method is hidden from customers entirely. |
+| `FAMGATEWAY_API_KEY` | FamGateway merchant key. Header `X-Api-Key` only — never a query parameter. |
+| `FAMGATEWAY_UPI_VPA` | The VPA the provider must raise orders against. Orders for any other VPA are refused. |
+| `OXAPAY_MERCHANT_API_KEY` | OxaPay merchant key. Header `merchant_api_key` only. |
+| `OXAPAY_INVOICE_CURRENCY` / `OXAPAY_USD_TO_INR_RATE` | Invoice currency and the INR value of 1 unit, locked at invoice creation. |
+| `OXAPAY_UNDER_PAID_COVERAGE` | Under-payment tolerance percentage (0–60). Under-paid invoices are never auto-credited. |
+| `INTERNAL_API_SECRET` | Shared HMAC secret for the bot's internal channel. Minimum 32 characters. |
 | `UPI_MERCHANT_NAME` | Merchant display name |
 | `DIRECT_UPI_PENDING_TTL_MINUTES` | Optional; defaults to 30, bounded 5–180 |
 | `DIRECT_UPI_MAX_AMOUNT_INR` | Optional; defaults to ₹100,000 and is server bounded |

@@ -4,6 +4,8 @@
 > **Current pushed feature-branch checkpoint:** `32205672bd8a1c7ea4d243c72391248cf57fdd26` (`improvement/full-audit-remediation`); historical bot baseline: `2c60e657c5759f7a22cf9fbb872e1d1e051e7201`
 > **Canonical domain:** `https://smmup.co.in`
 > **Current stage:** audited application/bot hardening is pushed and locally validated; exhaustive docs/API reference are committed locally but unpushed; Vercel/Railway staging and production repair remain.
+>
+> **Payment rails (2026-11-09):** UPI Automatic (FamGateway) and Crypto (OxaPay) are live on `master` behind per-method toggles. Direct UPI and Razorpay are OFF. The owner control panel lives in `gasprop/SMMUP_BOT` (`/payments`), which reaches the website only through the signed `/api/internal/reconcile` channel.
 
 This planner replaces historical assumptions about service counts, balances, old API layouts, manual-only settlement and JWT-only authentication. Live supplier counts, rates, provider balances and credentials are dynamic operational data and must not be hardcoded as architecture truth.
 

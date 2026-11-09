@@ -20,6 +20,22 @@ Never translate a GitHub push into a production-complete claim. GitHub, Vercel, 
 
 ## 2. Completed implementation phases
 
+### Phase 6 — automatic payment rails (2026-11-09)
+
+- [x] UPI Automatic via FamGateway: order creation, signed webhook, authoritative re-check, atomic settlement.
+- [x] Crypto via OxaPay: invoice creation, HMAC-SHA512 webhook, INR-denominated settlement locked at invoice time.
+- [x] Three-layer payment registry (Mongo override → Vercel env → default) with a hard credential gate.
+- [x] Every method toggleable; a disabled method is hidden entirely, never greyed out.
+- [x] Direct UPI and Razorpay turned OFF via the toggle; their code is retained for rollback.
+- [x] Deposit UI rewritten as method → amount → pay, with per-method currency, range and presets.
+- [x] Pending payment survives a page refresh; the QR is regenerated from the stored intent.
+- [x] Wrong-amount cancellation and re-creation path.
+- [x] Owner Telegram control panel: live on/off, limits, USD→INR rate, fee payer — no redeploy.
+- [x] Signed internal channel between the bot and the website; the bot holds no provider key.
+- [ ] FamGateway API key configured and `aryanok@fam` verified against the provider's account.
+- [ ] OxaPay Merchant API Key configured, dashboard callback/thanks/logo fields pasted.
+- [ ] End-to-end live payment on each rail (real ₹1 crypto and real UPI order) with a screenshot of the credited wallet.
+
 ### Phase 0 — permanent pages and payment foundations
 
 - [x] Permanent account workspace at `/account`.

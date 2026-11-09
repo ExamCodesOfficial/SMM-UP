@@ -2,9 +2,9 @@
 
 > **Current implementation checkpoint:** `32205672bd8a1c7ea4d243c72391248cf57fdd26` (`improvement/full-audit-remediation`)
 > **Production verification:** pending
-> **Canonical webhook URL:** `https://smmup.co.in/api/razorpay-webhook`
+> **Canonical webhook URL:** `https://smmup.co.in/api/razorpay/webhook`
 
-Razorpay is an independent funding rail. Direct UPI continues through `/api/payments/*`; Razorpay uses `/api/razorpay/*` and `/api/razorpay-webhook`.
+Razorpay is an independent funding rail. Direct UPI continues through `/api/payments/*`; Razorpay uses `/api/razorpay/*` and `/api/razorpay/webhook`.
 
 ---
 
@@ -70,7 +70,7 @@ Only the key ID is returned to an authenticated checkout client.
 Create separate Test and Live webhooks. For production, use:
 
 ```text
-https://smmup.co.in/api/razorpay-webhook
+https://smmup.co.in/api/razorpay/webhook
 ```
 
 Generate a new high-entropy webhook secret and set exactly the same value as `RAZORPAY_WEBHOOK_SECRET` in the matching Vercel environment.
@@ -96,7 +96,7 @@ The endpoint records other correctly signed event types as ignored events. Unkno
 | `/api/razorpay/create-order` | POST | normal session | Validate amount/hold/origin, create internal record and Razorpay Order |
 | `/api/razorpay/verify` | POST | normal session | Verify callback signature, fetch provider payment and settle if captured |
 | `/api/razorpay/status?transactionId=...` | GET | normal session | Poll exact owned deposit; fetch/settle an observed captured payment |
-| `/api/razorpay-webhook` | POST | Razorpay HMAC | Process captured/failed/refund/dispute events from raw body |
+| `/api/razorpay/webhook` | POST | Razorpay HMAC | Process captured/failed/refund/dispute events from raw body |
 
 ### Creation state
 
@@ -337,7 +337,7 @@ Code rollback alone does not refund a payment, reverse a wallet, rotate a secret
 - `POST /api/razorpay/create-order` requires a normal account session, same-origin request when `Origin` is present, no payment hold and exact two-decimal INR bounds.
 - `POST /api/razorpay/verify` validates the browser signature, then fetches authoritative provider state. An authorized-but-not-captured payment returns `202` and no wallet credit.
 - `GET /api/razorpay/status` may discover a captured payment and converge through the same settlement function.
-- `POST /api/razorpay-webhook` uses the raw body and webhook HMAC; never route it through body reserialization.
+- `POST /api/razorpay/webhook` uses the raw body and webhook HMAC; never route it through body reserialization.
 - Direct UPI and Razorpay have separate internal identities. Never settle one rail using evidence from the other.
 
 ### Deployment-variable source

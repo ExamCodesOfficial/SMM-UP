@@ -1426,12 +1426,12 @@ sequenceDiagram
 - **WEB-0545** — `GET /api/razorpay/status` is covered by the central no-store/noindex API response policy.
 - **WEB-0546** — `GET /api/razorpay/status` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
-### Endpoint: POST /api/razorpay-webhook
+### Endpoint: POST /api/razorpay/webhook
 
-- **WEB-0547** — `POST /api/razorpay-webhook` access boundary: Razorpay signature.
-- **WEB-0548** — `POST /api/razorpay-webhook` behavior: Raw-body HMAC verification; event-id deduplication; captured-payment settlement; refund/dispute holds and audit handling.
-- **WEB-0549** — `POST /api/razorpay-webhook` is covered by the central no-store/noindex API response policy.
-- **WEB-0550** — `POST /api/razorpay-webhook` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
+- **WEB-0547** — `POST /api/razorpay/webhook` access boundary: Razorpay signature.
+- **WEB-0548** — `POST /api/razorpay/webhook` behavior: Raw-body HMAC verification; event-id deduplication; captured-payment settlement; refund/dispute holds and audit handling.
+- **WEB-0549** — `POST /api/razorpay/webhook` is covered by the central no-store/noindex API response policy.
+- **WEB-0550** — `POST /api/razorpay/webhook` does not intentionally return passwords, raw stored tokens, API-key hashes or provider secrets.
 
 ### Endpoint: GET /api/reviews/list
 

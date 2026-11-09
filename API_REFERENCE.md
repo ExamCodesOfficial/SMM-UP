@@ -9,7 +9,7 @@
 This document describes both HTTP surfaces in the repository:
 
 1. the public reseller protocol at `POST /api/v2`; and
-2. the first-party website APIs under `/api/auth`, `/api/orders`, `/api/payments`, `/api/razorpay`, `/api/reviews`, `/api/services`, `/api/cron` and `/api/razorpay-webhook`.
+2. the first-party website APIs under `/api/auth`, `/api/orders`, `/api/payments`, `/api/razorpay`, `/api/reviews`, `/api/services`, `/api/cron`, `/api/famgateway`, `/api/oxapay`, `/api/internal` and the provider webhook actions.
 
 The website APIs are implementation contracts for the SMM UP browser application. They are not a promise of third-party compatibility. Reseller integrations should use `/api/v2`.
 
@@ -91,7 +91,10 @@ Safe retries depend on the operation:
 | Support Access session | owner read-only customer view | separate opaque cookie; actor and subject retained separately |
 | Named API key | `/api/v2` | raw secret shown once; secret hash and safe hint persist |
 | Cron bearer | `/api/cron/status-sync` | Vercel secret; minimum 32 characters |
-| Razorpay webhook HMAC | `/api/razorpay-webhook` | server-only webhook secret |
+| Razorpay webhook HMAC | `/api/razorpay/webhook` | server-only webhook secret |
+| FamGateway webhook HMAC-SHA256 | `/api/famgateway/webhook` | provider API key |
+| OxaPay webhook HMAC-SHA512 | `/api/oxapay/webhook` | merchant API key |
+| Internal bot channel HMAC-SHA256 | `/api/internal/reconcile` | shared internal secret, minimum 32 characters |
 | Public | service catalog and approved reviews | no credential; response fields are intentionally bounded |
 
 ### Support Access boundary
@@ -436,6 +439,68 @@ The verification field accepts any one exact UTR, bank/UPI reference number or F
 
 Settlement requires one user-owned pending transaction, an exact identifier found in a trusted incoming receipt, exact amount/time checks and unique anti-replay identities. Amount alone, screenshots and receipts without an eligible owned request never credit a wallet. Mailbox outage, no delivered trusted alert, unreadable trusted format, missing exact identifier, amount mismatch and expired recovery window have distinct safe responses/reconciliation reasons. The owner-only Telegram `/settleupi` workflow remains the fallback for unresolved receipts, requiring exact memo, amount, UTR, TxID and mandatory reason through five-minute inline confirmation and one atomic settlement.
 
+### Payment methods
+
+Every method is resolved through one registry (`server/lib/paymentMethods.ts`)
+with three layers, first hit wins: MongoDB `payment_method_config` (runtime,
+written by the owner Telegram bot) → Vercel env → built-in default. On top of
+that sits a hard credential gate: a method whose provider key is missing is
+never shown to a customer and never accepts a new order. Settlement is never
+gated, so switching a method off can never orphan money that is already in
+flight.
+
+| Method | Route | Notes |
+|---|---|---|
+| Method catalogue | `GET /api/payments/methods` | Enabled **and** configured methods only. The website's single source of truth. |
+| Cancel a request | `POST /api/payments/cancel` | Wrong-amount recovery. Releases the Direct UPI reservation. A credited deposit can never be cancelled. |
+
+### UPI Automatic (FamGateway)
+
+| Method | Route | Notes |
+|---|---|---|
+| GET | `/api/famgateway/config` | safe mode/min/max only; no secret |
+| POST | `/api/famgateway/create-order` | normal session + same origin; creates the provider order and our pending row |
+| GET | `/api/famgateway/status` | normal session; provider state, no secrets |
+| POST | `/api/famgateway/verify` | normal session + same origin; authoritative re-check and settle |
+| POST | `/api/famgateway/webhook` | raw body + `X-FamGateway-Signature` (HMAC-SHA256) | provider callback |
+
+The customer pays exactly the quoted amount — FamGateway charges
+`payable_amount` equal to the requested amount, so there is no unique-paise
+reservation and no note to strip. The QR is rendered in the customer's
+browser from the provider's `upi_intent`; the provider key never reaches the
+client. The provider callback carries our transaction id as a per-order
+webhook URL override, and a delivery bound to a different transaction is
+rejected.
+
+### Crypto (OxaPay)
+
+| Method | Route | Notes |
+|---|---|---|
+| GET | `/api/oxapay/config` | safe mode/min/max/currency/rate only; no secret |
+| GET | `/api/oxapay/fiats` | fiat currencies the merchant may invoice in |
+| POST | `/api/oxapay/create-invoice` | normal session + same origin; creates the invoice and our pending row |
+| GET | `/api/oxapay/status` | normal session; provider state, payment URL and track id |
+| POST | `/api/oxapay/verify` | normal session + same origin; authoritative re-check and settle |
+| POST | `/api/oxapay/webhook` | raw body + `HMAC` header (HMAC-SHA512) | provider callback |
+
+The wallet stays in INR. Invoices are USD by default ($1 – $500) and the
+wallet is credited the INR amount locked at invoice creation
+(`OXAPAY_USD_TO_INR_RATE`, default 98). The customer pays the crypto network
+fee (`fee_paid_by_payer = 1`). An under-paid invoice is **never** auto-credited:
+the account is held for owner review. A `tx_hash` reused across two invoices is
+detected and rejected, so one blockchain payment can never fund two deposits.
+
+### Internal bot channel
+
+| Method | Route | Notes |
+|---|---|---|
+| POST | `/api/internal/reconcile` | HMAC-SHA256 over `timestamp.nonce.rawBody`, ±300 s window, single-use nonce, action allow-list, counts-only responses |
+
+The Telegram bot reaches the payment engine only through this route. It holds
+no provider API key. `payment_methods_status` is read-only; `reconcile_pending`
+re-checks pending provider orders and returns counts only — no amounts, no
+references, no customer data.
+
 ### Razorpay
 
 | Method | Endpoint | Access | Notes |
@@ -444,7 +509,7 @@ Settlement requires one user-owned pending transaction, an exact identifier foun
 | POST | `/api/razorpay/create-order` | normal session + same origin | creates internal and provider order |
 | POST | `/api/razorpay/verify` | normal session + same origin | verifies checkout HMAC and captured provider state |
 | GET | `/api/razorpay/status` | normal session | converges captured payment settlement |
-| POST | `/api/razorpay-webhook` | raw body + Razorpay HMAC | provider event convergence |
+| POST | `/api/razorpay/webhook` | raw body + Razorpay HMAC | provider event convergence |
 
 Captured provider state, exact order/payment/amount/currency/environment binding, unique settlement keys and MongoDB transactions protect wallet credit. Test-mode payments do not create spendable live balance unless the explicit isolated-test override is enabled.
 

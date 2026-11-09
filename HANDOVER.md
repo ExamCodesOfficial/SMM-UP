@@ -6,6 +6,8 @@
 > **Current remote feature-branch checkpoint pushed on 2026-10-06:** `32205672bd8a1c7ea4d243c72391248cf57fdd26` (`improvement/full-audit-remediation`)
 > **Architecture index:** [`architecture/full-architecture.md`](architecture/full-architecture.md)
 > **Status:** the audited application/bot hardening is pushed to the feature branch and locally validated; the manual-only workflow is local-only because the authorized PAT lacked workflow scope; provider staging and production repair remain.
+>
+> **Payment rails update (2026-11-09):** UPI Automatic (FamGateway) and Crypto (OxaPay) are implemented, tested and deployed on `master`. Direct UPI and Razorpay are switched OFF through the toggle and their code is retained for rollback. The bot's source of truth is now `gasprop/SMMUP_BOT` — the vendored `admin-bot/` copy in this repository is stale. See [`PAYMENT_UPGRADE_PLAN.md`](../PAYMENT_UPGRADE_PLAN.md) for the full plan and decision log.
 
 ---
 
@@ -22,6 +24,8 @@ Use the following documents together:
 | [`architecture/bot-architecture.md`](architecture/bot-architecture.md) | Telegram owner plane and Railway worker architecture |
 | [`SECURITY_DEPLOYMENT_RUNBOOK.md`](SECURITY_DEPLOYMENT_RUNBOOK.md) | Staging, production, rollback and evidence gates |
 | [`RAZORPAY_SETUP.md`](RAZORPAY_SETUP.md) | Razorpay test/live activation procedure |
+| [`../OXAPAY_SETUP.md`](../OXAPAY_SETUP.md) | OxaPay merchant dashboard field values |
+| [`../FAMGATEWAY_SETUP.md`](../FAMGATEWAY_SETUP.md) | FamGateway merchant setup and UPI VPA |
 | [`LATER_ON_UPGRADATIONS.md`](LATER_ON_UPGRADATIONS.md) | Completed phase ledger and approved post-launch backlog |
 | [`planner.md`](planner.md) | Concise implementation planner and source-of-truth index |
 | [`admin-bot/README.md`](admin-bot/README.md) | Railway bot operator quick start |
