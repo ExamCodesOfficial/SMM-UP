@@ -187,7 +187,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (action === "notification_test") {
       // Queue a test notification so the owner can prove the whole loop —
       // website -> queue -> Railway bot -> Telegram — actually works.
-      const { enqueueOwnerNotification } = await import("../../server/lib/ownerNotifications.js");
+      const { enqueueOwnerNotification, deliverOwnerNotificationByKey } = await import(
+        "../../server/lib/ownerNotifications.js"
+      );
       const nonce = String(body?.nonce || "").trim().slice(0, 40);
       const reference = `test_${nonce || Date.now().toString(36)}`;
       const queued = await enqueueOwnerNotification({
@@ -202,10 +204,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         newBalance: 0,
         detail: "This is a test notification. If you can read this, the delivery pipeline is working.",
       });
+      const delivery = await deliverOwnerNotificationByKey(`money_added:test:${reference}`);
       return res.status(200).json({
         queued: queued.queued,
         duplicate: queued.duplicate,
         reference,
+        delivered: delivery.delivered,
+        deliveryError: delivery.error || null,
       });
     }
 
