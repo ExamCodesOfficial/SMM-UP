@@ -217,6 +217,74 @@ export async function createFamGatewayOrder(input: {
  * order expired without payment and 404 when it is unknown; both are normal
  * states for us, not errors.
  */
+/**
+ * Reads a provider order payload and returns the fields we act on.
+ *
+ * The provider is not consistent about the word it uses for a paid order, or
+ * about the name it gives the amount and the reference. `verify-order.php`
+ * answers "success"; the public status endpoint can answer "paid" or set a
+ * `paid` flag; the amount can be `amount`, `paid_amount` or `payable_amount`;
+ * the reference can be `utr`, `txn_id` or `ref_id`. Every known spelling is
+ * accepted here, because the only thing that must never happen is a paid
+ * order being read as unpaid.
+ */
+export function parseFamGatewayOrderPayload(
+  payload: any,
+  fallbackOrderId: string,
+): FamGatewayVerification {
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
+
+  const rawStatus = (
+    cleanText(data?.status, 32)
+    || cleanText(data?.payment_status, 32)
+    || cleanText(data?.order_status, 32)
+    || cleanText(payload?.status, 32)
+  )?.toLowerCase();
+  const paidFlag = data?.paid === true || payload?.paid === true;
+  const status: FamGatewayOrderStatus =
+    rawStatus === "success" || rawStatus === "paid" || paidFlag
+      ? "success"
+      : rawStatus === "expired" || rawStatus === "cancelled"
+        ? "expired"
+        : "pending";
+
+  const rawAmount = data?.amount ?? data?.paid_amount ?? data?.payable_amount;
+  const amountMatch = String(rawAmount ?? "").match(/\d+(?:\.\d+)?/);
+  const paidAmount = amountMatch ? Number(amountMatch[0]) : null;
+
+  return {
+    status,
+    orderId: cleanText(data?.order_id, 64) || fallbackOrderId,
+    amount: toFiniteNumber(rawAmount) ?? (paidAmount !== null ? paidAmount : null),
+    payableAmount: toFiniteNumber(data?.payable_amount) ?? (paidAmount !== null ? paidAmount : null),
+    utr: cleanText(data?.utr, 40) || cleanText(data?.txn_id, 40) || cleanText(data?.ref_id, 40),
+    transactionId: cleanText(data?.transaction_id, 80) || cleanText(data?.fam_transaction_id, 80),
+    senderName:
+      cleanText(data?.sender_name, 120)
+      || cleanText(data?.sender_upi, 120)
+      || cleanText(data?.payer_upi, 120),
+    paidAt: cleanText(data?.payment_time_ist, 64) || cleanText(data?.payment_time, 64),
+  };
+}
+
+/**
+ * The public status endpoint. It needs no key, so it is the fallback when
+ * the authenticated endpoint cannot answer for an order.
+ */
+async function fetchFamGatewayPublicStatus(orderId: string): Promise<FamGatewayVerification | null> {
+  try {
+    const response = await fetch(
+      `${FAMGATEWAY_BASE}/api/checkout-status.php?order_id=${encodeURIComponent(orderId)}`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(10_000) },
+    );
+    if (!response.ok) return null;
+    const payload: any = await response.json();
+    return parseFamGatewayOrderPayload(payload, orderId);
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchFamGatewayOrder(orderId: string): Promise<FamGatewayVerification> {
   const { apiKey } = getFamGatewayConfig();
   if (!isFamGatewayOrderId(orderId)) {
@@ -246,27 +314,21 @@ export async function fetchFamGatewayOrder(orderId: string): Promise<FamGatewayV
   }
 
   if (!response.ok) {
+    // `verify-order.php` is authoritative, but it refuses to answer for an
+    // order it does not know. The public status endpoint still knows, so we
+    // ask it before giving up. A paid order must never be reported as
+    // unknown just because the two endpoints disagree.
+    if (response.status === 404 || response.status === 400 || response.status === 408) {
+      const fallback = await fetchFamGatewayPublicStatus(orderId);
+      if (fallback) return fallback;
+    }
     throw new FamGatewayApiError(
       cleanText(payload?.message, 240) || "UPI Automatic verification failed.",
       response.status >= 400 && response.status < 500 ? 400 : 502,
     );
   }
 
-  const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
-  const rawStatus = cleanText(data?.status, 32)?.toLowerCase();
-  const status: FamGatewayOrderStatus =
-    rawStatus === "success" ? "success" : rawStatus === "expired" ? "expired" : "pending";
-
-  return {
-    status,
-    orderId: cleanText(data?.order_id, 64) || orderId,
-    amount: toFiniteNumber(data?.amount),
-    payableAmount: toFiniteNumber(data?.payable_amount),
-    utr: cleanText(data?.utr, 40),
-    transactionId: cleanText(data?.transaction_id, 80),
-    senderName: cleanText(data?.sender_name, 120),
-    paidAt: cleanText(data?.payment_time_ist, 64) || cleanText(data?.payment_time, 64),
-  };
+  return parseFamGatewayOrderPayload(payload, orderId);
 }
 
 /**

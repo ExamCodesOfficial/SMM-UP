@@ -108,15 +108,19 @@ export const DEFAULT_USD_TO_INR_RATE = 98;
 const INR_PRESETS = [50, 100, 250, 500, 1000, 2500, 5000, 10000];
 const USD_PRESETS = [1, 5, 10, 25, 50, 100, 250, 500];
 
+/**
+ * One line per method. The card is a choice, not a paragraph — the detail
+ * belongs under the payment box, not on the card itself.
+ */
 const DEFAULT_DESCRIPTIONS: Record<PaymentMethodId, string> = {
   famgateway_upi:
-    "Scan a QR with any UPI app. The bank receipt is detected and your wallet is credited automatically — no UTR entry needed.",
+    "Scan a QR with any UPI app. Credited automatically — no UTR to enter.",
   direct_upi:
-    "A dedicated QR for GPay, PhonePe and Paytm. You confirm the deposit with the UTR from your bank alert.",
+    "A dedicated QR for GPay, PhonePe and Paytm. You confirm with your bank UTR.",
   oxapay_crypto:
-    "Pay with USDT, BTC or another supported coin on a secure hosted checkout. The network fee is yours to pay.",
+    "Pay with USDT, BTC or another coin on a hosted checkout. Network fee is yours.",
   razorpay:
-    "A Razorpay-hosted checkout for UPI, cards, netbanking and wallets. Card and banking credentials never enter SMM UP.",
+    "A hosted checkout for UPI, cards, netbanking and wallets.",
 };
 
 export function envFlag(name: string, fallback: boolean): boolean {
@@ -221,8 +225,16 @@ export function oxapayInvoiceLifetimeMinutes(): number {
   return envInt("OXAPAY_INVOICE_LIFETIME_MINUTES", 60, 15, 2880);
 }
 
+/**
+ * How long a FamGateway order stays payable.
+ *
+ * Ten minutes, not five. A UPI payment is not instant — the customer has to
+ * open an app, pick the bank, and type a UPI PIN. Five minutes expires the
+ * QR while they are still typing. The order still auto-expires on its own,
+ * so a longer window costs nothing but makes the QR usable.
+ */
 export function famgatewayOrderLifetimeMinutes(): number {
-  return envInt("FAMGATEWAY_ORDER_LIFETIME_MINUTES", 5, 5, 30);
+  return envInt("FAMGATEWAY_ORDER_LIFETIME_MINUTES", 10, 5, 30);
 }
 
 function envBaseline(id: PaymentMethodId): PaymentMethodSettings {

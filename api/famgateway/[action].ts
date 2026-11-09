@@ -478,7 +478,14 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
     return res.status(400).json({ error: "Invalid webhook JSON." });
   }
 
-  const orderId = cleanText(event?.order_id, 64);
+  // The provider has used more than one spelling for the order reference.
+  // All of them are read so a real payment event is never thrown away
+  // because a field was renamed.
+  const orderId = cleanText(event?.order_id, 64)
+    || cleanText(event?.orderId, 64)
+    || cleanText(event?.invoice_id, 64)
+    || cleanText(event?.invoiceId, 64)
+    || cleanText(event?.orderID, 64);
   if (!orderId || !isFamGatewayOrderId(orderId)) {
     return res.status(200).json({ received: true, ignored: true });
   }

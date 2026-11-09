@@ -133,6 +133,8 @@ interface PendingDeposit {
   requestedAmount?: number;
   paymentUrl?: string;
   trackId?: string;
+  /** How long the order stays valid, in seconds, as the provider told us. */
+  expiresInSeconds?: number;
 }
 
 /**
@@ -493,7 +495,10 @@ export default function AddFundsPage({
         const qrUrl = await QRCode.toDataURL(stored.upiIntent, { errorCorrectionLevel: "M", margin: 2, width: 600, color: { dark: "#000000", light: "#ffffff" } });
         setSelectedMethodId("famgateway_upi");
         setPendingDeposit(stored);
-        setExpiresInSeconds(Math.max(0, 300 - Math.floor((Date.now() - stored.createdAt) / 1000)));
+        setExpiresInSeconds(Math.max(
+          0,
+          (stored.expiresInSeconds ?? 600) - Math.floor((Date.now() - stored.createdAt) / 1000),
+        ));
         setFamOrder({
           qrUrl,
           upiUrl: stored.upiIntent,
@@ -524,7 +529,10 @@ export default function AddFundsPage({
         const qrUrl = await QRCode.toDataURL(stored.upiUrl, { errorCorrectionLevel: "M", margin: 2, width: 600, color: { dark: "#000000", light: "#ffffff" } });
         setSelectedMethodId("direct_upi");
         setPendingDeposit(stored);
-        setExpiresInSeconds(Math.max(0, 1800 - Math.floor((Date.now() - stored.createdAt) / 1000)));
+        setExpiresInSeconds(Math.max(
+          0,
+          (stored.expiresInSeconds ?? 1800) - Math.floor((Date.now() - stored.createdAt) / 1000),
+        ));
         setQrData({
           qrUrl,
           upiUrl: stored.upiUrl,
@@ -561,7 +569,10 @@ export default function AddFundsPage({
         }
         setSelectedMethodId("oxapay_crypto");
         setPendingDeposit(stored);
-        setExpiresInSeconds(Math.max(0, 3600 - Math.floor((Date.now() - stored.createdAt) / 1000)));
+        setExpiresInSeconds(Math.max(
+          0,
+          (stored.expiresInSeconds ?? 3600) - Math.floor((Date.now() - stored.createdAt) / 1000),
+        ));
         setCryptoOrder({
           trackId: stored.trackId || "",
           paymentUrl: stored.paymentUrl || data.paymentUrl || "",
@@ -704,6 +715,7 @@ export default function AddFundsPage({
           upiVpa: data.upiVpa,
           memo: data.memo,
           requestedAmount: Number(data.requestedAmount ?? num),
+          expiresInSeconds: Number(data.expiresInSeconds || 0),
         });
         setActiveStep("pay");
       } else {
@@ -852,6 +864,7 @@ export default function AddFundsPage({
         upiIntent: data.upiIntent,
         upiVpa: String(data.upiId || ""),
         checkoutUrl: typeof data.checkoutUrl === "string" ? data.checkoutUrl : undefined,
+        expiresInSeconds: Number(data.expiresInSeconds || 0),
       });
     } catch (error: any) {
       setCreatingOrder(false);
@@ -906,6 +919,7 @@ export default function AddFundsPage({
         createdAt: Date.now(),
         paymentUrl: data.paymentUrl,
         trackId: String(data.trackId || ""),
+        expiresInSeconds: Number(data.expiresInSeconds || 0),
       });
     } catch (error: any) {
       setCreatingOrder(false);
@@ -1346,28 +1360,26 @@ export default function AddFundsPage({
           <span className="text-zinc-300">Add funds</span>
         </nav>
 
-        <header className="grid lg:grid-cols-[minmax(0,1fr)_auto] gap-6 items-end pb-8 border-b border-white/[0.09] mb-8">
+        {/* The action comes first. Everything explanatory lives below the
+            fold so the customer sees the payment box, not a wall of text. */}
+        <header className="flex flex-wrap items-end justify-between gap-4 pb-6 border-b border-white/[0.09] mb-6">
           <div>
-            <div className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.22em] text-zinc-400 mb-4">
+            <div className="inline-flex items-center gap-2 text-[10px] font-mono uppercase tracking-[0.22em] text-zinc-400 mb-3">
               <ShieldCheck className="w-3.5 h-3.5" />
               Secure wallet funding
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-light tracking-[0.02em] text-white">
+            <h1 className="text-3xl sm:text-4xl font-light tracking-[0.02em] text-white">
               Add funds
             </h1>
-            <p className="mt-3 max-w-2xl text-sm sm:text-base leading-relaxed text-zinc-400 font-light">
-              {methods.length === 0
-                ? "Payment methods are loading. Please refresh in a moment."
-                : "Choose how you want to pay, then how much. Your wallet is credited only after that payment is confirmed."}
-            </p>
           </div>
-          <div className="lg:text-right border-l border-white/10 pl-5">
+          <div className="border-l border-white/10 pl-5">
             <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 block mb-1">Available balance</span>
             <span className="text-2xl sm:text-3xl font-semibold text-white">{formatINR(Number(user?.balance || 0))}</span>
           </div>
         </header>
 
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_340px] gap-6 lg:gap-8 items-start">
+        {/* ── THE PAYMENT BOX — the first and loudest thing on the page ─── */}
+        <div className="max-w-3xl mx-auto">
           <div className="border border-white/10 bg-[#090909]/90 shadow-[0_24px_80px_rgba(0,0,0,0.35)] p-5 sm:p-7 lg:p-9">
             <div className="grid grid-cols-3 mb-8 border border-white/[0.08] bg-black/40">
               {steps.map((step, index) => {
@@ -1388,12 +1400,9 @@ export default function AddFundsPage({
             {/* ── STEP 1: CHOOSE THE METHOD ─────────────────────────────────── */}
             {activeStep === "method" && (
               <div className="space-y-6">
-                <div>
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-200">How do you want to pay?</h2>
-                  <p className="text-xs text-zinc-500 mt-1.5 leading-relaxed">
-                    Only methods that are live and fully configured are listed.
-                  </p>
-                </div>
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-200">
+                  How do you want to pay?
+                </h2>
 
                 {/* A payment already in flight must never be forgotten. */}
                 {pendingDeposit && (
@@ -1682,6 +1691,14 @@ export default function AddFundsPage({
                   </div>
                 )}
 
+                {/* What is happening right now, in one line. */}
+                {!pageSuccess && pendingDeposit && (
+                  <p className="text-xs text-zinc-400">
+                    <span className="text-zinc-200 font-semibold">Pay exactly {formatINR(pendingDeposit.amount)}.</span>{" "}
+                    Your wallet is credited automatically once the payment partner confirms it.
+                  </p>
+                )}
+
                 {/* Where the payment is right now. */}
                 <PaymentTimeline stage={timelineStage} />
 
@@ -1824,34 +1841,9 @@ export default function AddFundsPage({
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!famOrder) return;
-                          fetch("/api/famgateway/verify", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ transactionId: famOrder.transactionId }),
-                          })
-                            .then((res) => readApiPayload(res))
-                            .then((data) => {
-                              if (data.status === "paid" || data.status === "test_paid") {
-                                forgetPending();
-                                setPageSuccess(data.message || "Payment confirmed and credited to your wallet.");
-      setTimelineStage("credited");
-                                if (data.newBalance !== undefined) onDepositSuccess(data.newBalance);
-                                loadHistory();
-                              } else if (data.status === "expired") {
-                                setPageError("This payment request expired. Please create a new one.");
-                              }
-                            })
-                            .catch(() => {});
-                        }}
-                        className="mt-4 w-full py-2.5 px-4 border border-white/15 text-[11px] font-semibold uppercase tracking-wider text-zinc-200 hover:bg-white/[0.05] transition-all cursor-pointer"
-                      >
-                        I have paid — check now
-                      </button>
-
+                      {/* No button to press. The page asks the provider on its
+                          own every few seconds and credits the wallet the
+                          moment the bank confirms the transfer. */}
                       <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 border border-white/10 bg-black/40 text-[10px] font-mono tracking-wider text-zinc-300">
                         {!pageSuccess && !pageError ? (
                           <>
@@ -2073,7 +2065,7 @@ export default function AddFundsPage({
                       </a>
 
                       <p className="text-[10px] leading-relaxed text-zinc-500 text-center">
-                        Keep this page open and press the button below when you have paid — or simply wait, the confirmation arrives automatically.
+                        Keep this page open. The confirmation arrives on its own and your wallet is credited automatically.
                       </p>
 
                       <div className="flex items-center justify-center gap-3 text-[10px] font-mono tracking-wider text-zinc-400">
@@ -2094,13 +2086,6 @@ export default function AddFundsPage({
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => verifyCryptoPayment(cryptoOrder.transactionId).catch(() => {})}
-                        className="w-full py-2.5 px-6 border border-white/15 text-[11px] font-semibold uppercase tracking-wider text-zinc-200 hover:bg-white/[0.05] transition-all cursor-pointer"
-                      >
-                        I have paid — check now
-                      </button>
                     </div>
 
                     <div className="flex items-center gap-2 text-[10px] leading-relaxed text-zinc-500">
@@ -2147,8 +2132,11 @@ export default function AddFundsPage({
               </div>
             )}
           </div>
+        </div>
 
-          <aside className="space-y-5 lg:sticky lg:top-24">
+        {/* ── READING AREA — the explanation lives BELOW the action ───────── */}
+        <div className="max-w-3xl mx-auto mt-8 space-y-5">
+          <aside className="space-y-5">
             <div className="border border-white/10 bg-[#090909]/90 p-5">
               <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 block mb-1">Funding account</span>
               <div className="flex items-center justify-between gap-4">
@@ -2227,6 +2215,62 @@ export default function AddFundsPage({
               </a>
             </div>
           </aside>
+
+          {/* How it works — the reading material, deliberately below the box
+              so nobody has to scroll a paragraph to reach the payment. */}
+          <div className="border border-white/10 bg-[#090909]/90 p-5 sm:p-6">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-4">
+              How adding funds works
+            </h3>
+            <ol className="grid sm:grid-cols-3 gap-5">
+              <li>
+                <span className="block text-[10px] font-mono text-zinc-600 mb-1.5">01</span>
+                <p className="text-xs font-semibold text-white mb-1.5">Pick a method</p>
+                <p className="text-[11px] leading-relaxed text-zinc-500">
+                  UPI Automatic sends money straight from your UPI app to our
+                  merchant VPA. Crypto opens a hosted checkout page.
+                </p>
+              </li>
+              <li>
+                <span className="block text-[10px] font-mono text-zinc-600 mb-1.5">02</span>
+                <p className="text-xs font-semibold text-white mb-1.5">Enter the amount</p>
+                <p className="text-[11px] leading-relaxed text-zinc-500">
+                  You see exactly what you will pay and exactly what lands in
+                  your wallet before you confirm anything.
+                </p>
+              </li>
+              <li>
+                <span className="block text-[10px] font-mono text-zinc-600 mb-1.5">03</span>
+                <p className="text-xs font-semibold text-white mb-1.5">Pay and wait</p>
+                <p className="text-[11px] leading-relaxed text-zinc-500">
+                  Your wallet is credited automatically the moment the payment
+                  partner confirms the transfer. There is no button to press
+                  and nobody has to approve it by hand.
+                </p>
+              </li>
+            </ol>
+          </div>
+
+          <div className="border border-white/10 bg-[#090909]/90 p-5 sm:p-6">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-300 mb-4">
+              Good to know
+            </h3>
+            <ul className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
+              {[
+                "Your wallet is credited only after the payment partner confirms the money reached us.",
+                "A UPI QR stays valid for 10 minutes. If it expires, create a new one — nothing is lost.",
+                "Crypto invoices are priced in USD and credited in INR at the rate locked when the invoice was created.",
+                "The crypto network fee is paid by you on top of the invoice amount, never out of your wallet credit.",
+                "If you enter the wrong amount, use \u201cWrong amount? Cancel the payment request\u201d and create a fresh one.",
+                "If you pay after cancelling, the money is still credited to you and flagged for a manual check.",
+              ].map((line) => (
+                <li key={line} className="flex items-start gap-2.5 text-[11px] leading-relaxed text-zinc-500">
+                  <Check className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
     </section>

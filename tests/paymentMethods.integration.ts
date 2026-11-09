@@ -282,6 +282,52 @@ async function run() {
     const underpayUser = await db.collection("users").findOne({ _id: underpayUserId });
     assert.equal(Number(underpayUser.balance), 120, "a short payment must not be rounded up");
 
+    // ── 3c-ii. A paid order is never read as unpaid ────────────────────────
+    // The provider words a settled order differently depending on which
+    // endpoint answered. Every known spelling must mean "paid".
+    const famgatewayParser = await import("../server/lib/famgateway.js");
+    const paidShapes = [
+      { status: "success", amount: "10.00", utr: "627636256497" },
+      { status: "paid", amount: "10.00", utr: "627636256497" },
+      { status: "PAID", paid_amount: 10, txn_id: "627636256497" },
+      { paid: true, amount: 10, ref_id: "627636256497" },
+      { payment_status: "paid", payable_amount: "10" },
+      { order_status: "success", amount: 10 },
+      { data: { status: "success", amount: "10.00", transaction_id: "FMPIB1" } },
+    ];
+    for (const shape of paidShapes) {
+      const parsed = famgatewayParser.parseFamGatewayOrderPayload(shape, "fg_shape123456");
+      assert.equal(parsed.status, "success", `a paid order must read as success: ${JSON.stringify(shape)}`);
+    }
+    // The amount and the reference are read no matter which key they use.
+    const amountShapes = [
+      { status: "success", amount: "10.00" },
+      { status: "success", paid_amount: "10.00" },
+      { status: "success", payable_amount: "10.00" },
+    ];
+    for (const shape of amountShapes) {
+      const parsed = famgatewayParser.parseFamGatewayOrderPayload(shape, "fg_shape123456");
+      assert.equal(parsed.amount, 10, `the amount must be read: ${JSON.stringify(shape)}`);
+    }
+    const utrShapes = [
+      { status: "success", amount: "10", utr: "UTR1" },
+      { status: "success", amount: "10", txn_id: "UTR1" },
+      { status: "success", amount: "10", ref_id: "UTR1" },
+    ];
+    for (const shape of utrShapes) {
+      const parsed = famgatewayParser.parseFamGatewayOrderPayload(shape, "fg_shape123456");
+      assert.equal(parsed.utr, "UTR1", `the reference must be read: ${JSON.stringify(shape)}`);
+    }
+    // And an unpaid order still reads as unpaid.
+    assert.equal(
+      famgatewayParser.parseFamGatewayOrderPayload({ status: "pending" }, "fg_shape123456").status,
+      "pending",
+    );
+    assert.equal(
+      famgatewayParser.parseFamGatewayOrderPayload({ status: "expired" }, "fg_shape123456").status,
+      "expired",
+    );
+
     // ── 3d. The FamGateway key is accepted under any known alias ────────────
     const famgatewayLib = await import("../server/lib/famgateway.js");
     const originalKey = process.env.FAMGATEWAY_API_KEY;
