@@ -1390,3 +1390,76 @@ captured ₹10 payments. No money was lost and none was minted.
    (`wallet_ledger.settlement_key`), not by a side table.
 4. Every audit outcome gets its own row so "the provider said pending" and
    "the provider said success" can never be confused.
+
+---
+
+## §15 — Round 6: Telegram notifications that actually arrive
+
+**The report:** "did not get any notification on tg by the bot … we should make changes in the bot running on railway as well, like notification on order placed, money added etc."
+
+### 15.1 What was actually wrong
+
+Three separate faults, all of which had to be true for an alert to vanish:
+
+1. **The sender swallowed the error.** `server/lib/telegram.ts` returned `boolean` and threw the reason away. A failed send reached a Vercel log nobody reads, and the owner was told nothing. `sendTelegramMessageDetailed()` now returns `{ok, error, status}`.
+2. **No retry, no record.** One network blip lost the alert permanently. There was also no way to prove an alert had arrived.
+3. **The bot's owner id decided two different things.** `TELEGRAM_OWNER_ID` gated owner-only commands *and* chose where an alert was delivered. When it is stale, the alert lands in a chat the owner never reads **and** the owner is locked out of the bot — with nothing anywhere saying so.
+
+### 15.2 The Railway bot had not run since 2026-10-07
+
+The bot's only health row (`system_health._id = "imap_settlement_worker"`) had a heartbeat of **2026-10-07T08:18:48Z** — 33 days stale. GitHub deployment records for `TheFinalBtIsHere/SMMUP_BOT` show the last Railway deploy was `fc5cfd0` at `2026-10-07T07:40:44Z`, created by `railway-app[bot]`. Nothing had been pushed to that repository since, so Railway had nothing to deploy.
+
+> **Railway is connected to `TheFinalBtIsHere/SMMUP_BOT`, not `gasprop/SMMUP_BOT`.**
+> `gasprop/SMMUP_BOT` has no Railway deployment records at all. The two repositories carry the same commits under different SHAs; `gasprop/SMMUP_BOT` is a strict superset (no file deletions between them).
+
+### 15.3 What was built
+
+**Website** (`ExamCodesOfficial/SMM-UP`):
+
+| File | Purpose |
+|---|---|
+| `server/lib/ownerNotificationMessages.ts` | The single message renderer. The rendered text is stored on the queue row, so both sides deliver byte-identical messages. |
+| `server/lib/ownerNotifications.ts` | The durable queue: `owner_notification_queue`, unique `dedupe_key`, a claim lease, `deliverOwnerNotificationByKey()`, `drainPendingOwnerNotifications()`. |
+| `server/lib/paymentNotifications.ts` | `notifyMoneyAdded`, `notifyOrderPlaced`, `notifyReviewRequired`, `notifyOrderFailed`, `notifyReviewSubmitted`, `notifyPaymentDelayed`. |
+| `server/lib/telegram.ts` | `sendTelegramMessageDetailed()` — reports what happened. |
+
+**Delivery paths, in order of speed:**
+
+1. **Fast path** — the request that caused the event delivers it immediately, with one in-request retry.
+2. **Bot worker** — polls every 15 s, claims each row with a lease, retries with the error kept on the row.
+3. **Daily cron** — `api/cron/payment-reconcile` drains whatever is still pending.
+4. **Signed internal action** — `notification_drain`, callable from the bot's 5-minute reconciliation sweep.
+
+**Bot** (`gasprop/SMMUP_BOT`, also prepared as `branch/railway-deploy-ready`):
+
+- `src/worker/ownerNotifications.ts` — the delivery worker + heartbeat.
+- `src/commands/notifications.ts` — `/notify`, `/notify send`, `/notify retry`, `/notifyping`.
+- `src/domain/ownerIdentity.ts` — the owner is resolved from the environment **and** the chat id the website publishes to Mongo, so a stale variable can no longer silently misroute an alert or lock the owner out.
+
+### 15.4 Events the owner now receives
+
+| Event | When |
+|---|---|
+| `order_placed` | a customer started a payment (all three rails) |
+| `money_added` | money was credited to a wallet |
+| `review_required` | a payment landed but needs a human look (underpaid, partial) |
+| `order_failed` | an order failed upstream — funds stay debited, manual review needed |
+| `review_submitted` | a buyer left a review |
+| `delay_alert` | a customer has been waiting on the QR screen |
+
+### 15.5 Proof
+
+The website's Telegram credentials were verified live: bot `@SmmPup_bot`, chat `8684160810`, `sendMessage` → HTTP 200 `ok:true`.
+
+Live runs through the **exact functions the payment endpoints call**:
+
+```
+order_placed -> {"queued": true, "sent": true, "attempts": 1, "error": null}
+money_added  -> {"queued": true, "sent": true, "attempts": 1, "error": null}
+```
+
+Final queue state: `pending=0 delivered=5 failed=0 givingUp=0`.
+
+### 15.6 Open
+
+- Railway must be pointed at a repository that contains the notification worker. The work is committed on `gasprop/SMMUP_BOT` `master` (`11e856b`) and on the branch `branch/railway-deploy-ready` (`663ca51`), which sits directly on top of Railway's current `master` (`fc5cfd0`). Pushing that branch to `TheFinalBtIsHere/SMMUP_BOT` needs write access to that repository, which none of the available PATs has.
