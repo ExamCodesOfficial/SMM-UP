@@ -187,7 +187,7 @@ export function oxapayFeePaidByPayer(): 0 | 1 {
 }
 
 export function oxapayUnderPaidCoverage(): number {
-  return Math.round(envNumber("OXAPAY_UNDER_PAID_COVERAGE", 2, 0, 60));
+  return Math.round(envNumber("OXAPAY_UNDER_PAID_COVERAGE", 5, 0, 60));
 }
 
 export function oxapayInvoiceLifetimeMinutes(): number {
@@ -202,7 +202,7 @@ function envBaseline(id: PaymentMethodId): PaymentMethodSettings {
   const common = {
     feePayer: "merchant" as const,
     feePaidByPayer: 1 as 0 | 1,
-    underPaidCoverage: 2,
+    underPaidCoverage: 5,
     invoiceLifetimeMinutes: oxapayInvoiceLifetimeMinutes(),
     orderLifetimeMinutes: famgatewayOrderLifetimeMinutes(),
     presets: INR_PRESETS,
