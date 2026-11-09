@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test", "notification_drain"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -212,6 +212,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         delivered: delivery.delivered,
         deliveryError: delivery.error || null,
       });
+    }
+
+    if (action === "notification_drain") {
+      // The bot's periodic sweep doubles as a notification sweep, so a
+      // notification that failed once is not lost.
+      const { drainPendingOwnerNotifications } = await import(
+        "../../server/lib/ownerNotifications.js"
+      );
+      const summary = await drainPendingOwnerNotifications(50);
+      return res.status(200).json(summary);
     }
 
     if (action === "notification_path_test") {

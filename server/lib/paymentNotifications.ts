@@ -53,9 +53,27 @@ async function queueAndDeliver(
 ): Promise<void> {
   const result = await enqueueOwnerNotification(input);
   if (!result.queued) return;
-  await deliverOwnerNotificationByKey(input.dedupeKey).catch((error: any) =>
-    console.error("[OwnerNotification] immediate delivery error:", error?.message || error),
-  );
+
+  // Two attempts. Telegram occasionally refuses a send for a second or two
+  // (rate limit, a flood wait, a transient network fault), and a retry
+  // inside the same request turns that into a delivered alert instead of a
+  // row left for the next sweep. The claim lease is released on failure,
+  // so the second attempt is not blocked by the first one.
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const delivery = await deliverOwnerNotificationByKey(input.dedupeKey).catch((error: any) => {
+      console.error("[OwnerNotification] immediate delivery error:", error?.message || error);
+      return { delivered: false, skipped: true, error: String(error?.message || error) };
+    });
+    if (delivery.delivered) return;
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1_200));
+    } else {
+      console.error(
+        "[OwnerNotification] delivery failed; the row stays pending for the sweep:",
+        delivery.error || "unknown",
+      );
+    }
+  }
 }
 
 /**

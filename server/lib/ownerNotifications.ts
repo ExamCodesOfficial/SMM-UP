@@ -248,6 +248,59 @@ export async function deliverOwnerNotificationByKey(
 }
 
 /**
+ * Delivers every notification that is still waiting.
+ *
+ * The immediate delivery inside the request that caused the event is the
+ * fast path. This is the slow path: a sweep that picks up whatever did
+ * not make it — because the Telegram API was briefly down, the request
+ * timed out, or the bot that owns the queue was asleep.
+ *
+ * It runs from the reconciliation sweep and from the daily cron, so a
+ * notification cannot sit undelivered for long no matter which component
+ * was down at the time.
+ */
+export async function drainPendingOwnerNotifications(limit = 25): Promise<{
+  delivered: number;
+  failed: number;
+  remaining: number;
+}> {
+  const summary = { delivered: 0, failed: 0, remaining: 0 };
+  let db: any;
+  try {
+    db = await getDb();
+  } catch (error: any) {
+    console.error("[OwnerNotification] drain could not reach the database:", error?.message || error);
+    return summary;
+  }
+
+  const staleClaim = new Date(Date.now() - CLAIM_LEASE_MS);
+  const rows = await db
+    .collection(OWNER_NOTIFICATION_COLLECTION)
+    .find({
+      sent_at: null,
+      $or: [
+        { claimed_at: { $exists: false } },
+        { claimed_at: null },
+        { claimed_at: { $lt: staleClaim } },
+      ],
+    })
+    .sort({ created_at: 1 })
+    .limit(Math.max(1, Math.min(limit, 100)))
+    .toArray();
+
+  for (const row of rows) {
+    const result = await deliverOwnerNotificationByKey(row.dedupe_key);
+    if (result.delivered) summary.delivered += 1;
+    else if (!result.skipped) summary.failed += 1;
+  }
+
+  summary.remaining = await db
+    .collection(OWNER_NOTIFICATION_COLLECTION)
+    .countDocuments({ sent_at: null });
+  return summary;
+}
+
+/**
  * Ensures the queue's indexes exist. Called by the bot before it starts
  * delivering, and by the website on its first write.
  */

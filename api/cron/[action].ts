@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { getDb } from "../../server/lib/db.js";
 import { reconcilePendingDeposits } from "../../server/lib/paymentReconciliation.js";
+import { drainPendingOwnerNotifications } from "../../server/lib/ownerNotifications.js";
 import { checkOrderStatusMulti, normalizeProviderOrderStatus } from "../../server/lib/smm.js";
 
 /**
@@ -128,9 +129,15 @@ async function handlePaymentReconcileCron(req: VercelRequest, res: VercelRespons
       minAgeSeconds: 60,
     });
 
+    // Deliver anything the owner was told about but has not received yet.
+    // The fast path is the request that caused the event; this is the
+    // backstop for a request that died mid-send or a Telegram outage.
+    const notifications = await drainPendingOwnerNotifications(25);
+
     return res.status(200).json({
       famgateway,
       oxapay,
+      notifications,
       reconciled: famgateway.scanned + oxapay.scanned,
       settled: famgateway.settled + oxapay.settled,
     });
