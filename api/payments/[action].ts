@@ -167,6 +167,8 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         memo,
         upiVpa,
         upiUrl,
+        // The customer needs to know when this QR stops working.
+        expiresInSeconds: pendingTtlMinutes * 60,
         message: `Pay exactly ₹${payableAmount.toFixed(2)}. The unique paise safely identifies this deposit if the UPI app removes the payment note.`,
       });
     } catch (err: any) {

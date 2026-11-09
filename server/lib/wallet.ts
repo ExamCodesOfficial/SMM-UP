@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { ensureRazorpayIndexes, getDb, getMongoClient } from "./db.js";
+import { ensurePaymentProviderIndexes, ensureRazorpayIndexes, getDb, getMongoClient } from "./db.js";
 import type { RazorpayMode, RazorpayPayment } from "./razorpay.js";
 
 export class WalletSettlementError extends Error {
@@ -23,6 +23,11 @@ export interface RazorpaySettlementResult {
   testMode: boolean;
 }
 
+/** Shared shape for every hosted provider (Razorpay, FamGateway). */
+export interface ProviderSettlementResult extends RazorpaySettlementResult {
+  provider: string;
+}
+
 interface SettleRazorpayInput {
   internalTransactionId?: string;
   razorpayOrderId?: string;
@@ -34,53 +39,84 @@ interface SettleRazorpayInput {
   eventType?: string;
 }
 
+interface SettleProviderInput {
+  /** "razorpay" | "famgateway" */
+  provider: string;
+  /** Value stored in `transactions.method`. */
+  method: string;
+  internalTransactionId?: string;
+  providerOrderId?: string;
+  /** Field on `transactions` that stores the provider order reference. */
+  providerOrderIdField: string;
+  /**
+   * The provider order reference the deposit row must already carry. Unlike
+   * `providerOrderId` (which is only the optional lookup key) this is always
+   * present and is what the stored row is compared against.
+   */
+  expectedProviderOrderId: string;
+  expectedUserId?: string;
+  expectedAmountPaise: number;
+  expectedCurrency: string;
+  settlementKey: string;
+  environment: string;
+  allowTestWalletCredit: boolean;
+  eventId?: string;
+  eventType?: string;
+  /** Extra fields written onto the transaction row when it is settled. */
+  transactionFields?: Record<string, unknown>;
+  /** Extra fields written onto the wallet ledger row. */
+  ledgerFields?: Record<string, unknown>;
+  /** Additional filter the transaction update must still satisfy. */
+  bindingFilter?: Record<string, unknown>;
+  /** Filter identifying an already-settled row after a unique-key race. */
+  settledMatchFilter?: Record<string, unknown>;
+  /** Message used when the provider currency is not INR. */
+  currencyMismatchMessage?: string;
+}
+
 function objectId(value: string, label: string): ObjectId {
   if (!ObjectId.isValid(value)) throw new WalletSettlementError(`Invalid ${label}.`, 400);
   return new ObjectId(value);
 }
 
 /**
- * Credits one exact Razorpay deposit inside one MongoDB transaction.
- * Browser callbacks, polling and duplicate webhooks all converge here.
+ * Credits one exact hosted-provider deposit inside one MongoDB transaction.
+ *
+ * Browser callbacks, status polling and provider webhooks all converge here.
+ * The provider is never trusted for the amount: the caller must already have
+ * re-read the authoritative provider record before calling this function.
  */
-export async function settleRazorpayDeposit(
-  input: SettleRazorpayInput,
-): Promise<RazorpaySettlementResult> {
-  if (!input.internalTransactionId && !input.razorpayOrderId) {
+export async function settleProviderDeposit(input: SettleProviderInput): Promise<ProviderSettlementResult> {
+  if (!input.internalTransactionId && !input.providerOrderId) {
     throw new WalletSettlementError("A deposit identifier is required.", 400);
   }
-  if (input.payment.status !== "captured" || input.payment.captured !== true) {
-    throw new WalletSettlementError("Payment has not been captured yet.", 409);
-  }
-  if (Number(input.payment.amount_refunded || 0) > 0 || input.payment.refund_status) {
-    throw new WalletSettlementError("Refunded Razorpay payments require manual reconciliation.", 409);
-  }
 
-  await ensureRazorpayIndexes();
+  await ensurePaymentProviderIndexes();
   const db = await getDb();
   const client = await getMongoClient();
   const session = client.startSession();
-  let result: RazorpaySettlementResult | null = null;
+  let result: ProviderSettlementResult | null = null;
   let duplicateKeyError: any = null;
 
   try {
     await session.withTransaction(async () => {
       if (input.eventId) {
         const duplicate = await db.collection("payment_events").findOne(
-          { provider: "razorpay", event_id: input.eventId },
+          { provider: input.provider, event_id: input.eventId },
           { session },
         );
         if (duplicate) {
           const duplicateTx = await db.collection("transactions").findOne(
             input.internalTransactionId
               ? { _id: objectId(input.internalTransactionId, "transaction ID") }
-              : { razorpay_order_id: input.razorpayOrderId },
+              : { [input.providerOrderIdField]: input.providerOrderId },
             { session },
           );
           const duplicateUser = duplicateTx?.user_id
             ? await db.collection("users").findOne({ _id: duplicateTx.user_id }, { session })
             : null;
           result = {
+            provider: input.provider,
             transactionId: duplicateTx?._id?.toString() || "",
             userId: duplicateTx?.user_id?.toString() || "",
             amount: Number(duplicateTx?.amount || 0),
@@ -88,7 +124,7 @@ export async function settleRazorpayDeposit(
             walletCredited: duplicateTx?.wallet_credited !== false,
             alreadySettled: true,
             duplicateEvent: true,
-            testMode: input.mode === "test",
+            testMode: input.environment === "test" || input.environment === "sandbox",
           };
           return;
         }
@@ -96,42 +132,42 @@ export async function settleRazorpayDeposit(
 
       const txQuery = input.internalTransactionId
         ? { _id: objectId(input.internalTransactionId, "transaction ID") }
-        : { razorpay_order_id: input.razorpayOrderId };
+        : { [input.providerOrderIdField]: input.providerOrderId };
       const tx = await db.collection("transactions").findOne(txQuery, { session });
-      if (!tx) throw new WalletSettlementError("Razorpay deposit was not found.", 404);
+      if (!tx) throw new WalletSettlementError("Deposit was not found.", 404);
 
       const txUserId = tx.user_id as ObjectId;
       if (input.expectedUserId && txUserId.toString() !== input.expectedUserId) {
         throw new WalletSettlementError("This deposit belongs to another account.", 403);
       }
-      if (tx.method !== "RAZORPAY" || tx.razorpay_order_id !== input.payment.order_id) {
-        throw new WalletSettlementError("Razorpay order binding does not match.", 400);
+      if (tx.method !== input.method || tx[input.providerOrderIdField] !== input.expectedProviderOrderId) {
+        throw new WalletSettlementError("Payment order binding does not match.", 400);
       }
-      if (tx.environment !== input.mode) {
-        throw new WalletSettlementError("Razorpay payment environment does not match this deposit.", 409);
+      if (tx.environment !== input.environment) {
+        throw new WalletSettlementError("Payment environment does not match this deposit.", 409);
       }
-      if (Number(tx.amount_paise) !== input.payment.amount || tx.currency !== input.payment.currency) {
-        throw new WalletSettlementError("Razorpay payment amount or currency does not match.", 400);
+      if (Number(tx.amount_paise) !== input.expectedAmountPaise || tx.currency !== input.expectedCurrency) {
+        throw new WalletSettlementError("Payment amount or currency does not match.", 400);
       }
-      if (input.payment.currency !== "INR") {
-        throw new WalletSettlementError("Only INR wallet deposits are supported.", 400);
+      if (input.expectedCurrency !== "INR") {
+        throw new WalletSettlementError(
+          input.currencyMismatchMessage || "Only INR wallet deposits are supported.",
+          400,
+        );
       }
 
-      const shouldCreditWallet = input.mode === "live" || input.allowTestWalletCredit;
+      const shouldCreditWallet = input.environment !== "test" && input.environment !== "sandbox"
+        ? true
+        : input.allowTestWalletCredit;
       const finalStatus = shouldCreditWallet ? "paid" : "test_paid";
 
       if (tx.status === "paid" || tx.status === "test_paid") {
-        if (tx.razorpay_payment_id && tx.razorpay_payment_id !== input.payment.id) {
-          throw new WalletSettlementError("Deposit is already bound to another payment.", 409);
-        }
         if (input.eventId) {
           await db.collection("payment_events").insertOne(
             {
-              provider: "razorpay",
+              provider: input.provider,
               event_id: input.eventId,
-              event_type: input.eventType || "payment.captured",
-              razorpay_order_id: input.payment.order_id,
-              razorpay_payment_id: input.payment.id,
+              event_type: input.eventType || "payment.settled",
               transaction_id: tx._id,
               status: "already_settled",
               received_at: new Date(),
@@ -141,6 +177,7 @@ export async function settleRazorpayDeposit(
         }
         const currentUser = await db.collection("users").findOne({ _id: txUserId }, { session });
         result = {
+          provider: input.provider,
           transactionId: tx._id.toString(),
           userId: txUserId.toString(),
           amount: Number(tx.amount),
@@ -148,22 +185,24 @@ export async function settleRazorpayDeposit(
           walletCredited: tx.wallet_credited !== false,
           alreadySettled: true,
           duplicateEvent: false,
-          testMode: input.mode === "test",
+          testMode: input.environment === "test" || input.environment === "sandbox",
         };
         return;
       }
 
-      if (!["pending", "processing", "authorized"].includes(String(tx.status))) {
+      // A cancelled request is still settleable: the customer may have paid it
+      // just before cancelling. Real money is never silently dropped — the
+      // caller flags it for owner review instead.
+      if (!["pending", "processing", "authorized", "cancelled"].includes(String(tx.status))) {
         throw new WalletSettlementError("This deposit cannot be settled in its current state.", 409);
       }
 
-      const settlementKey = `razorpay:${input.payment.id}`;
       await db.collection("wallet_ledger").insertOne(
         {
-          settlement_key: settlementKey,
+          settlement_key: input.settlementKey,
           type: shouldCreditWallet ? "deposit_credit" : "test_deposit",
-          provider: "razorpay",
-          environment: input.mode,
+          provider: input.provider,
+          environment: input.environment,
           transaction_id: tx._id,
           user_id: txUserId,
           amount: shouldCreditWallet ? Number(tx.amount) : 0,
@@ -172,8 +211,7 @@ export async function settleRazorpayDeposit(
           source_amount_paise: Number(tx.amount_paise),
           currency: "INR",
           spendable: shouldCreditWallet,
-          razorpay_order_id: input.payment.order_id,
-          razorpay_payment_id: input.payment.id,
+          ...(input.ledgerFields || {}),
           created_at: new Date(),
         },
         { session },
@@ -183,21 +221,15 @@ export async function settleRazorpayDeposit(
         {
           _id: tx._id,
           status: { $in: ["pending", "processing", "authorized"] },
-          $or: [
-            { razorpay_payment_id: { $exists: false } },
-            { razorpay_payment_id: input.payment.id },
-          ],
+          ...(input.bindingFilter || {}),
         },
         {
           $set: {
             status: finalStatus,
             wallet_credited: shouldCreditWallet,
-            razorpay_payment_id: input.payment.id,
-            razorpay_method: input.payment.method || "unknown",
-            razorpay_fee_paise: input.payment.fee ?? null,
-            razorpay_tax_paise: input.payment.tax ?? null,
             paid_at: new Date(),
             updated_at: new Date(),
+            ...(input.transactionFields || {}),
           },
         },
         { session },
@@ -226,11 +258,9 @@ export async function settleRazorpayDeposit(
       if (input.eventId) {
         await db.collection("payment_events").insertOne(
           {
-            provider: "razorpay",
+            provider: input.provider,
             event_id: input.eventId,
-            event_type: input.eventType || "payment.captured",
-            razorpay_order_id: input.payment.order_id,
-            razorpay_payment_id: input.payment.id,
+            event_type: input.eventType || "payment.settled",
             transaction_id: tx._id,
             status: finalStatus,
             received_at: new Date(),
@@ -240,6 +270,7 @@ export async function settleRazorpayDeposit(
       }
 
       result = {
+        provider: input.provider,
         transactionId: tx._id.toString(),
         userId: txUserId.toString(),
         amount: Number(tx.amount),
@@ -247,7 +278,7 @@ export async function settleRazorpayDeposit(
         walletCredited: shouldCreditWallet,
         alreadySettled: false,
         duplicateEvent: false,
-        testMode: input.mode === "test",
+        testMode: input.environment === "test" || input.environment === "sandbox",
       };
     });
   } catch (error: any) {
@@ -263,13 +294,14 @@ export async function settleRazorpayDeposit(
     const tx = await db.collection("transactions").findOne({
       ...(input.internalTransactionId
         ? { _id: objectId(input.internalTransactionId, "transaction ID") }
-        : { razorpay_order_id: input.razorpayOrderId }),
-      razorpay_payment_id: input.payment.id,
+        : { [input.providerOrderIdField]: input.providerOrderId }),
+      ...(input.settledMatchFilter || {}),
       status: { $in: ["paid", "test_paid"] },
     });
     if (tx) {
       const user = await db.collection("users").findOne({ _id: tx.user_id });
       return {
+        provider: input.provider,
         transactionId: tx._id.toString(),
         userId: tx.user_id.toString(),
         amount: Number(tx.amount),
@@ -277,7 +309,7 @@ export async function settleRazorpayDeposit(
         walletCredited: tx.wallet_credited !== false,
         alreadySettled: true,
         duplicateEvent: Boolean(input.eventId),
-        testMode: input.mode === "test",
+        testMode: input.environment === "test" || input.environment === "sandbox",
       };
     }
     throw duplicateKeyError;
@@ -287,23 +319,136 @@ export async function settleRazorpayDeposit(
   return result;
 }
 
-export async function recordRazorpayEvent(input: {
+/**
+ * Credits one exact Razorpay deposit inside one MongoDB transaction.
+ * Browser callbacks, polling and duplicate webhooks all converge here.
+ */
+export async function settleRazorpayDeposit(
+  input: SettleRazorpayInput,
+): Promise<RazorpaySettlementResult> {
+  if (input.payment.status !== "captured" || input.payment.captured !== true) {
+    throw new WalletSettlementError("Payment has not been captured yet.", 409);
+  }
+  if (Number(input.payment.amount_refunded || 0) > 0 || input.payment.refund_status) {
+    throw new WalletSettlementError("Refunded Razorpay payments require manual reconciliation.", 409);
+  }
+
+  await ensureRazorpayIndexes();
+
+  const result = await settleProviderDeposit({
+    provider: "razorpay",
+    method: "RAZORPAY",
+    internalTransactionId: input.internalTransactionId,
+    providerOrderId: input.razorpayOrderId,
+    providerOrderIdField: "razorpay_order_id",
+    expectedProviderOrderId: input.payment.order_id,
+    expectedUserId: input.expectedUserId,
+    expectedAmountPaise: input.payment.amount,
+    expectedCurrency: input.payment.currency,
+    settlementKey: `razorpay:${input.payment.id}`,
+    environment: input.mode,
+    allowTestWalletCredit: input.allowTestWalletCredit,
+    eventId: input.eventId,
+    eventType: input.eventType,
+    transactionFields: {
+      razorpay_payment_id: input.payment.id,
+      razorpay_method: input.payment.method || "unknown",
+      razorpay_fee_paise: input.payment.fee ?? null,
+      razorpay_tax_paise: input.payment.tax ?? null,
+    },
+    ledgerFields: {
+      razorpay_order_id: input.payment.order_id,
+      razorpay_payment_id: input.payment.id,
+    },
+    bindingFilter: {
+      $or: [
+        { razorpay_payment_id: { $exists: false } },
+        { razorpay_payment_id: input.payment.id },
+      ],
+    },
+    settledMatchFilter: { razorpay_payment_id: input.payment.id },
+    currencyMismatchMessage: "Only INR wallet deposits are supported.",
+  });
+
+  return {
+    transactionId: result.transactionId,
+    userId: result.userId,
+    amount: result.amount,
+    newBalance: result.newBalance,
+    walletCredited: result.walletCredited,
+    alreadySettled: result.alreadySettled,
+    duplicateEvent: result.duplicateEvent,
+    testMode: result.testMode,
+  };
+}
+
+/**
+ * Credits one exact FamGateway (UPI Automatic) deposit inside one MongoDB
+ * transaction. The webhook, the browser status poll and the reconciliation
+ * sweep all converge here, so a provider can never credit a wallet twice.
+ */
+export async function settleFamGatewayDeposit(input: {
+  internalTransactionId?: string;
+  famgatewayOrderId: string;
+  expectedUserId?: string;
+  /** Amount in paise the customer was quoted and must have paid. */
+  expectedAmountPaise: number;
+  utr?: string | null;
+  transactionId?: string | null;
+  senderName?: string | null;
+  eventId?: string;
+  eventType?: string;
+}): Promise<ProviderSettlementResult> {
+  return settleProviderDeposit({
+    provider: "famgateway",
+    method: "FAMGATEWAY_UPI",
+    internalTransactionId: input.internalTransactionId,
+    providerOrderId: input.famgatewayOrderId,
+    providerOrderIdField: "famgateway_order_id",
+    expectedProviderOrderId: input.famgatewayOrderId,
+    expectedUserId: input.expectedUserId,
+    expectedAmountPaise: input.expectedAmountPaise,
+    expectedCurrency: "INR",
+    settlementKey: `famgateway:${input.famgatewayOrderId}`,
+    environment: "live",
+    allowTestWalletCredit: false,
+    eventId: input.eventId,
+    eventType: input.eventType,
+    transactionFields: {
+      famgateway_utr: input.utr || null,
+      famgateway_transaction_id: input.transactionId || null,
+      famgateway_sender_name: input.senderName || null,
+      famgateway_settled_by: "famgateway_webhook",
+    },
+    ledgerFields: {
+      famgateway_order_id: input.famgatewayOrderId,
+      famgateway_utr: input.utr || null,
+      famgateway_transaction_id: input.transactionId || null,
+    },
+    settledMatchFilter: { famgateway_order_id: input.famgatewayOrderId },
+    currencyMismatchMessage: "Only INR wallet deposits are supported.",
+  });
+}
+
+export async function recordProviderEvent(input: {
+  provider: string;
   eventId: string;
   eventType: string;
-  payment?: Partial<RazorpayPayment>;
+  providerOrderId?: string | null;
+  providerPaymentId?: string | null;
   payload?: Record<string, unknown>;
 }): Promise<{ duplicate: boolean }> {
-  await ensureRazorpayIndexes();
+  await ensurePaymentProviderIndexes();
   const db = await getDb();
   try {
     await db.collection("payment_events").insertOne({
-      provider: "razorpay",
+      provider: input.provider,
       event_id: input.eventId,
       event_type: input.eventType,
-      razorpay_order_id: input.payment?.order_id || null,
-      razorpay_payment_id: input.payment?.id || null,
+      provider_order_id: input.providerOrderId ?? null,
+      provider_payment_id: input.providerPaymentId ?? null,
       status: "recorded",
-      payload_summary: input.payload || null,
+      payload_summary: input.payload ?? null,
       received_at: new Date(),
     });
     return { duplicate: false };
@@ -311,6 +456,23 @@ export async function recordRazorpayEvent(input: {
     if (error?.code === 11000) return { duplicate: true };
     throw error;
   }
+}
+
+export async function recordRazorpayEvent(input: {
+  eventId: string;
+  eventType: string;
+  payment?: Partial<RazorpayPayment>;
+  payload?: Record<string, unknown>;
+}): Promise<{ duplicate: boolean }> {
+  await ensureRazorpayIndexes();
+  return recordProviderEvent({
+    provider: "razorpay",
+    eventId: input.eventId,
+    eventType: input.eventType,
+    providerOrderId: input.payment?.order_id || null,
+    providerPaymentId: input.payment?.id || null,
+    payload: input.payload,
+  });
 }
 
 /** Refunds and disputes are fail-closed: stop new ordering and require review. */

@@ -39,6 +39,75 @@ let directUpiIndexesPromise: Promise<void> | null = null;
 let razorpayIndexesPromise: Promise<void> | null = null;
 let apiKeyIndexesPromise: Promise<void> | null = null;
 let sessionIndexesPromise: Promise<void> | null = null;
+let paymentProviderIndexesPromise: Promise<void> | null = null;
+
+/**
+ * Financial uniqueness indexes for the hosted payment providers (FamGateway,
+ * OxaPay) plus the shared wallet/event keys every provider relies on.
+ * Awaited by provider writes — a missing index means the write fails closed.
+ */
+export async function ensurePaymentProviderIndexes(): Promise<void> {
+  if (!paymentProviderIndexesPromise) {
+    paymentProviderIndexesPromise = clientConnection().then(async (client) => {
+      const db = client.db(dbName);
+      await Promise.all([
+        // One FamGateway order maps to exactly one SMM UP transaction.
+        // The name and filter MUST match the admin bot's definition exactly:
+        // MongoDB rejects two indexes over the same key with different names.
+        db.collection("transactions").createIndex(
+          { famgateway_order_id: 1 },
+          {
+            name: "transactions_famgateway_order_id_unique",
+            unique: true,
+            partialFilterExpression: { famgateway_order_id: { $type: "string" } },
+          },
+        ),
+        // One OxaPay invoice maps to exactly one SMM UP transaction.
+        db.collection("transactions").createIndex(
+          { oxapay_track_id: 1 },
+          {
+            name: "transactions_oxapay_track_id_unique",
+            unique: true,
+            partialFilterExpression: { oxapay_track_id: { $type: "string" } },
+          },
+        ),
+        // Per-chain idempotency: a tx_hash can never credit twice.
+        db.collection("crypto_payment_txs").createIndex({ track_id: 1, created_at: -1 }),
+        // Shared settlement/event keys — provider agnostic by design.
+        db.collection("wallet_ledger").createIndex(
+          { settlement_key: 1 },
+          {
+            unique: true,
+            partialFilterExpression: { settlement_key: { $type: "string" } },
+          },
+        ),
+        db.collection("payment_events").createIndex(
+          { provider: 1, event_id: 1 },
+          { unique: true },
+        ),
+        // Bot -> website internal channel replay protection.
+        db.collection("internal_request_nonces").createIndex(
+          { nonce: 1 },
+          { unique: true },
+        ),
+        db.collection("internal_request_nonces").createIndex(
+          { expires_at: 1 },
+          { expireAfterSeconds: 0 },
+        ),
+        // Owner control-panel state (single singleton document).
+        db.collection("payment_method_config").createIndex(
+          { updated_at: -1 },
+          { name: "payment_method_config_updated_at" },
+        ),
+      ]);
+    }).catch((error) => {
+      // Allow a later cold/warm request to retry after a transient database error.
+      paymentProviderIndexesPromise = null;
+      throw error;
+    });
+  }
+  return paymentProviderIndexesPromise;
+}
 
 /** Financial uniqueness indexes are awaited by Razorpay writes (fail closed). */
 export async function ensureRazorpayIndexes(): Promise<void> {

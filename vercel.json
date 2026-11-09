@@ -2,12 +2,34 @@
   "functions": {
     "api/payments/*.ts": {
       "maxDuration": 30
+    },
+    "api/famgateway/*.ts": {
+      "maxDuration": 30
+    },
+    "api/oxapay/*.ts": {
+      "maxDuration": 30
+    },
+    "api/famgateway-webhook.ts": {
+      "maxDuration": 30
+    },
+    "api/oxapay-webhook.ts": {
+      "maxDuration": 30
+    },
+    "api/internal/*.ts": {
+      "maxDuration": 30
+    },
+    "api/cron/*.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
     {
       "path": "/api/cron/status-sync",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/payment-reconcile",
+      "schedule": "*/30 * * * *"
     }
   ],
   "redirects": [
