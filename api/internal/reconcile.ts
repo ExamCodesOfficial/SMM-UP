@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test", "notification_drain", "bot_inventory"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test", "notification_drain", "bot_inventory", "bot_activity"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -212,6 +212,61 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         delivered: delivery.delivered,
         deliveryError: delivery.error || null,
       });
+    }
+
+    if (action === "bot_activity") {
+      // When did the Telegram bot last touch this database?
+      //
+      // The bot writes a heartbeat every 20 seconds, so a stale heartbeat is
+      // proof the bot is not running against this cluster. Each collection
+      // it writes is checked for its newest document, which shows whether
+      // ANY part of the bot is alive here — even if the worker is disabled.
+      const WATCHED = [
+        "system_health",
+        "worker_leases",
+        "payment_reconciliation",
+        "payment_method_config",
+        "admin_audit",
+        "admin_notes",
+        "admin_pending_actions",
+        "temporary_passwords",
+        "support_access_codes",
+        "wallet_ledger",
+        "transactions",
+        "reviews",
+        "owner_notification_queue",
+      ];
+      const now = Date.now();
+      const activity: any[] = [];
+      for (const name of WATCHED) {
+        const newest = await db
+          .collection(name)
+          .find({})
+          .sort({ _id: -1 })
+          .limit(1)
+          .toArray()
+          .catch(() => []);
+        const row: any = newest[0];
+        if (!row) {
+          activity.push({ collection: name, rows: 0, newestId: null, ageSeconds: null });
+          continue;
+        }
+        // An ObjectId's first 4 bytes are its creation timestamp.
+        const idTime = typeof row._id === "object" && row._id?.getTimestamp
+          ? row._id.getTimestamp().getTime()
+          : null;
+        const explicit = row.updated_at || row.created_at || row.at || row.timestamp || row.heartbeat_at || null;
+        const stamp = explicit ? new Date(explicit).getTime() : idTime;
+        activity.push({
+          collection: name,
+          rows: await db.collection(name).countDocuments({}),
+          newestId: String(row._id),
+          ageSeconds: stamp ? Math.round((now - stamp) / 1000) : null,
+          newestWhen: stamp ? new Date(stamp).toISOString() : null,
+        });
+      }
+      activity.sort((a, b) => (b.ageSeconds ?? 1e12) - (a.ageSeconds ?? 1e12));
+      return res.status(200).json({ activity });
     }
 
     if (action === "bot_inventory") {
