@@ -1278,3 +1278,115 @@ The page was a wall of text around a small payment box. Now:
 | 3 | `dpl_85jPCuf4oViyxGBMfTu5isfMzUoB` | `2fa408c` | READY / PROMOTED |
 
 All three carry the alias `smmup.co.in` + `www.smmup.co.in`.
+
+---
+
+## §14 — Round 5: the audit-log collision that stranded real money
+
+**Trigger.** The user supplied the FamGateway transaction email: two UPI
+payments of ₹10 were **CAPTURED** on the provider (UTR `617819355801`,
+UTR `220110181495`) but the wallet on smmup.co.in never moved.
+
+### 14.1 What the audit actually showed
+
+| Order | Provider | Our row | Wallet credited |
+|---|---|---|---|
+| `fg_RIEKOWTK` | `success`, ₹10, UTR 617819355801 | `expired` | **false** |
+| `fg_7BL5QS7L` | `success`, ₹10, UTR 220110181495 | `pending` | **false** |
+
+Both rows were still `pending`/`expired` **with `wallet_credited: false`**,
+`paid_amount: null` and no UTR — i.e. the money never moved on our side even
+though the provider had captured it.
+
+### 14.2 Root cause #1 (fixed in `09ab8f2`)
+
+The provider answers a settled order as
+
+```json
+{"status":"success","data":{"order_id":…,"utr":…,"amount":"10.00",…}}
+```
+
+— **status at the TOP level**, details inside `data`. The old parser read
+`data.status` ⇒ `undefined` ⇒ every paid order was classified `PENDING`
+forever. `parseFamGatewayOrderPayload()` now reads the top-level `status`
+as well as `data.status`, and understands `paid`/`PAID`/`paid:true`/
+`payment_status`/`order_status`, plus amount and UTR aliases.
+
+### 14.3 Root cause #2 — the one that actually stranded the money (`2ec3f90`)
+
+`settleProviderDeposit()` guarded against double-crediting by looking for a
+row in `payment_events` keyed on the caller's `eventId`:
+
+```ts
+const duplicate = await db.collection("payment_events")
+  .findOne({ provider: input.provider, event_id: input.eventId });
+if (duplicate) { /* "already settled" — return WITHOUT crediting */ }
+```
+
+The **provider webhook** also writes `payment_events` rows — but as an
+**audit trail**, and it used the **bare order id** as the event id:
+
+```ts
+await recordProviderEvent({ provider:"famgateway", eventId: orderId, … });
+```
+
+So the failure chain was:
+
+1. The provider's webhook arrives while the order is still `pending` →
+   our code writes an **audit row** `payment_events{event_id:"fg_RIEKOWTK"}`.
+2. The provider **retries the webhook** (docs: 5 / 10 / 15 minutes) once the
+   order flips to `success`.
+3. The retry reaches `settleProviderDeposit()` → the guard finds the **audit
+   row** → concludes *"already settled"* → **returns without crediting**.
+4. The order stays `pending`/`expired`, the wallet never moves, and the
+   reconciliation sweep reports it as `already_settled` — a status that is
+   not counted in the summary, so the loss was invisible.
+
+**The fix:**
+
+- the settlement guard now keys on the **settlement key**
+  (`famgateway:<order id>` / `oxapay:<track id>` / `razorpay:<payment id>`),
+  which **only a real settlement ever writes**;
+- a duplicate row may only short-circuit the settlement when the
+  transaction really is `paid`/`test_paid` — a stale audit row can never
+  strand money;
+- the settlement event row is written as an **upsert**, so it can never
+  throw a duplicate-key error that would roll back a legitimate credit;
+- provider **audit** rows are namespaced per outcome
+  (`audit:<order id>:not_paid`, `:orphan`, `:binding_mismatch`,
+  `:amount_adjusted`) and can no longer collide with a settlement row.
+
+**Regression test** (`tests/paymentMethods.integration.ts`, section 3g)
+reproduces the exact production failure: it inserts a `payment.pending`
+audit row keyed on the bare order id and then settles the order. It **fails
+on the old code** (`false !== true` — the money was dropped) and **passes on
+the new code**.
+
+### 14.4 Recovery of the two stranded payments
+
+After deploying `2ec3f90` (`dpl_7CupvbMbg3DL9pyKWxuYHx62aqLJ`, READY,
+alias `smmup.co.in`), the signed reconciliation sweep returned:
+
+```
+famgateway: { reconciled: 7, settled: 2, expired: 5, review: 0, stillPending: 0, errors: 0 }
+```
+
+and `payment_lookup` confirms both orders are now settled:
+
+| Order | status | walletCredited | credited | paid | UTR | settledBy |
+|---|---|---|---|---|---|---|
+| `fg_RIEKOWTK` | `paid` | **true** | ₹10 | ₹10 | `617819355801` | `famgateway_webhook` |
+| `fg_7BL5QS7L` | `paid` | **true** | ₹10 | ₹10 | `220110181495` | `famgateway_webhook` |
+
+**Wallet balance: ₹39175.04 → ₹39195.04 (+₹20)** — exactly the two
+captured ₹10 payments. No money was lost and none was minted.
+
+### 14.5 Lessons encoded in the code
+
+1. **An audit log is not a settlement ledger.** They must never share a key.
+2. **A guard may only skip work when the *state* says it is done** — never
+   merely because a row exists.
+3. **Idempotency must be enforced by a unique key on the money movement**
+   (`wallet_ledger.settlement_key`), not by a side table.
+4. Every audit outcome gets its own row so "the provider said pending" and
+   "the provider said success" can never be confused.
