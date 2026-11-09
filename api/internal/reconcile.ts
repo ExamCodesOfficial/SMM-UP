@@ -221,49 +221,49 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // "smm_up_db", and it can point at a different Mongo cluster entirely.
       // A bot that is alive but writing somewhere else looks exactly like a
       // bot that is dead, so every database in the cluster is inspected.
-      const { MongoClient } = await import("mongodb");
-      const uri = String(process.env.MONGODB_URI || "");
-      if (!uri) return res.status(500).json({ error: "MONGODB_URI is not set." });
-
-      const client = new MongoClient(uri, { serverSelectionTimeoutMS: 15000 });
+      // The shared client is reused: opening a second one costs a whole
+      // connection handshake, and this endpoint has a request deadline.
+      const { getMongoClient } = await import("../../server/lib/db.js");
+      const client = await getMongoClient();
       const findings: any[] = [];
-      try {
-        await client.connect();
-        const admin = client.db().admin();
-        const { databases } = await admin.listDatabases();
-        for (const entry of databases) {
-          const name = entry.name;
-          if (["admin", "local", "config"].includes(name)) continue;
-          const target = client.db(name);
-          const health = await target.collection("system_health").find({}).toArray().catch(() => []);
-          const leases = await target.collection("worker_leases").find({}).toArray().catch(() => []);
-          const queue = await target
-            .collection("owner_notification_queue")
-            .countDocuments({})
-            .catch(() => 0);
-          const paymentEvents = await target.collection("payment_events").countDocuments({}).catch(() => 0);
-          findings.push({
-            database: name,
-            sizeBytes: entry.sizeOnDisk || 0,
-            systemHealth: health.map((row: any) => ({
-              id: row._id,
-              status: row.status || null,
-              heartbeatAt: row.heartbeat_at || null,
-              lastSuccessAt: row.last_success_at || null,
-              holder: row.holder || null,
-            })),
-            workerLeases: leases.map((row: any) => ({
-              id: row._id,
-              holder: row.holder || null,
-              heartbeatAt: row.heartbeat_at || null,
-              leaseUntil: row.lease_until || null,
-            })),
-            ownerNotificationRows: queue,
-            paymentEventRows: paymentEvents,
-          });
-        }
-      } finally {
-        await client.close().catch(() => {});
+      const { databases } = await client.db().admin().listDatabases({ nameOnly: true });
+      for (const entry of databases) {
+        const name = entry.name;
+        if (["admin", "local", "config"].includes(name)) continue;
+        const target = client.db(name);
+        const health = await target
+          .collection("system_health")
+          .find({}, { projection: { status: 1, heartbeat_at: 1, last_success_at: 1, holder: 1 } })
+          .limit(10)
+          .toArray()
+          .catch(() => []);
+        const leases = await target
+          .collection("worker_leases")
+          .find({}, { projection: { holder: 1, heartbeat_at: 1, lease_until: 1 } })
+          .limit(10)
+          .toArray()
+          .catch(() => []);
+        const queue = await target
+          .collection("owner_notification_queue")
+          .countDocuments({}, { limit: 1 })
+          .catch(() => 0);
+        findings.push({
+          database: name,
+          systemHealth: health.map((row: any) => ({
+            id: row._id,
+            status: row.status || null,
+            heartbeatAt: row.heartbeat_at || null,
+            lastSuccessAt: row.last_success_at || null,
+            holder: row.holder || null,
+          })),
+          workerLeases: leases.map((row: any) => ({
+            id: row._id,
+            holder: row.holder || null,
+            heartbeatAt: row.heartbeat_at || null,
+            leaseUntil: row.lease_until || null,
+          })),
+          ownerNotificationRows: queue,
+        });
       }
       return res.status(200).json({ findings });
     }
