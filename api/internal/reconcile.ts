@@ -30,7 +30,7 @@ export const config = {
  *   - fail closed when the secret is missing or too short
  */
 
-const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test", "notification_drain"]);
+const ALLOWED_ACTIONS = new Set(["reconcile_pending", "payment_methods_status", "payment_lookup", "notification_status", "notification_test", "telegram_probe", "notification_path_test", "notification_drain", "bot_inventory"]);
 const TIMESTAMP_WINDOW_SECONDS = 300;
 const MIN_SECRET_LENGTH = 32;
 
@@ -212,6 +212,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         delivered: delivery.delivered,
         deliveryError: delivery.error || null,
       });
+    }
+
+    if (action === "bot_inventory") {
+      // Finds every place the Telegram bot could be writing.
+      //
+      // The bot resolves its database as MONGODB_DB_NAME -> DATABASE_NAME ->
+      // "smm_up_db", and it can point at a different Mongo cluster entirely.
+      // A bot that is alive but writing somewhere else looks exactly like a
+      // bot that is dead, so every database in the cluster is inspected.
+      const { MongoClient } = await import("mongodb");
+      const uri = String(process.env.MONGODB_URI || "");
+      if (!uri) return res.status(500).json({ error: "MONGODB_URI is not set." });
+
+      const client = new MongoClient(uri, { serverSelectionTimeoutMS: 15000 });
+      const findings: any[] = [];
+      try {
+        await client.connect();
+        const admin = client.db().admin();
+        const { databases } = await admin.listDatabases();
+        for (const entry of databases) {
+          const name = entry.name;
+          if (["admin", "local", "config"].includes(name)) continue;
+          const target = client.db(name);
+          const health = await target.collection("system_health").find({}).toArray().catch(() => []);
+          const leases = await target.collection("worker_leases").find({}).toArray().catch(() => []);
+          const queue = await target
+            .collection("owner_notification_queue")
+            .countDocuments({})
+            .catch(() => 0);
+          const paymentEvents = await target.collection("payment_events").countDocuments({}).catch(() => 0);
+          findings.push({
+            database: name,
+            sizeBytes: entry.sizeOnDisk || 0,
+            systemHealth: health.map((row: any) => ({
+              id: row._id,
+              status: row.status || null,
+              heartbeatAt: row.heartbeat_at || null,
+              lastSuccessAt: row.last_success_at || null,
+              holder: row.holder || null,
+            })),
+            workerLeases: leases.map((row: any) => ({
+              id: row._id,
+              holder: row.holder || null,
+              heartbeatAt: row.heartbeat_at || null,
+              leaseUntil: row.lease_until || null,
+            })),
+            ownerNotificationRows: queue,
+            paymentEventRows: paymentEvents,
+          });
+        }
+      } finally {
+        await client.close().catch(() => {});
+      }
+      return res.status(200).json({ findings });
     }
 
     if (action === "notification_drain") {
