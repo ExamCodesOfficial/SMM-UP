@@ -14,7 +14,7 @@ import {
   sanitizeBrandText,
   sanitizeProviderError,
 } from "../../server/lib/smm.js";
-import { sendFailedOrderAlert } from "../../server/lib/telegram.js";
+import { notifyOrderFailed } from "../../server/lib/paymentNotifications.js";
 import { OrderReservationError, reserveWebsiteOrder } from "../../server/lib/orderReservations.js";
 
 function sameOriginIfPresent(req: VercelRequest): boolean {
@@ -171,7 +171,7 @@ async function handleOrdersRequest(req: VercelRequest, res: VercelResponse) {
           throw new Error("Reserved order could not be marked for administrative review.");
         }
 
-        sendFailedOrderAlert({
+        notifyOrderFailed({
           orderId: reservation.orderId.toString(),
           userEmail: authUser.email,
           serviceName: service.name,
@@ -212,7 +212,7 @@ async function handleOrdersRequest(req: VercelRequest, res: VercelResponse) {
               },
             },
           );
-          sendFailedOrderAlert({
+          notifyOrderFailed({
             orderId: reservation.orderId.toString(),
             userEmail: authUser.email,
             serviceName: service.name,

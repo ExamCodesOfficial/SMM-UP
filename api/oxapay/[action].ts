@@ -17,7 +17,7 @@ import {
   isOxaPayTrackId,
 } from "../../server/lib/oxapay.js";
 import { getPaymentMethodSettings, isPaymentMethodEnabled } from "../../server/lib/paymentMethods.js";
-import { sendPaymentSuccessAlert } from "../../server/lib/telegram.js";
+import { notifyMoneyAdded, notifyOrderPlaced, notifyReviewRequired } from "../../server/lib/paymentNotifications.js";
 import { recordProviderEvent } from "../../server/lib/wallet.js";
 import { flagCryptoPaymentForReview, settleCryptoDeposit } from "../../server/lib/cryptoSettlement.js";
 import { reconcileOxaPayTransaction } from "../../server/lib/paymentReconciliation.js";
@@ -477,14 +477,15 @@ async function handleOxaPayRequest(req: VercelRequest, res: VercelResponse) {
       });
 
       if (!result.alreadySettled && result.walletCredited) {
-        sendPaymentSuccessAlert({
+        notifyMoneyAdded({
           userEmail: authUser.email,
           amount: result.amount,
-          method: "Crypto (OxaPay)",
+          method: "OXAPAY_CRYPTO",
+          provider: "oxapay",
+          providerOrderId: tx.oxapay_track_id,
           transactionId: tx.oxapay_track_id,
-          memo: tx.oxapay_track_id,
           newBalance: result.newBalance,
-        }).catch((error) => console.error("OxaPay Telegram log error:", error));
+        }).catch((error) => console.error("OxaPay notify error:", error));
       }
 
       return res.status(200).json({
@@ -664,14 +665,15 @@ async function handleOxaPayWebhook(req: VercelRequest, res: VercelResponse) {
         { _id: new ObjectId(result.userId) },
         { projection: { email: 1 } },
       );
-      sendPaymentSuccessAlert({
+      notifyMoneyAdded({
         userEmail: String(settledUser?.email || tx.user_email || "unknown"),
         amount: result.amount,
-        method: "Crypto (OxaPay)",
+        method: "OXAPAY_CRYPTO",
+        provider: "oxapay",
+        providerOrderId: trackId,
         transactionId: trackId,
-        memo: trackId,
         newBalance: result.newBalance,
-      }).catch((error) => console.error("OxaPay webhook alert error:", error));
+      }).catch((error) => console.error("OxaPay webhook notify error:", error));
     }
 
     return res.status(200).json({ received: true, settled: true, duplicate: result.alreadySettled });

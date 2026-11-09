@@ -3,7 +3,7 @@ import { ObjectId } from "mongodb";
 import { getDb } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
 import { checkRateLimit } from "../../server/lib/rateLimit.js";
-import { sendReviewSubmittedAlert } from "../../server/lib/telegram.js";
+import { notifyReviewSubmitted } from "../../server/lib/paymentNotifications.js";
 
 // ── Data model ─────────────────────────────────────────────────
 // reviews: { user_id?: ObjectId, seed: boolean, username, city?,
@@ -164,12 +164,11 @@ async function handleReviewsRequest(req: VercelRequest, res: VercelResponse) {
 
       const saved = await col.findOne({ user_id: userId, seed: { $ne: true } });
       if (saved) {
-        sendReviewSubmittedAlert({
+        notifyReviewSubmitted({
           reviewId: saved._id.toString(),
           username: u.username,
           rating: r,
           text: t,
-          city: doc.city,
         }).catch(() => {});
       }
       return res.status(200).json({ success: true, message: "Thank you — your review was saved." });

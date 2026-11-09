@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "../../server/lib/http.js";
 import { headerValue, readJsonBody, readRawBody } from "../../server/lib/http.js";
-import { sendPaymentSuccessAlert, sendTelegramMessage } from "../../server/lib/telegram.js";
+import { notifyMoneyAdded, notifyReviewRequired } from "../../server/lib/paymentNotifications.js";
 import { ObjectId } from "mongodb";
 import { ensureRazorpayIndexes, getDb } from "../../server/lib/db.js";
 import { denySupportMutation, getUserFromRequest } from "../../server/lib/auth.js";
@@ -73,14 +73,15 @@ async function sendSuccessLog(
   result: RazorpaySettlementResult,
 ) {
   if (result.alreadySettled || !result.walletCredited) return;
-  sendPaymentSuccessAlert({
+  notifyMoneyAdded({
     userEmail: authEmail,
     amount: result.amount,
-    method: `Razorpay ${payment.method || "Checkout"}`,
+    method: "RAZORPAY",
+    provider: "razorpay",
+    providerOrderId: payment.order_id,
     transactionId: payment.id,
-    memo: payment.order_id,
     newBalance: result.newBalance,
-  }).catch((error) => console.error("Razorpay Telegram log error:", error));
+  }).catch((error) => console.error("Razorpay notify error:", error));
 }
 
 /**
@@ -472,7 +473,14 @@ function notifyPaymentReview(input: {
     `SMM UP transaction: ${input.transactionFound ? "matched" : "not found"}`,
     "Ordering has been held when an account match was found.",
   ].join("\n");
-  sendTelegramMessage(text).catch((error) =>
+  notifyReviewRequired({
+    userEmail: input.transactionFound ? "known" : "unknown",
+    amount: 0,
+    method: "RAZORPAY",
+    provider: "razorpay",
+    providerOrderId: input.paymentId,
+    reviewReason: text,
+  }).catch((error) =>
     console.error("Razorpay review alert error:", error),
   );
 }
@@ -525,14 +533,15 @@ async function handleRazorpayWebhook(req: VercelRequest, res: VercelResponse) {
           { _id: new ObjectId(result.userId) },
           { projection: { email: 1 } },
         );
-        sendPaymentSuccessAlert({
+        notifyMoneyAdded({
           userEmail: String(settledUser?.email || "unknown"),
           amount: result.amount,
-          method: `Razorpay ${authoritativePayment.method || "Checkout"} (webhook)`,
+          method: "RAZORPAY",
+          provider: "razorpay",
+          providerOrderId: authoritativePayment.order_id,
           transactionId: authoritativePayment.id,
-          memo: authoritativePayment.order_id,
           newBalance: result.newBalance,
-        }).catch((notifyError) => console.error("Razorpay webhook alert error:", notifyError));
+        }).catch((notifyError) => console.error("Razorpay webhook notify error:", notifyError));
       }
 
       return res.status(200).json({

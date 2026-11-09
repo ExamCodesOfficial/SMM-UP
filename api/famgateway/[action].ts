@@ -18,7 +18,7 @@ import {
   isPaymentMethodEnabled,
   type PaymentMethodState,
 } from "../../server/lib/paymentMethods.js";
-import { sendPaymentSuccessAlert } from "../../server/lib/telegram.js";
+import { notifyMoneyAdded, notifyOrderPlaced, notifyReviewRequired } from "../../server/lib/paymentNotifications.js";
 import { recordProviderEvent, settleFamGatewayDeposit } from "../../server/lib/wallet.js";
 import { reconcileFamGatewayTransaction } from "../../server/lib/paymentReconciliation.js";
 
@@ -212,6 +212,17 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
           },
         },
       );
+
+      // Tell the owner a customer started a payment. Queued, so it is
+      // retried and never lost.
+      notifyOrderPlaced({
+        userEmail: authUser.email,
+        amount: parsed.amount,
+        method: "FAMGATEWAY_UPI",
+        provider: "famgateway",
+        providerOrderId: order.orderId,
+        transactionId: transactionId.toString(),
+      }).catch((error) => console.error("FamGateway order-placed notify error:", error));
 
       return res.status(200).json({
         success: true,
@@ -441,15 +452,16 @@ async function handleFamGatewayRequest(req: VercelRequest, res: VercelResponse) 
       });
 
       if (!result.alreadySettled && result.walletCredited) {
-        sendPaymentSuccessAlert({
+        notifyMoneyAdded({
           userEmail: authUser.email,
           amount: result.amount,
-          method: "UPI Automatic (FamGateway)",
-          utr: order.utr || undefined,
+          method: "FAMGATEWAY_UPI",
+          provider: "famgateway",
+          providerOrderId: tx.famgateway_order_id,
           transactionId: order.transactionId || tx.famgateway_order_id,
-          memo: tx.famgateway_order_id,
+          utr: order.utr || undefined,
           newBalance: result.newBalance,
-        }).catch((error) => console.error("FamGateway Telegram log error:", error));
+        }).catch((error) => console.error("FamGateway notify error:", error));
       }
 
       return res.status(200).json({
@@ -612,6 +624,16 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
           },
         },
       );
+      notifyReviewRequired({
+        userEmail: String(tx.user_email || "unknown"),
+        amount: result.amount,
+        method: "FAMGATEWAY_UPI",
+        provider: "famgateway",
+        providerOrderId: orderId,
+        utr: order.utr || undefined,
+        reviewReason: `Credited ${creditedPaise} paise of ${expectedAmountPaise} paise requested.`,
+      }).catch((error) => console.error("FamGateway review notify error:", error));
+
       await recordProviderEvent({
         provider: "famgateway",
         eventId: `audit:${orderId}:amount_adjusted`,
@@ -641,15 +663,16 @@ async function handleFamGatewayWebhook(req: VercelRequest, res: VercelResponse) 
         { _id: new ObjectId(result.userId) },
         { projection: { email: 1 } },
       );
-      sendPaymentSuccessAlert({
+      notifyMoneyAdded({
         userEmail: String(settledUser?.email || tx.user_email || "unknown"),
         amount: result.amount,
-        method: "UPI Automatic (FamGateway)",
-        utr: order.utr || undefined,
+        method: "FAMGATEWAY_UPI",
+        provider: "famgateway",
+        providerOrderId: orderId,
         transactionId: order.transactionId || orderId,
-        memo: orderId,
+        utr: order.utr || undefined,
         newBalance: result.newBalance,
-      }).catch((error) => console.error("FamGateway webhook alert error:", error));
+      }).catch((error) => console.error("FamGateway webhook notify error:", error));
     }
 
     return res.status(200).json({

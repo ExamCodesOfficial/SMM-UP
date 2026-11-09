@@ -3,7 +3,7 @@ import { fetchOxaPayPayment, isOxaPayTrackId } from "./oxapay.js";
 import { settleFamGatewayDeposit } from "./wallet.js";
 import { flagCryptoPaymentForReview, settleCryptoDeposit } from "./cryptoSettlement.js";
 import { getDb } from "./db.js";
-import { sendPaymentSuccessAlert } from "./telegram.js";
+import { notifyMoneyAdded } from "./paymentNotifications.js";
 
 /**
  * Provider reconciliation.
@@ -90,15 +90,16 @@ export async function reconcileFamGatewayTransaction(tx: any): Promise<Reconcile
     });
 
     if (!result.alreadySettled && result.walletCredited) {
-      sendPaymentSuccessAlert({
+      notifyMoneyAdded({
         userEmail: String(tx.user_email || "unknown"),
         amount: result.amount,
-        method: "UPI Automatic (FamGateway, reconciled)",
-        utr: order.utr || undefined,
+        method: "FAMGATEWAY_UPI",
+        provider: "famgateway",
+        providerOrderId: orderId,
         transactionId: order.transactionId || orderId,
-        memo: orderId,
+        utr: order.utr || undefined,
         newBalance: result.newBalance,
-      }).catch((error) => console.error("FamGateway reconcile alert error:", error));
+      }).catch((error) => console.error("FamGateway reconcile notify error:", error));
     }
 
     // A difference is worth a note to the owner, but it is not a blocker:
@@ -198,14 +199,15 @@ export async function reconcileOxaPayTransaction(tx: any): Promise<ReconcileResu
     });
 
     if (!result.alreadySettled && result.walletCredited) {
-      sendPaymentSuccessAlert({
+      notifyMoneyAdded({
         userEmail: String(tx.user_email || "unknown"),
         amount: result.amount,
-        method: "Crypto (OxaPay, reconciled)",
+        method: "OXAPAY_CRYPTO",
+        provider: "oxapay",
+        providerOrderId: trackId,
         transactionId: trackId,
-        memo: trackId,
         newBalance: result.newBalance,
-      }).catch((error) => console.error("OxaPay reconcile alert error:", error));
+      }).catch((error) => console.error("OxaPay reconcile notify error:", error));
     }
 
     return {

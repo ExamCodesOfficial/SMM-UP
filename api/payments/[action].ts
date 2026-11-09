@@ -10,7 +10,7 @@ import {
   reserveUniqueDirectUpiAmount,
 } from "../../server/lib/directUpiQuote.js";
 import { searchFamPayPaymentDetailed } from "../../server/lib/imap.js";
-import { sendPaymentSuccessAlert, sendPaymentDelayAlert } from "../../server/lib/telegram.js";
+import { notifyMoneyAdded, notifyPaymentDelayed, notifyOrderPlaced } from "../../server/lib/paymentNotifications.js";
 import { getEnabledPaymentMethods } from "../../server/lib/paymentMethods.js";
 
 /**
@@ -256,6 +256,15 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
       });
       const upiUrl = `upi://pay?${upiQuery.toString()}`;
 
+      notifyOrderPlaced({
+        userEmail: authUser.email,
+        amount: payableAmount,
+        method: "FAMPAY_UPI",
+        provider: "direct_upi",
+        providerOrderId: memo,
+        transactionId,
+      }).catch((error) => console.error("Direct UPI order-placed notify error:", error));
+
       return res.status(200).json({
         success: true,
         transactionId,
@@ -346,7 +355,7 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         );
 
         if (claimedAlert) {
-          const alertSent = await sendPaymentDelayAlert({
+          const alertSent = await notifyPaymentDelayed({
             userEmail: authUser.email,
             amount: tx.amount,
             memo: tx.memo,
@@ -634,13 +643,14 @@ async function handlePaymentsRequest(req: VercelRequest, res: VercelResponse) {
         allowExpiredWithinHours: lateVerificationHours(),
       });
 
-      sendPaymentSuccessAlert({
+      notifyMoneyAdded({
         userEmail: authUser.email,
         amount: parsedPayment.amount,
-        method: "Manual UTR/TxID Submission",
-        utr: finalUtr,
+        method: "FAMPAY_UPI",
+        provider: "direct_upi",
+        providerOrderId: String(settlementDeposit.memo || storedMemo),
         transactionId: finalTxId,
-        memo: receiptMemo || String(settlementDeposit.memo || storedMemo),
+        utr: finalUtr,
         newBalance,
       }).catch((e) => console.error("Telegram log error:", e));
 

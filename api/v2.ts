@@ -19,7 +19,7 @@ import {
   cancelProviderOrder,
   normalizeProviderOrderStatus,
 } from "../server/lib/smm.js";
-import { sendFailedOrderAlert } from "../server/lib/telegram.js";
+import { notifyOrderFailed } from "../server/lib/paymentNotifications.js";
 import { checkRateLimit } from "../server/lib/rateLimit.js";
 import crypto from "crypto";
 import { sanitizeProviderError } from "../server/lib/smm.js";
@@ -305,7 +305,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           // Dispatch alert to Telegram Admin
-          sendFailedOrderAlert({
+          notifyOrderFailed({
             orderId: spendReservation.orderId.toString(),
             userEmail: user.email,
             serviceName: matched.name,
@@ -357,7 +357,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 },
               },
             );
-            sendFailedOrderAlert({
+            notifyOrderFailed({
               orderId: spendReservation.orderId.toString(),
               userEmail: user.email,
               serviceName: matched.name,

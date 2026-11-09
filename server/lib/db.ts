@@ -85,6 +85,20 @@ export async function ensurePaymentProviderIndexes(): Promise<void> {
           { provider: 1, event_id: 1 },
           { unique: true },
         ),
+        // Owner notification queue: one row per event, delivered by the bot.
+        // The name and filter MUST match the admin bot's definition exactly.
+        db.collection("owner_notification_queue").createIndex(
+          { dedupe_key: 1 },
+          { unique: true, name: "owner_notification_queue_dedupe_unique" },
+        ),
+        db.collection("owner_notification_queue").createIndex(
+          { sent_at: 1, created_at: 1 },
+          { name: "owner_notification_queue_pending" },
+        ),
+        db.collection("owner_notification_queue").createIndex(
+          { created_at: -1 },
+          { name: "owner_notification_queue_recent" },
+        ),
         // Bot -> website internal channel replay protection.
         db.collection("internal_request_nonces").createIndex(
           { nonce: 1 },

@@ -22,7 +22,8 @@
     "test:core-indexes": "tsx tests/coreIndexes.integration.ts",
     "test:order-reservations": "tsx tests/orderReservations.integration.ts",
     "test:presets": "tsx tests/presets.integration.ts",
-    "test:search-appearance": "node tests/searchAppearance.mjs"
+    "test:search-appearance": "node tests/searchAppearance.mjs",
+    "test:owner-notifications": "tsx tests/ownerNotifications.integration.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
