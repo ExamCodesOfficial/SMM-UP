@@ -69,6 +69,13 @@ export interface PaymentMethodState extends PaymentMethodSettings {
   id: PaymentMethodId;
   label: string;
   configured: boolean;
+  /**
+   * The raw on/off switch, BEFORE the credential gate. `enabled` is the
+   * effective state a customer sees; `toggleEnabled` is what the owner
+   * actually turned on, so the control panel can say "switched on, but the
+   * provider key is missing" instead of a misleading "off".
+   */
+  toggleEnabled: boolean;
   source: "runtime_config" | "env_default";
   reason: string | null;
 }
@@ -76,7 +83,7 @@ export interface PaymentMethodState extends PaymentMethodSettings {
 /** Public shape consumed by the website deposit UI. */
 export type PaymentMethodDescriptor = Omit<
   PaymentMethodState,
-  "configured" | "source" | "reason" | "feePaidByPayer" | "underPaidCoverage" | "invoiceLifetimeMinutes" | "orderLifetimeMinutes"
+  "configured" | "source" | "reason" | "toggleEnabled" | "feePaidByPayer" | "underPaidCoverage" | "invoiceLifetimeMinutes" | "orderLifetimeMinutes"
 >;
 
 const CONFIG_COLLECTION = "payment_method_config";
@@ -387,6 +394,7 @@ export async function getPaymentMethodStates(db: Db): Promise<PaymentMethodState
       ...settings,
       // The credential gate always wins: a method without credentials is off.
       enabled: settings.enabled && configured,
+      toggleEnabled: settings.enabled,
       configured,
       source,
       reason,
@@ -407,6 +415,7 @@ export async function getEnabledPaymentMethods(db: Db): Promise<PaymentMethodDes
         configured: _configured,
         source: _source,
         reason: _reason,
+        toggleEnabled: _toggleEnabled,
         feePaidByPayer: _feePaidByPayer,
         underPaidCoverage: _underPaidCoverage,
         invoiceLifetimeMinutes: _invoiceLifetimeMinutes,
